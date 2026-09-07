@@ -31,6 +31,9 @@ export type TokenRow = {
   stats: TokenStats;
   tradeCount: number;
   source: "BOT" | "DEV";
+  /** Tokens sent to the dead address (human units); market cap counts the rest. */
+  burnedTokens: number;
+  circulatingTokens: number;
 };
 
 export type TradeRow = {

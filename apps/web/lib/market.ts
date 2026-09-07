@@ -3,6 +3,7 @@ import { db, dbConfigured, Prisma, type Pool } from "@o1bot/db";
 import { buildCandles, computeStats, TIMEFRAMES, type Candle, type Timeframe, type TokenStats } from "@o1bot/market";
 import { env } from "@o1bot/shared";
 import { ipfsToHttp } from "./ipfs";
+import { readBurned } from "./burn";
 import { quoteUsd } from "./quote-usd";
 import type { Creator, GenesisPost, QuoteKind, TokenDetail, TokenRow, TradeRow } from "./types";
 
@@ -29,7 +30,10 @@ function quoteKind(address: string, symbol: string): QuoteKind {
 const toNum = (d: Prisma.Decimal | null | undefined): number | null => (d === null || d === undefined ? null : Number(d.toString()));
 const toHuman = (d: Prisma.Decimal | null | undefined, decimals: number): number => (d ? Number(d.toString()) / 10 ** decimals : 0);
 
-async function statsFor(pool: Pool): Promise<{ stats: TokenStats; tradeCount: number; feesQuoteTotal: number }> {
+type PoolExtra = { stats: TokenStats; tradeCount: number; feesQuoteTotal: number; burnedTokens: number; circulatingTokens: number };
+
+/** `burnedRaw` = tokens at the dead address; market cap is computed on what is left. */
+async function statsFor(pool: Pool, burnedRaw = 0n): Promise<PoolExtra> {
   const since = new Date(Date.now() - DAY_MS);
   const token = pool.token;
   const [last, agg24, before24, first, all] = await Promise.all([
@@ -40,15 +44,18 @@ async function statsFor(pool: Pool): Promise<{ stats: TokenStats; tradeCount: nu
     db().swap.aggregate({ where: { token }, _sum: { feeQuote: true }, _count: { _all: true } }),
   ]);
   const usd = await quoteUsd(pool.quoteAddress, pool.quoteDecimals);
+  const supplyTokens = Number(pool.launchSupply.toString()) / 1e18;
+  const burnedTokens = Math.min(supplyTokens, Number(burnedRaw) / 1e18);
+  const circulatingTokens = supplyTokens - burnedTokens;
   const stats = computeStats({
     lastPrice: last ? toNum(last.priceQuote) : null,
     priceAt24hAgo: before24 ? toNum(before24.priceQuote) : null,
     volume24hQuote: toHuman(agg24._sum.amountQuote, pool.quoteDecimals),
-    supplyTokens: Number(pool.launchSupply.toString()) / 1e18,
+    supplyTokens: circulatingTokens,
     quoteUsd: usd,
     launchPrice: first ? toNum(first.priceQuote) : null,
   });
-  return { stats, tradeCount: all._count._all, feesQuoteTotal: toHuman(all._sum.feeQuote, pool.quoteDecimals) };
+  return { stats, tradeCount: all._count._all, feesQuoteTotal: toHuman(all._sum.feeQuote, pool.quoteDecimals), burnedTokens, circulatingTokens };
 }
 
 function creatorOf(pool: PoolWithLaunch): Creator {
@@ -61,7 +68,7 @@ function postOf(pool: PoolWithLaunch): GenesisPost | null {
   return m ? { tweetId: m.tweetId, text: m.text, postedAt: m.postedAt ? m.postedAt.toISOString() : null } : null;
 }
 
-function toRow(pool: PoolWithLaunch, extra: { stats: TokenStats; tradeCount: number }): TokenRow {
+function toRow(pool: PoolWithLaunch, extra: PoolExtra): TokenRow {
   return {
     token: pool.token,
     name: pool.name,
@@ -78,13 +85,16 @@ function toRow(pool: PoolWithLaunch, extra: { stats: TokenStats; tradeCount: num
     stats: extra.stats,
     tradeCount: extra.tradeCount,
     source: pool.source,
+    burnedTokens: extra.burnedTokens,
+    circulatingTokens: extra.circulatingTokens,
   };
 }
 
 export async function listBoardTokens(): Promise<TokenRow[]> {
   if (!dbConfigured()) return [];
   const pools = await db().pool.findMany({ where: poolFilter(), include, orderBy: { launchedAt: "desc" } });
-  const rows = await Promise.all(pools.map(async (p) => toRow(p, await statsFor(p))));
+  const burned = await readBurned(pools.map((p) => p.token));
+  const rows = await Promise.all(pools.map(async (p) => toRow(p, await statsFor(p, burned.get(getAddress(p.token)) ?? 0n))));
   const vol = (r: TokenRow) => r.stats.volume24hUsd ?? r.stats.volume24hQuote;
   return rows.sort((a, b) => vol(b) - vol(a) || b.launchedAt.localeCompare(a.launchedAt));
 }
@@ -112,7 +122,8 @@ export async function getTokenDetail(address: string): Promise<TokenDetail | nul
   const pool = await db().pool.findUnique({ where: { token }, include });
   if (!pool) return null;
   if (pool.source === "DEV" && !env().SHOW_DEV_TOKENS) return null;
-  const [extra, trades] = await Promise.all([statsFor(pool), getTrades(token, 30)]);
+  const burned = await readBurned([token]);
+  const [extra, trades] = await Promise.all([statsFor(pool, burned.get(token) ?? 0n), getTrades(token, 30)]);
   return {
     ...toRow(pool, extra),
     poolId: pool.poolId,

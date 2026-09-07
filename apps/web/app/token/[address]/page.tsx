@@ -169,8 +169,18 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
               <b>Single-sided, permanent</b>
             </div>
             <div className="kv">
-              <span>Supply in pool</span>
+              <span>Total supply</span>
               <b>{t.supplyTokens.toLocaleString()} {t.symbol}</b>
+            </div>
+            <div className="kv">
+              <span>Burned</span>
+              <b>
+                {t.burnedTokens > 0 ? `${t.burnedTokens.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${t.symbol} (${((t.burnedTokens / t.supplyTokens) * 100).toFixed(2)}%)` : "0"}
+              </b>
+            </div>
+            <div className="kv">
+              <span>Circulating</span>
+              <b>{t.circulatingTokens.toLocaleString(undefined, { maximumFractionDigits: 0 })} {t.symbol}</b>
             </div>
             <div className="kv">
               <span>Fees paid in</span>
