@@ -15,7 +15,7 @@ describe("v4 pool identity", () => {
   });
 
   it("reproduces the poolId the factory emitted for live launches", () => {
-    for (const f of [fixtures.cgmBuy, fixtures.directorBuy, fixtures.cashcat]) {
+    for (const f of [fixtures.cgmBuy, fixtures.directorBuy, fixtures.cashcat, fixtures.flyBuy]) {
       const key = poolKeyFor(getAddress(f.params.quoteToken), getAddress(f.token), 0, 200, HOOK);
       expect(poolIdOf(key)).toBe(f.poolId);
     }

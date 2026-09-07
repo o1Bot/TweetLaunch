@@ -36,6 +36,18 @@ describe("dev-buy route data", () => {
     expect(encoded.toLowerCase()).toBe(f.buy!.routeData.toLowerCase());
   });
 
+  it("reproduces a stock-paired buy through a V4 USDG pool on a tier outside the old fixed list (BA, 2000/20)", () => {
+    // Launched through o1's own UI on 2026-09-07; the bot must produce identical bytes.
+    const f = fixtures.flyBuy;
+    const stock = getAddress(f.params.quoteToken);
+    const encoded = buildLaunchRoute(
+      [v3PoolStep(WETH, USDG, V3_WETH_USDG_100, 100), v4PoolStep(USDG, stock, 2000, 20)],
+      launchPoolStep({ quote: stock, token: getAddress(f.token), hook: HOOK, tickSpacing: 200 }),
+    );
+    expect(encoded.toLowerCase()).toBe(f.buy!.routeData.toLowerCase());
+    expect(BigInt(f.value)).toBe(BigInt(f.buy!.amountIn) + 1_000_000_000_000_000n);
+  });
+
   it("round-trips through the step layout", () => {
     const [steps] = decodeAbiParameters(ROUTE_STEPS_ABI, fixtures.directorBuy.buy!.routeData as Hex);
     expect(steps.map((s) => s.kind)).toEqual([1, 2, 2]);

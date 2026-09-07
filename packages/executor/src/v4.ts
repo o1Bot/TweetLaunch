@@ -20,14 +20,18 @@ export function poolIdOf(key: PoolKey): Hex {
   );
 }
 
-/** Fee tiers seen on Robinhood's hook-free external V4 pools (survey 2026-09-07). */
-export const V4_FEE_TIERS: ReadonlyArray<readonly [fee: number, tickSpacing: number]> = [
-  [100, 1],
-  [500, 10],
-  [1500, 15],
-  [3000, 60],
-  [10000, 200],
-];
+/**
+ * Hook-free V4 pools are permissionless, and on Robinhood Chain LPs have put
+ * USDG/stock liquidity behind wildly different (fee, tickSpacing) pairs: a
+ * StateView survey on 2026-09-07 (`scripts/survey-v4-tiers.ts`) found 30
+ * distinct tiers, from 500/5 up to 100000/1000, with the 5% tier 50000/500
+ * alone covering 137 of 194 stocks. A fixed list therefore misses pools, so
+ * discovery probes this whole grid (one multicall per base asset) and lets
+ * simulation rank whatever has liquidity.
+ */
+export const V4_FEES: readonly number[] = [100, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 7500, 10000, 12500, 15000, 20000, 25000, 30000, 40000, 50000, 75000, 100000];
+export const V4_TICK_SPACINGS: readonly number[] = [1, 2, 5, 10, 15, 20, 25, 30, 40, 50, 60, 100, 200, 250, 300, 400, 500, 1000];
+export const V4_FEE_TIERS: ReadonlyArray<readonly [fee: number, tickSpacing: number]> = V4_FEES.flatMap((fee) => V4_TICK_SPACINGS.map((tickSpacing) => [fee, tickSpacing] as const));
 
 /** SwapX (Uniswap V3 fork) fee tiers. */
 export const V3_FEE_TIERS: readonly number[] = [100, 500, 3000, 10000];

@@ -2,6 +2,7 @@ import { getAddress, parseEther, zeroAddress, type Address, type Hex, type Publi
 import {
   activeFactory,
   chainByKey,
+  env,
   findQuote,
   logger,
   o1Chain,
@@ -65,7 +66,7 @@ export type LaunchRequest = {
   devBuyWei?: bigint;
   metadataEditable?: boolean;
   deadlineSeconds?: number;
-  /** Slippage applied to the simulated dev-buy output. Default 300 (3%). */
+  /** Slippage applied to the simulated dev-buy output. Default: DEV_BUY_SLIPPAGE_BPS (500 = 5%). */
   slippageBps?: number;
 };
 
@@ -122,7 +123,6 @@ export type PlanResult = { ok: true; plan: LaunchPlan } | PlanFailure;
 const ZERO_SALT = `0x${"0".repeat(64)}` as Hex;
 /** ~1.3× gas observed on live Robinhood launches (1.90M plain, 2.19M with dev buy). */
 const GAS_FALLBACK: Record<LaunchCall["functionName"], bigint> = { createLaunch: 2_500_000n, createLaunchAndBuy: 2_900_000n };
-const DEFAULT_SLIPPAGE_BPS = 300;
 /** Simulation failures that are about the launch itself, not the route: stop trying other routes. */
 const ROUTE_INDEPENDENT_KINDS: ReadonlySet<LaunchErrorKind> = new Set([
   "stale_config",
@@ -275,7 +275,9 @@ export async function planLaunch(req: LaunchRequest, opts: PlanOptions = {}): Pr
     if (getAddress(best.token) !== salt.token) {
       return failure("simulate", "token_check_failed", `factory would deploy ${best.token} but we predicted ${salt.token}`, undefined, routeAttempts);
     }
-    const slippage = BigInt(req.slippageBps ?? DEFAULT_SLIPPAGE_BPS);
+    // o1's own UI signs with a 25% tolerance; a few percent covers the prefix hops
+    // moving in the seconds between the plan and the block without giving that much away.
+    const slippage = BigInt(req.slippageBps ?? env().DEV_BUY_SLIPPAGE_BPS);
     const minAmountOut = (best.amountOut * (10_000n - slippage)) / 10_000n;
     call = { functionName: "createLaunchAndBuy", args: [params, { ...best.buy, minAmountOut: minAmountOut > 0n ? minAmountOut : 1n }], value };
     route = { label: best.candidate.label, steps: [...best.candidate.steps, launchHop] };

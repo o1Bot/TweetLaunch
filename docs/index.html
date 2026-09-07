@@ -333,7 +333,7 @@ td .mono,.mono{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
       <tr><th>Kind</th><th>Pairs</th><th>Fees paid in</th><th>Dev buy</th></tr>
       <tr><td><span class="pill eth">ETH</span></td><td>Native ETH on Robinhood Chain</td><td>ETH</td><td>Yes</td></tr>
       <tr><td><span class="pill usd">USDG</span></td><td>Global Dollar, 6 decimals</td><td>USDG</td><td>Yes</td></tr>
-      <tr><td><span class="pill stk">Stocks</span></td><td>194 registered stock tokens: AAPL, NVDA, TSLA, MSFT, GOOGL, AMZN, META, MSTR, COIN, QQQ, SPY-style ETFs and many more</td><td>The stock token</td><td>106 of 194, where the stock has on-chain liquidity</td></tr>
+      <tr><td><span class="pill stk">Stocks</span></td><td>194 registered stock tokens: AAPL, NVDA, TSLA, MSFT, GOOGL, AMZN, META, MSTR, COIN, QQQ, SPY-style ETFs and many more</td><td>The stock token</td><td>185 of 194, where the stock has on-chain liquidity</td></tr>
     </table></div>
     <h2 id="stock-paired">Stock-paired launches</h2>
     <p>A stock-paired token is created by the same factory with the same 0.001 ETH creation fee. The difference is the pool: it holds your token against the stock token, so buyers pay in the stock, and your creator fees arrive in the stock. That is the point for many creators: a coin that earns NVDA on every trade.</p>
@@ -377,7 +377,7 @@ td .mono,.mono{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
       <li><strong>USDG pair:</strong> ETH is swapped to USDG on Robinhood's SwapX pool first, then into the new pool.</li>
       <li><strong>Stock pair:</strong> either ETH to the stock directly, or ETH to USDG to the stock, depending on where the liquidity is. The bot tries every liquid route, simulates each, and uses the one that returns the most tokens.</li>
     </ul>
-    <p>Routes are discovered on chain at launch time. As of the September 2026 survey, 106 of the 194 stock tokens have a liquid route from ETH. For the rest, the bot replies that a dev buy is not available for that pair and offers to launch without it.</p>
+    <p>Routes are discovered on chain at launch time. As of the September 2026 survey, 185 of the 194 stock tokens have a liquid route from ETH. For the rest, the bot replies that a dev buy is not available for that pair and offers to launch without it.</p>
     <div class="callout info">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
       <p>A launch with a dev buy is valid for 5 minutes after the bot prepares it, versus 30 minutes for a plain launch. o1's swap adapter rejects longer deadlines. In practice the bot signs within seconds, so you will not notice.</p>
@@ -821,7 +821,7 @@ pnpm parse --fixtures       # 24 fixtures against the live model</code></pre>
       <li>Privacy policy, terms of use and how-it-works pages; repository published under the MIT license.</li>
       <li>Scope set to Robinhood Chain only for v1.</li>
       <li>Verified ABIs vendored from Sourcify and Blockscout; token address prediction validated against four live launches.</li>
-      <li>Dev buy for ETH, USDG and 106 stock pairs through on-chain route discovery.</li>
+      <li>Dev buy for ETH, USDG and 185 stock pairs through on-chain route discovery.</li>
       <li>Mention parser with structured output and deterministic normalisation.</li>
     </ul>
     <h3>2026-09-06</h3>

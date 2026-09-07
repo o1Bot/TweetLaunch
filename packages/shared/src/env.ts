@@ -49,6 +49,8 @@ const schema = z.object({
   MAX_REPLIES_PER_USER_PER_DAY: z.coerce.number().int().positive().default(8),
   /** Largest dev buy the bot will sign, in ETH. */
   MAX_DEV_BUY_ETH: z.string().default("1"),
+  /** Slippage tolerance applied to the simulated dev-buy output, in basis points. */
+  DEV_BUY_SLIPPAGE_BPS: z.coerce.number().int().min(0).max(5000).default(500),
   QUEUE_DRIVER: z.enum(["memory", "redis"]).default("memory"),
 
   RPC_ROBINHOOD: z.string().optional(),
