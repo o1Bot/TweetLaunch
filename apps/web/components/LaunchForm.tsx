@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LOGO_MAX_BYTES, shrinkImage } from "@/lib/shrink-image";
 
 /**
  * The web way to launch: same checks, same wallet, same signing path as a
@@ -88,6 +89,12 @@ export function LaunchForm() {
         if (!token) throw new Error("Sign in first.");
         const form = new FormData(formRef.current);
         form.set("pair", pairMode === "stock" ? stock.trim().toUpperCase() : pairMode);
+        const picked = form.get("image");
+        if (picked instanceof File && picked.size > 0) {
+          const shrunk = await shrinkImage(picked);
+          if (shrunk.size > LOGO_MAX_BYTES && shrunk.type === "image/gif") throw new Error("Animated GIFs cannot be shrunk; use a GIF under 2 MB or a still image.");
+          form.set("image", shrunk, shrunk.name);
+        }
         const res = await fetch("/api/launch", { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
         const json = (await res.json()) as { id?: string; error?: string };
         if (!res.ok || !json.id) throw new Error(json.error ?? `HTTP ${res.status}`);
@@ -179,7 +186,7 @@ export function LaunchForm() {
           <label className="full">
             <b>Logo (optional)</b>
             <input name="image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={busy} />
-            <span className="hint">PNG, JPEG, WebP or GIF up to 2 MB. A placeholder is used otherwise.</span>
+            <span className="hint">PNG, JPEG, WebP or GIF. Large images are downscaled to fit o1&apos;s 2 MB limit; a placeholder is used when none is given.</span>
           </label>
           <label className="full">
             <b>Description (optional)</b>

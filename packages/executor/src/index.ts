@@ -1,6 +1,7 @@
 export * from "./abis";
 export * from "./errors";
 export * from "./factory-state";
+export * from "./image";
 export * from "./limits";
 export * from "./metadata";
 export * from "./plan";

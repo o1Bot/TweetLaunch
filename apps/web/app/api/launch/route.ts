@@ -1,6 +1,9 @@
 import { parseEther } from "viem";
 import { db, dbConfigured } from "@o1bot/db";
-import { checkImageBytes } from "@o1bot/executor";
+import { checkImageBytes, IMAGE_MAX_BYTES } from "@o1bot/executor";
+
+/** Vercel functions accept bodies up to 4.5 MB; the browser shrinks logos well below this first. */
+const UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
 import { parseDecimalToRaw } from "@o1bot/market";
 import { cleanDescription, cleanTelegram, cleanWebsite, cleanXHandle, NAME_MAX, TICKER_RE } from "@o1bot/parser";
 import { activeFactory, env, findQuote, isReservedHandle, logger, normalizeHandle, RESERVED_HANDLES, tickerCollidesWithStock } from "@o1bot/shared";
@@ -87,9 +90,12 @@ export async function POST(req: Request) {
   let imageMime: string | null = null;
   const image = form.get("image");
   if (image instanceof File && image.size > 0) {
+    // The browser downscales large images before upload; this cap is the request-size safety net.
+    if (image.size > UPLOAD_MAX_BYTES) return bad("image is too large even after compression; use a file under 4 MB");
     const bytes = new Uint8Array(await image.arrayBuffer());
     const checked = checkImageBytes(bytes);
-    if (!checked.ok) return bad(`image rejected (${checked.reason.replace(/_/g, " ")}): PNG, JPEG, WebP or GIF up to 2 MB`);
+    if (!checked.ok) return bad(`image rejected (${checked.reason.replace(/_/g, " ")}): PNG, JPEG, WebP or GIF`);
+    if (checked.image.mime === "image/gif" && bytes.length > IMAGE_MAX_BYTES) return bad("animated GIFs cannot be shrunk; use a GIF under 2 MB or a still image");
     imageData = checked.image.bytes;
     imageMime = checked.image.mime;
   }

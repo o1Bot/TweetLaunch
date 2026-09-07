@@ -152,6 +152,8 @@ DRY_RUN=false pnpm --filter @o1bot/bot once --post 1234567890123456789   # sign,
 
 `--post` works for any author. It forgets a previous dry run of the same post first, and refuses a post that already had a transaction signed. The reply lands under the post as usual, and the token appears on the board because it went through the normal pipeline.
 
+Logos above o1's 2 MB limit are downscaled instead of refused: the launch form shrinks them in the browser before upload (canvas, at most 1024 px, WebP), and the bot worker does the same with `sharp` for X attachments and anything that still arrives too large. Animated GIFs cannot be shrunk without losing the animation, so those must be under 2 MB.
+
 ## Indexer and token pages
 
 `apps/indexer` polls Robinhood Chain with topic-filtered `eth_getLogs`: the v4 PoolManager `Swap` event for the poolIds of tracked launches and the o1 hook `Trade` event for referrer, fee and comment. Only tokens with a confirmed row in `Launch` are tracked (plus `INDEXER_DEV_TOKENS` for local testing), so the board and token pages never show other o1 tokens. Ranges adapt to RPC errors, the cursor is committed with each batch, and swap ids (`txHash-logIndex`) keep re-scans idempotent. Prices come from `sqrtPriceX96` (`packages/market`), candles are built on demand, and USD values use on-chain WETH/USDG and USDG/stock pools. Holder snapshots come from o1's Public API when `O1_API_KEY` is set.

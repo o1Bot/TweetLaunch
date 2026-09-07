@@ -14,3 +14,5 @@ allowBuilds:
   "@reown/appkit": false
   # Optional native accelerator for bullmq; the pure-JS fallback is fine.
   msgpackr-extract: false
+  # Logo downscaling in the bot worker (prebuilt binaries; the script only fetches libvips when none match).
+  sharp: true

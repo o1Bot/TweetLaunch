@@ -1,4 +1,5 @@
 import { logger, requireEnv } from "@o1bot/shared";
+import { compressImage } from "./image";
 import { placeholderPng } from "./png";
 
 /**
@@ -7,7 +8,10 @@ import { placeholderPng } from "./png";
  * PNG/JPEG/WebP/GIF, ≤ 2 MB, and the declared MIME must match the bytes.
  */
 
+/** o1's limit for the pinned logo. */
 export const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+/** Largest file accepted before compression; anything bigger is refused outright. */
+export const RAW_IMAGE_MAX_BYTES = 15 * 1024 * 1024;
 export const ALLOWED_IMAGE_MIME = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const;
 export type ImageMime = (typeof ALLOWED_IMAGE_MIME)[number];
 
@@ -43,23 +47,32 @@ export async function fetchTweetImage(url: string): Promise<ImageFetchResult> {
   if (!res.ok) return { ok: false, reason: "bad_status" };
   const declared = (res.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
   const length = Number(res.headers.get("content-length") ?? 0);
-  if (length > IMAGE_MAX_BYTES) return { ok: false, reason: "too_large" };
+  if (length > RAW_IMAGE_MAX_BYTES) return { ok: false, reason: "too_large" };
   const bytes = new Uint8Array(await res.arrayBuffer());
   if (bytes.length === 0) return { ok: false, reason: "empty" };
-  if (bytes.length > IMAGE_MAX_BYTES) return { ok: false, reason: "too_large" };
+  if (bytes.length > RAW_IMAGE_MAX_BYTES) return { ok: false, reason: "too_large" };
   const sniffed = sniffImageMime(bytes);
   if (!sniffed) return { ok: false, reason: "mime_not_allowed" };
   if (declared && declared !== sniffed && declared !== "image/jpg") return { ok: false, reason: "mime_mismatch" };
   return { ok: true, image: { bytes, mime: sniffed } };
 }
 
-/** Apply o1's image limits to bytes that are already in hand (a web upload). */
+/** Type and size sanity for bytes that are already in hand (a web upload); compression happens later. */
 export function checkImageBytes(bytes: Uint8Array): ImageFetchResult {
   if (bytes.length === 0) return { ok: false, reason: "empty" };
-  if (bytes.length > IMAGE_MAX_BYTES) return { ok: false, reason: "too_large" };
+  if (bytes.length > RAW_IMAGE_MAX_BYTES) return { ok: false, reason: "too_large" };
   const mime = sniffImageMime(bytes);
   if (!mime) return { ok: false, reason: "mime_not_allowed" };
   return { ok: true, image: { bytes, mime } };
+}
+
+/** Enforce o1's 2 MB limit, shrinking the image when it can be shrunk. */
+export async function fitImage(image: FetchedImage): Promise<ImageFetchResult> {
+  if (image.bytes.length <= IMAGE_MAX_BYTES) return { ok: true, image };
+  const shrunk = await compressImage(image.bytes, image.mime);
+  if (!shrunk.ok) return { ok: false, reason: "too_large" };
+  logger.info({ from: image.bytes.length, to: shrunk.bytes.length, mime: shrunk.mime }, "logo downscaled to fit o1's 2 MB limit");
+  return { ok: true, image: { bytes: shrunk.bytes, mime: shrunk.mime } };
 }
 
 export type PinResult = { cid: string; uri: string };
@@ -126,7 +139,8 @@ export async function prepareTokenMetadata(input: TokenMetadataInput): Promise<P
   let image: FetchedImage;
   let imageSource: PreparedMetadata["imageSource"] = "placeholder";
   let imageRejectReason: ImageRejectReason | null = null;
-  const fetched = input.imageBytes ? checkImageBytes(input.imageBytes) : input.imageUrl ? await fetchTweetImage(input.imageUrl) : null;
+  const raw = input.imageBytes ? checkImageBytes(input.imageBytes) : input.imageUrl ? await fetchTweetImage(input.imageUrl) : null;
+  const fetched = raw?.ok ? await fitImage(raw.image) : raw;
   if (fetched?.ok) {
     image = fetched.image;
     imageSource = "tweet";
