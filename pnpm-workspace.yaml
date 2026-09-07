@@ -1,0 +1,14 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+
+# pnpm 11 refuses to run lifecycle scripts unless each package is listed here.
+allowBuilds:
+  "@prisma/engines": true
+  prisma: true
+  esbuild: true
+  keccak: true
+  bufferutil: true
+  utf-8-validate: true
+  # Transitive dep of @privy-io/react-auth; its postinstall is not needed.
+  "@reown/appkit": false

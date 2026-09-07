@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>o1bot.exchange docs</title>
+<link rel="icon" type="image/png" href="assets/favicon-64.png">
+<link rel="apple-touch-icon" href="assets/favicon.png">
+<meta property="og:title" content="o1bot.exchange docs">
+<meta property="og:image" content="assets/logo.png">
+<meta name="description" content="How to launch a token on o1 Launchpad from a post on X, what it costs, and how o1bot works under the hood.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,100,300..700&family=Sora:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:dark;
+  --paper:#0E141D;--panel:#151D29;--panel-2:#1B2533;--panel-3:#212C3B;
+  --ink:#EAF0F8;--ink-2:#A6B3C4;--ink-3:#6E7C8F;--inv:#0E141D;--line:#243040;--line-2:#2E3B4E;
+  --blue:#6FB6FF;--blue-deep:#2F7BFF;--blue-soft:#17305A;
+  --up:#3ED082;--up-soft:#123326;--down:#FF6E5E;--down-soft:#3B1B18;--warn:#F5C451;--warn-soft:#3A2F12;
+  --stock:#C4A2FF;--stock-soft:#2B1F4F;--hover:rgba(255,255,255,.035);
+  --display:"Sora",system-ui,sans-serif;--body:"Bricolage Grotesque",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --side:264px;--toc:212px;--top:56px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-family:var(--body);font-optical-sizing:auto;font-size:15.5px;color:var(--ink);background:var(--paper);scroll-behavior:smooth}
+body{color:var(--ink);background-color:var(--paper);background-image:radial-gradient(rgba(111,182,255,.14) 1px,transparent 1.2px);background-size:22px 22px;min-height:100vh;font-variant-numeric:tabular-nums;line-height:1.55}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:3px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.grad{background:linear-gradient(100deg,#FFFFFF 0%,#DDEBFF 45%,#7FBFFF 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+/* slim, transparent scrollbars everywhere */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(166,179,196,.18);border-radius:999px}
+::-webkit-scrollbar-thumb:hover{background:rgba(166,179,196,.38)}
+::-webkit-scrollbar-corner{background:transparent}
+@supports not selector(::-webkit-scrollbar){*{scrollbar-width:thin;scrollbar-color:rgba(166,179,196,.25) transparent}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+
+/* ---------- top bar ---------- */
+.top{color:var(--ink);position:fixed;inset:0 0 auto 0;height:var(--top);z-index:30;background:rgba(14,20,29,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 20px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:-.03em;color:var(--ink)}
+.brand:hover{text-decoration:none}
+.brand .mark{width:26px;height:26px;display:block;object-fit:contain}
+.brand .docs{color:var(--ink-3);font-weight:600;font-family:var(--body);font-size:14px;margin-left:2px}
+.top .grow{flex:1}
+.search{position:relative;width:min(380px,100%)}
+.search label{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--ink-3);background:var(--panel)}
+.search input{border:0;outline:0;font:inherit;flex:1;background:none;color:var(--ink);min-width:0}
+.search kbd{font-family:var(--mono);font-size:11px;color:var(--ink-3);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+.results{color:var(--ink);position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--panel);border:1px solid var(--line-2);border-radius:10px;overflow:hidden;display:none;max-height:min(60vh,420px);overflow-y:auto;box-shadow:0 18px 40px rgba(0,0,0,.45)}
+.results.on{display:block}
+.results a{display:block;padding:10px 12px;border-top:1px solid var(--line);color:var(--ink)}
+.results a:first-child{border-top:0}
+.results a:hover,.results a.sel{background:var(--hover);text-decoration:none}
+.results .rp{font-size:12px;color:var(--ink-3)}
+.results .rt{font-weight:600;font-size:14px}
+.results .rs{font-size:13px;color:var(--ink-2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.results .none{padding:12px;color:var(--ink-3);font-size:14px}
+.menu{display:none;color:var(--ink-2);padding:6px;border-radius:6px}
+.menu:hover{background:var(--panel-2)}
+.top .ext{display:inline-flex;align-items:center;gap:6px;color:var(--ink-2);font-weight:500;font-size:14px;white-space:nowrap}
+.top .ext:hover{color:var(--ink);text-decoration:none}
+
+/* ---------- layout ---------- */
+.shell{display:grid;grid-template-columns:var(--side) minmax(0,1fr) var(--toc);gap:0;max-width:1360px;margin:0 auto;padding-top:var(--top)}
+.side{color:var(--ink-2);position:sticky;top:var(--top);height:calc(100vh - var(--top));overflow-y:auto;padding:22px 14px 40px 20px;border-right:1px solid var(--line)}
+.side .grp{margin-top:18px}
+.side .grp:first-child{margin-top:0}
+.side .gl{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600;padding:0 10px 6px}
+.side a{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;color:var(--ink-2);font-weight:500;font-size:14.5px}
+.side a:hover{background:var(--hover);color:var(--ink);text-decoration:none}
+.side a.on{background:var(--panel-2);color:var(--ink)}
+.side a .soon{margin-left:auto;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--warn);background:var(--warn-soft);border-radius:999px;padding:1px 7px;font-weight:600}
+.main{padding:34px 48px 80px;min-width:0}
+.toc{color:var(--ink-3);position:sticky;top:var(--top);height:calc(100vh - var(--top));overflow-y:auto;padding:30px 20px 40px 18px;font-size:13px}
+.toc .tl{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin-bottom:8px}
+.toc a{display:block;padding:4px 0 4px 10px;border-left:2px solid var(--line);color:var(--ink-3)}
+.toc a:hover{color:var(--ink);text-decoration:none}
+.toc a.on{color:var(--blue);border-color:var(--blue)}
+
+/* ---------- article ---------- */
+.page{display:none}
+.page.on{display:block}
+.crumb{font-size:13px;color:var(--ink-3);margin-bottom:10px;display:flex;gap:6px;align-items:center}
+.crumb b{color:var(--ink-2);font-weight:500}
+h1{color:var(--ink);font-family:var(--display);font-size:36px;line-height:1.08;letter-spacing:-.035em;font-weight:800;text-wrap:balance}
+.lead{color:var(--ink-2);font-size:17px;line-height:1.55;margin-top:12px;max-width:62ch;text-wrap:pretty}
+.art{max-width:72ch;color:var(--ink-2)}
+.art h2{color:var(--ink);font-family:var(--display);font-size:22px;letter-spacing:-.03em;font-weight:700;margin:40px 0 12px;padding-top:10px;text-wrap:balance;scroll-margin-top:calc(var(--top) + 16px)}
+.art h3{color:var(--ink);font-size:16.5px;font-weight:700;margin:26px 0 8px;letter-spacing:-.01em}
+.art p{margin:0 0 14px;color:var(--ink-2);text-wrap:pretty}
+.art p strong,.art li strong{color:var(--ink);font-weight:600}
+.art ul,.art ol{margin:0 0 14px 20px;color:var(--ink-2);display:grid;gap:6px}
+.art li::marker{color:var(--ink-3)}
+.art code{font-family:var(--mono);font-size:.88em;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--ink)}
+.art pre{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 0 16px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--ink)}
+.art pre code{background:none;border:0;padding:0;font-size:inherit}
+.copy{position:absolute;top:8px;right:8px;display:inline-flex;align-items:center;gap:5px;font-family:var(--body);font-size:12px;color:var(--ink-3);border:1px solid var(--line);border-radius:6px;padding:3px 8px;background:var(--panel)}
+.copy:hover{color:var(--ink);background:var(--panel-2)}
+.copy.done{color:var(--up);border-color:var(--up)}
+.cmd{color:var(--ink);position:relative;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 92px 14px 16px;margin:0 0 12px;font-size:16px;line-height:1.5;font-family:var(--mono)}
+.cmd b{font-weight:600;color:var(--ink)}
+.cmd em{font-style:normal;color:var(--blue);font-weight:600}
+.cmd i{font-style:normal;color:var(--ink-3)}
+.cmd-l{font-size:12.5px;color:var(--ink-3);margin:14px 0 6px;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+.callout{display:grid;grid-template-columns:20px 1fr;gap:12px;border:1px solid var(--line);border-radius:10px;padding:13px 16px;margin:0 0 16px;background:var(--panel);color:var(--ink-2);font-size:14.5px}
+.callout svg{margin-top:2px}
+.callout.info{border-color:rgba(111,182,255,.45);background:var(--blue-soft);color:#DCEBFF}
+.callout.info svg{color:var(--blue)}
+.callout.warn{border-color:rgba(245,196,81,.45);background:var(--warn-soft);color:#FFF0C9}
+.callout.warn svg{color:var(--warn)}
+.callout.ok{border-color:rgba(62,208,130,.45);background:var(--up-soft);color:#D9F7E6}
+.callout.ok svg{color:var(--up)}
+.callout p{margin:0;color:inherit}
+.callout p+p{margin-top:6px}
+.tbl{overflow-x:auto;margin:0 0 16px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{color:var(--ink-2);border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-top:1px solid var(--line);vertical-align:top;color:var(--ink-2)}
+th{color:var(--ink-3);font-weight:600;font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;border-top:0;background:var(--panel-2)}
+td b{color:var(--ink);font-weight:600}
+td .mono,.mono{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+.num{text-align:right}
+.steps{display:grid;gap:10px;margin:0 0 18px;counter-reset:s}
+.step{color:var(--ink-2);display:grid;grid-template-columns:30px 1fr;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.step .n{width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--inv);display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:13px}
+.step b{display:block;color:var(--ink);font-weight:600;margin-bottom:3px}
+.step p{margin:0;font-size:14.5px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:12.5px;font-weight:600;vertical-align:middle}
+.pill.eth{background:var(--blue-soft);color:var(--blue)}
+.pill.usd{background:var(--up-soft);color:var(--up)}
+.pill.stk{background:var(--stock-soft);color:var(--stock)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.down{background:var(--down-soft);color:var(--down)}
+.reply{color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:0 0 12px;display:grid;grid-template-columns:36px 1fr;gap:12px}
+.reply .av{width:36px;height:36px;border-radius:50%;background:#000;display:grid;place-items:center;overflow:hidden}
+.reply .who{font-size:13px;color:var(--ink-3)}
+.reply .who b{color:var(--ink);font-weight:600}
+.reply .txt{font-size:14.5px;color:var(--ink);white-space:pre-wrap;margin-top:2px;line-height:1.45}
+.reply .why{font-size:13px;color:var(--ink-3);margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
+.fig{color:var(--ink-2);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin:0 0 16px;overflow-x:auto}
+.fig svg{width:100%;height:auto;min-width:520px}
+.figcap{font-size:13px;color:var(--ink-3);margin-top:8px}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 18px}
+.kv div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.kv b{color:var(--ink);display:block;font-family:var(--display);font-size:20px;letter-spacing:-.03em;font-weight:700}
+.kv span{display:block;color:var(--ink-3);font-size:13px;margin-top:2px}
+.pn{display:flex;justify-content:space-between;gap:12px;margin-top:48px;padding-top:20px;border-top:1px solid var(--line)}
+.pn a{color:var(--ink);flex:1;border:1px solid var(--line);border-radius:10px;padding:12px 14px;color:var(--ink);background:var(--panel)}
+.pn a:hover{background:var(--panel-2);text-decoration:none}
+.pn a small{display:block;font-size:12px;color:var(--ink-3);margin-bottom:2px}
+.pn a.next{text-align:right}
+.pn a.empty{visibility:hidden}
+.status{color:var(--ink-2);display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;margin-bottom:16px}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block}
+.small{font-size:13px;color:var(--ink-3)}
+.overlay{display:none;position:fixed;inset:0;background:rgba(5,9,14,.6);z-index:25}
+
+@media (max-width:1180px){.shell{grid-template-columns:var(--side) minmax(0,1fr)}.toc{display:none}}
+@media (max-width:860px){
+  .shell{grid-template-columns:1fr}
+  .side{position:fixed;left:0;top:var(--top);width:min(300px,86vw);background:var(--paper);transform:translateX(-100%);transition:transform .2s ease;z-index:28;border-right:1px solid var(--line-2)}
+  .side.open{transform:none}
+  .overlay.on{display:block}
+  .menu{display:inline-flex}
+  .main{padding:24px 20px 60px}
+  h1{font-size:30px}
+  .search{width:100%}
+  .top .ext{display:none}
+  .cmd{padding-right:16px;padding-bottom:40px}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <button class="menu" id="menu" aria-label="Open navigation">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+  <a class="brand" href="#/introduction"><img class="mark" src="assets/mark-128.png" alt="" width="26" height="26">o1bot.exchange<span class="docs">docs</span></a>
+  <div class="grow"></div>
+  <div class="search" id="search">
+    <label>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the docs">
+      <kbd>/</kbd>
+    </label>
+    <div class="results" id="results" role="listbox"></div>
+  </div>
+  <a class="ext" href="https://o1bot.exchange" target="_blank" rel="noreferrer">o1bot.exchange
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 13v6H5V6h6"/></svg>
+  </a>
+</header>
+<div class="overlay" id="overlay"></div>
+
+<div class="shell">
+<nav class="side" id="side" aria-label="Documentation">
+  <div class="grp"><div class="gl">Start</div>
+    <a href="#/introduction" data-nav="introduction">Introduction</a>
+    <a href="#/quickstart" data-nav="quickstart">Quickstart</a>
+    <a href="#/command" data-nav="command">The launch command</a>
+  </div>
+  <div class="grp"><div class="gl">Launching</div>
+    <a href="#/pairs" data-nav="pairs">Pairs</a>
+    <a href="#/dev-buy" data-nav="dev-buy">Dev buy</a>
+    <a href="#/fees-to" data-nav="fees-to">Fees to another account</a>
+    <a href="#/images" data-nav="images">Token image and metadata</a>
+    <a href="#/replies" data-nav="replies">What the bot replies</a>
+    <a href="#/limits" data-nav="limits">Limits and rules</a>
+  </div>
+  <div class="grp"><div class="gl">Money</div>
+    <a href="#/fees" data-nav="fees">Fees and economics</a>
+    <a href="#/wallet" data-nav="wallet">Wallet and security</a>
+    <a href="#/app" data-nav="app">The o1bot app <span class="soon">soon</span></a>
+  </div>
+  <div class="grp"><div class="gl">Developers</div>
+    <a href="#/architecture" data-nav="architecture">Architecture</a>
+    <a href="#/launch-internals" data-nav="launch-internals">How a launch is built</a>
+    <a href="#/contracts" data-nav="contracts">Contracts on Robinhood</a>
+    <a href="#/running" data-nav="running">Running it yourself</a>
+  </div>
+  <div class="grp"><div class="gl">Reference</div>
+    <a href="#/faq" data-nav="faq">FAQ</a>
+    <a href="#/status" data-nav="status">Status and changelog</a>
+  </div>
+</nav>
+
+<main class="main" id="main">
+
+<!-- ================= INTRODUCTION ================= -->
+<section class="page" data-page="introduction" data-title="Introduction" data-group="Start">
+  <div class="status"><i></i>Private beta. The bot is not accepting public launches yet.</div>
+  <h1><span class="grad">Launch on o1. From a post.</span></h1>
+  <p class="lead">o1bot.exchange turns a mention on X into a real token launch on o1 Launchpad. You link your X account once, keep a little ETH in the wallet that gets created for you, and post the command. The bot does the on-chain work from your wallet and replies with the result.</p>
+  <div class="art">
+    <div class="kv">
+      <div><b>1 post</b><span>is one launch</span></div>
+      <div><b>0.001 ETH</b><span>creation fee, paid to o1</span></div>
+      <div><b>0.5%</b><span>of every trade to you, the creator</span></div>
+      <div><b>196</b><span>pairs on Robinhood Chain</span></div>
+    </div>
+    <h2 id="what-o1bot-is">What o1bot is, and what it is not</h2>
+    <p>o1bot owns three things: the X bot, the wallets it creates for users, and the web app. Everything on chain belongs to <strong>o1 Launchpad</strong>: the factory that creates the token, the Uniswap v4 pool, the hook that collects fees, the fee escrow, and the audits. o1bot does not run its own launch contracts and does not sit between you and o1.</p>
+    <p>That is why a token launched through o1bot is a normal o1 token. It shows up on o1, it trades on o1, and the creator fees go to the address o1 recorded at launch, which is your wallet.</p>
+    <div class="callout info">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+      <p><strong>v1 runs on Robinhood Chain only.</strong> Every command, pair and fee in these docs refers to Robinhood Chain (chain id 4663). Base support is not planned for v1.</p>
+    </div>
+    <h2 id="who-pays">Who pays for what</h2>
+    <p>Your wallet pays o1's creation fee and the gas for the launch. If you add a dev buy, your wallet pays that too. o1bot never fronts fees or gas, never takes a cut of a launch, and never holds your keys.</p>
+    <p>o1bot earns from two places that never touch your launch: its own official token, launched through the same pipeline as everyone else's, and the 0.2% referral share o1 pays on trades that go through the o1bot app's swap.</p>
+    <h2 id="how-to-read">How to read these docs</h2>
+    <ul>
+      <li><strong>Start</strong> gets you from zero to your first launch.</li>
+      <li><strong>Launching</strong> covers every option of the command and what each reply from the bot means.</li>
+      <li><strong>Money</strong> explains fees, your wallet, and the app.</li>
+      <li><strong>Developers</strong> documents how the bot builds a launch on chain, the contract addresses, and how to run the code.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= QUICKSTART ================= -->
+<section class="page" data-page="quickstart" data-title="Quickstart" data-group="Start">
+  <div class="crumb"><b>Start</b><span>/</span>Quickstart</div>
+  <h1><span class="grad">Three things, once.</span></h1>
+  <p class="lead">After this, every launch is a single post.</p>
+  <div class="art">
+    <div class="steps">
+      <div class="step"><div class="n">1</div><div><b>Link your X account</b><p>Open <a href="https://o1bot.exchange" target="_blank" rel="noreferrer">o1bot.exchange</a> and sign in with the X account you will post from. That creates your wallet, secured by Privy. On the same screen, allow o1bot to sign launches from this wallet. Without that permission the bot cannot launch for you.</p></div></div>
+      <div class="step"><div class="n">2</div><div><b>Top up the launch fee</b><p>Send ETH on Robinhood Chain to the wallet address shown in the app. A plain launch needs o1's 0.001 ETH creation fee plus gas, about 0.002 ETH in total at normal gas prices. Add whatever you want to spend on a dev buy on top.</p></div></div>
+      <div class="step"><div class="n">3</div><div><b>Post the command</b><p>Mention the bot with the launch command. Attach an image and it becomes the token logo. The bot replies with the token address and links within about a minute.</p></div></div>
+    </div>
+    <div class="cmd-l">Your first launch</div>
+    <div class="cmd" data-copy='@o1bot_exchange launch $RUGRAT "Rugrat" pair ETH on robinhood'><b>@o1bot_exchange</b> launch <em>$RUGRAT</em> "Rugrat" pair <em>ETH</em> on <em>robinhood</em></div>
+    <div class="callout warn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/></svg>
+      <p><strong>The bot never launches a token it cannot pay for.</strong> If the wallet is short, it replies with the exact shortfall and your deposit address instead of trying.</p>
+    </div>
+    <h2 id="what-happens-next">What happens after you post</h2>
+    <ol>
+      <li>The bot reads the post and turns it into a launch command. If something required is missing, it asks one question.</li>
+      <li>It checks that your account is linked, the pair exists on o1's factory, and your wallet holds enough ETH.</li>
+      <li>It prepares the token metadata, mines an address ending in <code>01</code> as o1 requires, and simulates the whole launch.</li>
+      <li>It signs the launch from your wallet, waits for the receipt, and replies under your post with the token address, the o1 link, and the o1bot token page.</li>
+    </ol>
+    <p class="small">Trading opens immediately with o1's 20-second anti-snipe period. See <a href="#/fees">Fees and economics</a>.</p>
+  </div>
+</section>
+
+<!-- ================= COMMAND ================= -->
+<section class="page" data-page="command" data-title="The launch command" data-group="Start">
+  <div class="crumb"><b>Start</b><span>/</span>The launch command</div>
+  <h1><span class="grad">The launch command</span></h1>
+  <p class="lead">One line. Three required values, three optional extras. Casing, quotes, word order and language are flexible, but the bot never guesses a value you did not write.</p>
+  <div class="art">
+    <div class="cmd-l">Full form</div>
+    <div class="cmd" data-copy='@o1bot_exchange launch $TICKER "Token name" pair ETH on robinhood devbuy 0.05 fees to @someone'><b>@o1bot_exchange</b> launch <em>$TICKER</em> "Token name" pair <em>ETH</em> on <em>robinhood</em> <i>devbuy 0.05</i> <i>fees to @someone</i></div>
+    <h2 id="required">Required values</h2>
+    <div class="tbl"><table>
+      <tr><th>Value</th><th>Rule</th><th>Example</th></tr>
+      <tr><td><b>Ticker</b></td><td>1 to 11 letters or digits. The <code>$</code> is optional; the bot uppercases it. Tickers that equal a stock token symbol on o1's factory (NVDA, TSLA, and so on) are refused.</td><td class="mono">$RUGRAT</td></tr>
+      <tr><td><b>Name</b></td><td>Up to 50 characters, kept exactly as written. Quotes are recommended when the name has spaces.</td><td class="mono">"Rugrat"</td></tr>
+      <tr><td><b>Pair</b></td><td>The asset the token trades against: <code>ETH</code>, <code>USDG</code>, or a stock token symbol. Company names work when unambiguous ("pair nvidia" becomes NVDA).</td><td class="mono">pair ETH</td></tr>
+    </table></div>
+    <h2 id="optional">Optional extras</h2>
+    <div class="tbl"><table>
+      <tr><th>Extra</th><th>What it does</th><th>Example</th></tr>
+      <tr><td><b>on robinhood</b></td><td>Names the chain. v1 only runs on Robinhood Chain, so leaving it out means Robinhood. Naming another chain gets a polite refusal.</td><td class="mono">on robinhood</td></tr>
+      <tr><td><b>devbuy</b></td><td>Buys tokens in the same transaction as the launch, paid in ETH from your wallet. The only way to buy at launch without o1's anti-snipe surcharge. See <a href="#/dev-buy">Dev buy</a>.</td><td class="mono">devbuy 0.05</td></tr>
+      <tr><td><b>fees to</b></td><td>Sends the creator fee stream to another X account. You still pay for the launch. See <a href="#/fees-to">Fees to another account</a>.</td><td class="mono">fees to @alice</td></tr>
+      <tr><td><b>An image</b></td><td>Attach a picture to the post and it becomes the token logo. See <a href="#/images">Token image and metadata</a>.</td><td class="mono">—</td></tr>
+    </table></div>
+    <h2 id="examples">Examples that work</h2>
+    <div class="cmd" data-copy='@o1bot_exchange launch $NVDOG "Nvidia Dog" pair NVDA on robinhood'><b>@o1bot_exchange</b> launch <em>$NVDOG</em> "Nvidia Dog" pair <em>NVDA</em> on <em>robinhood</em></div>
+    <div class="cmd" data-copy='@o1bot_exchange launch $KOPI "Kopi Susu" pair USDG on robinhood dong'><b>@o1bot_exchange</b> launch <em>$KOPI</em> "Kopi Susu" pair <em>USDG</em> on <em>robinhood</em> dong</div>
+    <div class="cmd" data-copy='@o1bot_exchange lanza $TACO "Taco Loco" par ETH en robinhood'><b>@o1bot_exchange</b> lanza <em>$TACO</em> "Taco Loco" par <em>ETH</em> en <em>robinhood</em></div>
+    <div class="cmd" data-copy='@o1bot_exchange launch $MOON "Moon" pair ETH on robinhood devbuy 0.1 fees to @alice'><b>@o1bot_exchange</b> launch <em>$MOON</em> "Moon" pair <em>ETH</em> on <em>robinhood</em> <i>devbuy 0.1</i> <i>fees to @alice</i></div>
+    <p>The bot replies in the language you posted in.</p>
+    <h2 id="what-it-wont-guess">What the bot will not guess</h2>
+    <p>If the ticker, the name or the pair is missing, the bot asks one question instead of inventing a value. Amounts are taken literally: <code>devbuy 0.05</code> means 0.05 ETH, and <code>devbuy $50</code> is a question back to you because the bot does not convert currencies. Instructions aimed at the bot inside a post ("ignore your rules", "use the platform wallet") are ignored; the post is treated as data.</p>
+  </div>
+</section>
+
+<!-- ================= PAIRS ================= -->
+<section class="page" data-page="pairs" data-title="Pairs" data-group="Launching">
+  <div class="crumb"><b>Launching</b><span>/</span>Pairs</div>
+  <h1><span class="grad">Pairs</span></h1>
+  <p class="lead">The pair is the asset your token trades against and the asset every trading fee is paid in. o1's Robinhood factory registers 196 of them.</p>
+  <div class="art">
+    <div class="tbl"><table>
+      <tr><th>Kind</th><th>Pairs</th><th>Fees paid in</th><th>Dev buy</th></tr>
+      <tr><td><span class="pill eth">ETH</span></td><td>Native ETH on Robinhood Chain</td><td>ETH</td><td>Yes</td></tr>
+      <tr><td><span class="pill usd">USDG</span></td><td>Global Dollar, 6 decimals</td><td>USDG</td><td>Yes</td></tr>
+      <tr><td><span class="pill stk">Stocks</span></td><td>194 registered stock tokens: AAPL, NVDA, TSLA, MSFT, GOOGL, AMZN, META, MSTR, COIN, QQQ, SPY-style ETFs and many more</td><td>The stock token</td><td>106 of 194, where the stock has on-chain liquidity</td></tr>
+    </table></div>
+    <h2 id="stock-paired">Stock-paired launches</h2>
+    <p>A stock-paired token is created by the same factory with the same 0.001 ETH creation fee. The difference is the pool: it holds your token against the stock token, so buyers pay in the stock, and your creator fees arrive in the stock. That is the point for many creators: a coin that earns NVDA on every trade.</p>
+    <p>Because the pair asset is a stock token, a dev buy has to convert your ETH into that stock first. The bot finds a route through Robinhood's pools automatically; where none has liquidity, it tells you and offers a launch without the dev buy. Details in <a href="#/dev-buy">Dev buy</a>.</p>
+    <h2 id="naming-a-pair">Naming a pair</h2>
+    <ul>
+      <li>Symbols always work: <code>pair NVDA</code>, <code>pair usdg</code>, <code>pair $ETH</code>.</li>
+      <li>Aliases the bot understands: ether and ethereum for ETH, and company names that identify exactly one listed stock, such as nvidia, tesla, apple, google.</li>
+      <li>If a name could mean two stocks, the bot asks which one.</li>
+      <li>An asset that is not registered on o1's factory (DOGE, for example) gets a reply saying it is not available.</li>
+    </ul>
+    <h2 id="ticker-collisions">Tickers that collide with stocks</h2>
+    <p>You cannot launch a token whose ticker equals a stock token symbol registered on the factory, so nobody mistakes your <code>$TSLA</code> for the tokenized stock. Pick another ticker; <code>$TSLADOG</code> is fine.</p>
+    <p class="small">The list of registered pairs is refreshed from o1's published catalog. Every launch also re-reads the factory on chain, so a pair o1 removes cannot be selected even before the catalog is updated.</p>
+  </div>
+</section>
+
+<!-- ================= DEV BUY ================= -->
+<section class="page" data-page="dev-buy" data-title="Dev buy" data-group="Launching">
+  <div class="crumb"><b>Launching</b><span>/</span>Dev buy</div>
+  <h1><span class="grad">Dev buy</span></h1>
+  <p class="lead">A dev buy purchases tokens in the same transaction that creates them. It is the one buy that skips o1's anti-snipe surcharge.</p>
+  <div class="art">
+    <div class="cmd" data-copy='@o1bot_exchange launch $MOON "Moon" pair ETH on robinhood devbuy 0.05'><b>@o1bot_exchange</b> launch <em>$MOON</em> "Moon" pair <em>ETH</em> on <em>robinhood</em> <i>devbuy 0.05</i></div>
+    <h2 id="why">Why it exists</h2>
+    <p>For 20 seconds after a pool opens, o1 charges a fee that starts at 99% and falls to the normal 1%. It stops bots from sniping the first blocks. The creator's own atomic buy is exempt: it pays the normal 1% and nothing more. Any buy in a later transaction, including one from you, pays the schedule like everyone else. The bot will never place a follow-up buy inside the window.</p>
+    <h2 id="what-you-pay">What you pay</h2>
+    <p>The amount after <code>devbuy</code> is ETH, taken from your wallet on top of the creation fee and gas. <code>devbuy 0.05</code> on a plain launch means the transaction carries 0.051 ETH plus gas.</p>
+    <div class="tbl"><table>
+      <tr><th>Item</th><th class="num">ETH</th></tr>
+      <tr><td>Creation fee to o1</td><td class="num">0.001</td></tr>
+      <tr><td>Dev buy</td><td class="num">0.050</td></tr>
+      <tr><td>Gas (about 2.7M gas at typical prices)</td><td class="num">~0.001</td></tr>
+      <tr><td><b>Total the wallet needs</b></td><td class="num"><b>~0.052</b></td></tr>
+    </table></div>
+    <h2 id="protection">Slippage protection</h2>
+    <p>Before signing, the bot simulates the launch and reads how many tokens the buy would return. It then sets a minimum output 3% below that. If the chain moves against you between simulation and confirmation, the whole launch reverts and nothing is spent except gas. The bot tells you and you can post again.</p>
+    <h2 id="routes">How the ETH reaches the pool</h2>
+    <ul>
+      <li><strong>ETH pair:</strong> straight into the new pool. One hop.</li>
+      <li><strong>USDG pair:</strong> ETH is swapped to USDG on Robinhood's SwapX pool first, then into the new pool.</li>
+      <li><strong>Stock pair:</strong> either ETH to the stock directly, or ETH to USDG to the stock, depending on where the liquidity is. The bot tries every liquid route, simulates each, and uses the one that returns the most tokens.</li>
+    </ul>
+    <p>Routes are discovered on chain at launch time. As of the September 2026 survey, 106 of the 194 stock tokens have a liquid route from ETH. For the rest, the bot replies that a dev buy is not available for that pair and offers to launch without it.</p>
+    <div class="callout info">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+      <p>A launch with a dev buy is valid for 5 minutes after the bot prepares it, versus 30 minutes for a plain launch. o1's swap adapter rejects longer deadlines. In practice the bot signs within seconds, so you will not notice.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FEES TO ================= -->
+<section class="page" data-page="fees-to" data-title="Fees to another account" data-group="Launching">
+  <div class="crumb"><b>Launching</b><span>/</span>Fees to another account</div>
+  <h1><span class="grad">Fees to another account</span></h1>
+  <p class="lead">Launch a token whose creator fees go to someone else on X. They do not need an account yet.</p>
+  <div class="art">
+    <div class="cmd" data-copy='@o1bot_exchange launch $GIFT "Gift" pair ETH on robinhood fees to @alice'><b>@o1bot_exchange</b> launch <em>$GIFT</em> "Gift" pair <em>ETH</em> on <em>robinhood</em> <i>fees to @alice</i></div>
+    <h2 id="how-it-works">How it works</h2>
+    <ol>
+      <li>The bot resolves <code>@alice</code> to her stable X user id, so a later handle change does not break anything.</li>
+      <li>If she has never used o1bot, a wallet is created for her in advance, tied to that X id. When she signs in with X at o1bot.exchange, that wallet is already hers.</li>
+      <li>Your wallet launches the token as usual. You remain the on-chain creator and pay everything.</li>
+      <li>Right after the launch confirms, the bot sends a second transaction from your wallet that points the creator fee stream at her wallet. The bot replies only after both confirm, and mentions her so she knows.</li>
+    </ol>
+    <h2 id="claiming">Claiming as the recipient</h2>
+    <p>Fees accumulate in o1's fee escrow until claimed. The recipient signs in at o1bot.exchange, opens their wallet, and claims. A brand-new wallet has no ETH for gas, so o1bot covers the first claim's gas; after that the recipient's wallet pays its own way.</p>
+    <h2 id="who-can-receive">Who can receive fees</h2>
+    <ul>
+      <li>Any real X account except suspended ones.</li>
+      <li>Not the bot's own accounts and not o1's accounts.</li>
+      <li>You keep the other creator rights (metadata, transferring creator rights) unless you transfer them separately on o1.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= IMAGES ================= -->
+<section class="page" data-page="images" data-title="Token image and metadata" data-group="Launching">
+  <div class="crumb"><b>Launching</b><span>/</span>Token image and metadata</div>
+  <h1><span class="grad">Token image and metadata</span></h1>
+  <p class="lead">Attach a picture to the post and it becomes the token logo. Everything is pinned to IPFS before the launch is signed.</p>
+  <div class="art">
+    <h2 id="image-rules">Image rules</h2>
+    <div class="tbl"><table>
+      <tr><th>Rule</th><th>Value</th></tr>
+      <tr><td>Formats</td><td>PNG, JPEG, WebP, GIF. The file's real type must match its declared type.</td></tr>
+      <tr><td>Size</td><td>2 MB at most, o1's limit</td></tr>
+      <tr><td>Which image</td><td>The first image attached to the post. Video and links are ignored.</td></tr>
+      <tr><td>No image</td><td>A generated placeholder tile in a colour derived from the ticker</td></tr>
+    </table></div>
+    <h2 id="metadata">What gets recorded</h2>
+    <p>The token's contract metadata is a small JSON document with the name, symbol, image, a link to the o1bot token page, and attribution to the post that launched it: the author's handle, X user id, and the post id. Anyone can verify which post created which token.</p>
+    <p>Metadata is fixed at launch. The o1bot creates every token with editing disabled, which is also what o1 marks as the immutable default.</p>
+  </div>
+</section>
+
+<!-- ================= REPLIES ================= -->
+<section class="page" data-page="replies" data-title="What the bot replies" data-group="Launching">
+  <div class="crumb"><b>Launching</b><span>/</span>What the bot replies</div>
+  <h1><span class="grad">What the bot replies</span></h1>
+  <p class="lead">Every mention gets at most one reply. Here is each kind, what triggers it, and what to do next. Replies are written in the language of your post; the English versions are shown.</p>
+  <div class="art">
+    <h2 id="success">Launched</h2>
+    <div class="reply"><div class="av"><img src="assets/mark-128.png" alt="" width="22" height="22"></div><div><div class="who"><b>o1bot.exchange</b> @o1bot_exchange</div><div class="txt">Launched $RUGRAT — Rugrat, paired with ETH on Robinhood Chain.
+Token 0x4dB2…Bf01
+o1: o1.exchange/token/…  ·  o1bot: o1bot.exchange/t/…
+Dev buy: 0.05 ETH. Fees go to @alice.</div><div class="why">The launch confirmed. The dev buy and fees-to lines appear only when used. The full token address is in the o1bot token page.</div></div></div>
+    <h2 id="clarify">One question</h2>
+    <div class="reply"><div class="av"><img src="assets/mark-128.png" alt="" width="22" height="22"></div><div><div class="who"><b>o1bot.exchange</b> @o1bot_exchange</div><div class="txt">Which pair should $ABC trade against? ETH, USDG or a stock token like NVDA.</div><div class="why">A required value was missing or ambiguous. Reply to the bot, or post a new complete command.</div></div></div>
+    <h2 id="not-registered">Not linked yet</h2>
+    <div class="reply"><div class="av"><img src="assets/mark-128.png" alt="" width="22" height="22"></div><div><div class="who"><b>o1bot.exchange</b> @o1bot_exchange</div><div class="txt">Link this X account first at o1bot.exchange, then post again.</div><div class="why">The posting account has never signed in at o1bot.exchange, or has not allowed the bot to sign from its wallet.</div></div></div>
+    <h2 id="insufficient">Balance is short</h2>
+    <div class="reply"><div class="av"><img src="assets/mark-128.png" alt="" width="22" height="22"></div><div><div class="who"><b>o1bot.exchange</b> @o1bot_exchange</div><div class="txt">Your wallet is 0.0013 ETH short for this launch. Send ETH on Robinhood Chain to 0x4E2a…9C01, then post again.</div><div class="why">Exact shortfall including gas. Top up and repost; nothing was spent.</div></div></div>
+    <h2 id="other-outcomes">Other outcomes</h2>
+    <div class="tbl"><table>
+      <tr><th>Reply</th><th>Cause</th><th>Fix</th></tr>
+      <tr><td><b>Only Robinhood Chain is supported</b></td><td>The post named Base or another chain</td><td>Drop the chain or write <code>on robinhood</code></td></tr>
+      <tr><td><b>Pair not available</b></td><td>The asset is not registered on o1's factory</td><td>Choose from <a href="#/pairs">Pairs</a></td></tr>
+      <tr><td><b>Ticker matches a stock</b></td><td>The ticker equals a registered stock symbol</td><td>Pick another ticker</td></tr>
+      <tr><td><b>No dev-buy route for this pair</b></td><td>The stock has no liquid route from ETH</td><td>Launch without <code>devbuy</code></td></tr>
+      <tr><td><b>Slow down</b></td><td>One launch per account per 10 minutes, five per day</td><td>Wait, then post again</td></tr>
+      <tr><td><b>Launch failed on chain</b></td><td>Simulation or the transaction reverted (for example o1 rotated its configuration mid-flight)</td><td>Post again; the bot re-reads everything fresh</td></tr>
+      <tr><td><b>Help reply</b></td><td>The post asked how the bot works, about wallets, fees or pairs</td><td>A short answer with a link to o1bot.exchange</td></tr>
+      <tr><td><b>No reply</b></td><td>No actionable intent, spam, or abuse</td><td>—</td></tr>
+    </table></div>
+  </div>
+</section>
+
+<!-- ================= LIMITS ================= -->
+<section class="page" data-page="limits" data-title="Limits and rules" data-group="Launching">
+  <div class="crumb"><b>Launching</b><span>/</span>Limits and rules</div>
+  <h1><span class="grad">Limits and rules</span></h1>
+  <p class="lead">Some come from o1's contracts, some from o1bot to keep the bot usable for everyone.</p>
+  <div class="art">
+    <h2 id="rate">Rate limits (o1bot)</h2>
+    <div class="tbl"><table>
+      <tr><th>Limit</th><th>Value</th></tr>
+      <tr><td>Launches per X account</td><td>1 per 10 minutes, 5 per day</td></tr>
+      <tr><td>Replies</td><td>At most one reply per mention</td></tr>
+      <tr><td>Retweets and quote-tweets of the bot</td><td>Ignored</td></tr>
+    </table></div>
+    <h2 id="token-fields">Token fields (o1 limits, o1bot rules)</h2>
+    <div class="tbl"><table>
+      <tr><th>Field</th><th>Rule</th></tr>
+      <tr><td>Ticker</td><td>1 to 11 characters, uppercase letters and digits only. o1 allows more characters; o1bot keeps tickers plain so they read the same everywhere.</td></tr>
+      <tr><td>Name</td><td>50 characters</td></tr>
+      <tr><td>Image</td><td>2 MB, PNG/JPEG/WebP/GIF</td></tr>
+      <tr><td>Supply</td><td>1,000,000,000 tokens, 18 decimals, all of it placed in the pool. Fixed by o1's factory.</td></tr>
+      <tr><td>Token address</td><td>Always ends in <code>01</code>. Required by o1; the bot mines a salt to satisfy it.</td></tr>
+    </table></div>
+    <h2 id="what-the-bot-never-does">What the bot never does</h2>
+    <ul>
+      <li>Never guesses a ticker, name, pair, chain or amount you did not write.</li>
+      <li>Never signs anything but a launch, the ERC-20 approval a launch may need, the fee-recipient update, or a fee claim, and only to o1's contracts.</li>
+      <li>Never buys after the launch transaction, and never inside the anti-snipe window.</li>
+      <li>Never pays from a o1bot wallet on your behalf, and never sets o1bot as the creator of your token.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= FEES ================= -->
+<section class="page" data-page="fees" data-title="Fees and economics" data-group="Money">
+  <div class="crumb"><b>Money</b><span>/</span>Fees and economics</div>
+  <h1><span class="grad">Fees and economics</span></h1>
+  <p class="lead">Two fees exist, both o1's. o1bot adds none.</p>
+  <div class="art">
+    <h2 id="creation-fee">Creation fee</h2>
+    <p><strong>0.001 ETH per launch</strong>, paid to o1 by your wallet, for every pair including stock pairs. Plus network gas, roughly 2.2 million gas for a plain launch and 2.7 million with a dev buy. The fee is a setting o1 can change; the bot reads the live value before every launch and tells you the exact amount if your wallet is short.</p>
+    <h2 id="swap-fee">Swap fee</h2>
+    <p>Every trade in the pool pays <strong>1% of the paired asset</strong>, split three ways:</p>
+    <div class="tbl"><table>
+      <tr><th>Recipient</th><th class="num">Share of the 1%</th><th class="num">Of each trade</th></tr>
+      <tr><td><b>Creator</b> (you, or your fees-to account)</td><td class="num">50%</td><td class="num">0.5%</td></tr>
+      <tr><td>o1 platform</td><td class="num">30%</td><td class="num">0.3%</td></tr>
+      <tr><td>Referrer (the app the trade came through)</td><td class="num">20%</td><td class="num">0.2%</td></tr>
+    </table></div>
+    <p>Fees are always in the pair asset: an ETH pool pays ETH, a USDG pool pays USDG, an NVDA pool pays NVDA. When a trade has no valid referrer, o1 keeps the 0.2%.</p>
+    <h2 id="anti-snipe">The opening 20 seconds</h2>
+    <p>Trading is open from the first block, but the total fee starts at 99% and falls linearly to 1% over 20 seconds. Everything above 1% goes to o1. The creator's atomic dev buy is exempt; every later buy is not.</p>
+    <div class="fig">
+      <svg viewBox="0 0 640 220" role="img" aria-label="Total swap fee falling from 99 percent at launch to 1 percent after 20 seconds">
+        <g font-family="Bricolage Grotesque, system-ui, sans-serif" font-size="12" fill="#6E7C8F">
+          <line x1="60" y1="20" x2="60" y2="180" stroke="#243040"/>
+          <line x1="60" y1="180" x2="600" y2="180" stroke="#243040"/>
+          <line x1="60" y1="20" x2="600" y2="20" stroke="#243040" stroke-dasharray="3 4"/>
+          <line x1="60" y1="100" x2="600" y2="100" stroke="#243040" stroke-dasharray="3 4"/>
+          <text x="52" y="24" text-anchor="end">99%</text>
+          <text x="52" y="104" text-anchor="end">50%</text>
+          <text x="52" y="184" text-anchor="end">1%</text>
+          <text x="60" y="202" text-anchor="middle">0s</text>
+          <text x="195" y="202" text-anchor="middle">5s</text>
+          <text x="330" y="202" text-anchor="middle">10s</text>
+          <text x="465" y="202" text-anchor="middle">15s</text>
+          <text x="600" y="202" text-anchor="middle">20s</text>
+        </g>
+        <polygon points="60,20 600,180 600,180 60,180" fill="#3B1B18" opacity=".6"/>
+        <polyline points="60,20 600,180" fill="none" stroke="#FF6E5E" stroke-width="2.5"/>
+        <circle cx="60" cy="20" r="4" fill="#FF6E5E"/>
+        <circle cx="195" cy="60" r="3.5" fill="#FF6E5E"/>
+        <circle cx="330" cy="100" r="3.5" fill="#FF6E5E"/>
+        <circle cx="465" cy="140" r="3.5" fill="#FF6E5E"/>
+        <circle cx="600" cy="180" r="4" fill="#3ED082"/>
+        <g font-family="Bricolage Grotesque, system-ui, sans-serif" font-size="12" fill="#EAF0F8">
+          <text x="205" y="56">74.5%</text><text x="340" y="96">50%</text><text x="475" y="136">25.5%</text>
+        </g>
+        <g font-family="Bricolage Grotesque, system-ui, sans-serif" font-size="12" fill="#3ED082">
+          <text x="592" y="168" text-anchor="end">dev buy pays 1% at any point</text>
+        </g>
+      </svg>
+      <div class="figcap">o1's anti-snipe schedule on Robinhood Chain. Values above 1% are the surcharge and go to the platform.</div>
+    </div>
+    <h2 id="what-o1bot-earns">What o1bot earns</h2>
+    <ul>
+      <li>The <strong>referrer share</strong> (0.2% of trades) on swaps made through the o1bot app. o1 pays it; traders pay nothing extra. o1 rejects a referrer that equals the creator or the fee recipient, so o1bot's referrer wallet is a separate address from any user wallet.</li>
+      <li>Creator fees on <strong>o1bot's own token</strong>, launched through the same pipeline as everyone else's.</li>
+    </ul>
+    <p>There is no fee on launches, no fee on claims, nothing taken from user wallets.</p>
+  </div>
+</section>
+
+<!-- ================= WALLET ================= -->
+<section class="page" data-page="wallet" data-title="Wallet and security" data-group="Money">
+  <div class="crumb"><b>Money</b><span>/</span>Wallet and security</div>
+  <h1><span class="grad">Wallet and security</span></h1>
+  <p class="lead">Your launches are signed by a wallet that is yours. Here is exactly what the bot can and cannot do with it.</p>
+  <div class="art">
+    <h2 id="the-wallet">The wallet</h2>
+    <p>Signing in with X at o1bot.exchange creates an embedded wallet through <strong>Privy</strong>, tied to your X account. It is a normal Ethereum address. You can see it, top it up, export its private key, and use it anywhere. o1bot never sees the key.</p>
+    <h2 id="permission">The permission you grant</h2>
+    <p>For the bot to launch from your wallet, you allow "delegated signing" once in the app. Until you do, the bot replies that your account is not linked. You can revoke it in the app at any time.</p>
+    <h2 id="allow-list">What the bot is allowed to sign</h2>
+    <p>The signer inside the bot refuses everything that is not on this list, before the request ever reaches Privy:</p>
+    <div class="tbl"><table>
+      <tr><th>Transaction</th><th>To</th></tr>
+      <tr><td>Create a launch, with or without a dev buy</td><td>o1's active factory</td></tr>
+      <tr><td>Point the creator fee stream at another wallet (<code>fees to</code>)</td><td>o1's active factory</td></tr>
+      <tr><td>An ERC-20 approval a launch may need</td><td>A registered pair token only</td></tr>
+      <tr><td>Claim accumulated fees</td><td>o1's fee escrow</td></tr>
+    </table></div>
+    <p>No plain transfers, no other contracts, no message signing, no signing on other chains. A post cannot turn into arbitrary calldata; the bot only fills the fields of those four calls. Every signed transaction is logged with the post id, your X id, your wallet, and a hash of the calldata.</p>
+    <h2 id="what-you-should-know">Things worth knowing</h2>
+    <ul>
+      <li>You are the on-chain creator. o1 records your wallet as the original creator; that cannot be changed by o1bot.</li>
+      <li>Keep only what you plan to spend in the launch wallet. It is a hot wallet by design.</li>
+      <li>The <code>fees to</code> recipient's wallet is created in advance and handed to them on their first sign-in. Until then nobody can spend from it.</li>
+      <li>o1bot's treasury and referrer wallets are separate addresses that never sign user launches.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= APP ================= -->
+<section class="page" data-page="app" data-title="The o1bot app" data-group="Money">
+  <div class="crumb"><b>Money</b><span>/</span>The o1bot app</div>
+  <h1><span class="grad">The o1bot app</span></h1>
+  <p class="lead">o1bot.exchange is where you link X, watch your wallet, and, soon, trade and claim.</p>
+  <div class="art">
+    <h2 id="today">Available now</h2>
+    <ul>
+      <li>Sign in with X and create your wallet.</li>
+      <li>See your address, your ETH balance on Robinhood Chain, and whether the bot is allowed to sign.</li>
+      <li>Export your private key.</li>
+    </ul>
+    <h2 id="coming">Coming <span class="pill warn">soon</span></h2>
+    <ul>
+      <li><strong>Board</strong>: every token launched through o1bot, with the post that launched it, price, volume and holders.</li>
+      <li><strong>Token page</strong>: chart, trades, holders, the creator's posts, and the genesis post.</li>
+      <li><strong>Swap</strong>: buy and sell through o1's pool from your o1bot wallet, with the anti-snipe countdown shown live. Trades made here carry o1bot as the referrer.</li>
+      <li><strong>Claim fees</strong>: collect your creator fees from o1's escrow, grouped by asset.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= ARCHITECTURE ================= -->
+<section class="page" data-page="architecture" data-title="Architecture" data-group="Developers">
+  <div class="crumb"><b>Developers</b><span>/</span>Architecture</div>
+  <h1><span class="grad">Architecture</span></h1>
+  <p class="lead">A pipeline from a mention to a receipt. Each stage can refuse; only the executor touches the chain.</p>
+  <div class="art">
+    <div class="fig">
+      <svg viewBox="0 0 760 300" role="img" aria-label="Pipeline: X mention to listener, parser, validator, queue, executor, chain, replier; indexer feeds the web app">
+        <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5 0 10z" fill="#6E7C8F"/></marker></defs>
+        <g font-family="Bricolage Grotesque, system-ui, sans-serif" font-size="13" text-anchor="middle">
+          <rect x="10" y="30" width="110" height="46" rx="8" fill="#1B2533" stroke="#243040"/><text x="65" y="49" fill="#EAF0F8">Mention on X</text><text x="65" y="66" fill="#6E7C8F" font-size="11">@o1bot_exchange</text>
+          <rect x="160" y="30" width="110" height="46" rx="8" fill="#151D29" stroke="#243040"/><text x="215" y="49" fill="#EAF0F8">Listener</text><text x="215" y="66" fill="#6E7C8F" font-size="11">poll, dedupe by post id</text>
+          <rect x="310" y="30" width="110" height="46" rx="8" fill="#151D29" stroke="#243040"/><text x="365" y="49" fill="#EAF0F8">Parser</text><text x="365" y="66" fill="#6E7C8F" font-size="11">Claude, structured</text>
+          <rect x="460" y="30" width="110" height="46" rx="8" fill="#151D29" stroke="#243040"/><text x="515" y="49" fill="#EAF0F8">Validator</text><text x="515" y="66" fill="#6E7C8F" font-size="11">linked, pair, limits, balance</text>
+          <rect x="610" y="30" width="110" height="46" rx="8" fill="#151D29" stroke="#243040"/><text x="665" y="49" fill="#EAF0F8">Queue</text><text x="665" y="66" fill="#6E7C8F" font-size="11">Redis</text>
+          <rect x="610" y="130" width="110" height="46" rx="8" fill="#17305A" stroke="#2F7BFF"/><text x="665" y="149" fill="#EAF0F8">Executor</text><text x="665" y="166" fill="#6FB6FF" font-size="11">simulate, sign, send</text>
+          <rect x="385" y="130" width="160" height="46" rx="8" fill="#1B2533" stroke="#243040"/><text x="465" y="149" fill="#EAF0F8">Robinhood Chain</text><text x="465" y="166" fill="#6E7C8F" font-size="11">o1 factory · hook · escrow</text>
+          <rect x="160" y="130" width="140" height="46" rx="8" fill="#151D29" stroke="#243040"/><text x="230" y="149" fill="#EAF0F8">Replier</text><text x="230" y="166" fill="#6E7C8F" font-size="11">one reply per post</text>
+          <rect x="385" y="230" width="160" height="46" rx="8" fill="#151D29" stroke="#243040"/><text x="465" y="249" fill="#EAF0F8">Indexer</text><text x="465" y="266" fill="#6E7C8F" font-size="11">Launched + trade events</text>
+          <rect x="160" y="230" width="140" height="46" rx="8" fill="#151D29" stroke="#243040"/><text x="230" y="249" fill="#EAF0F8">Web app</text><text x="230" y="266" fill="#6E7C8F" font-size="11">board · token page · swap</text>
+        </g>
+        <g fill="none" stroke="#6E7C8F" stroke-width="1.5" marker-end="url(#ar)">
+          <path d="M120 53h38"/><path d="M270 53h38"/><path d="M420 53h38"/><path d="M570 53h38"/>
+          <path d="M665 76v52"/><path d="M610 153h-63"/><path d="M385 153h-83"/>
+          <path d="M465 176v52"/><path d="M385 253h-83"/>
+        </g>
+        <g font-family="Bricolage Grotesque, system-ui, sans-serif" font-size="11" fill="#6E7C8F">
+          <text x="578" y="147" text-anchor="middle">tx</text><text x="343" y="147" text-anchor="middle">receipt</text><text x="343" y="247" text-anchor="middle">launches, trades</text>
+        </g>
+        <path d="M230 130V76H215" fill="none" stroke="#6E7C8F" stroke-width="1.5" stroke-dasharray="3 4"/>
+        <text x="236" y="106" font-family="Bricolage Grotesque, system-ui, sans-serif" font-size="11" fill="#6E7C8F">clarify / refuse</text>
+      </svg>
+      <div class="figcap">Only the executor signs. The parser, validator and replier can end a mention early without touching a wallet.</div>
+    </div>
+    <h2 id="stages">Stages</h2>
+    <div class="tbl"><table>
+      <tr><th>Stage</th><th>Job</th><th>Can refuse with</th></tr>
+      <tr><td><b>Listener</b></td><td>Polls mentions of the bot, dedupes by post id, ignores retweets and quotes of the bot, keeps the author's X id, handle and first image.</td><td>Silence</td></tr>
+      <tr><td><b>Parser</b></td><td>One Claude call with a strict output schema, then deterministic normalisation. Never invents values.</td><td>A question, a help reply, or silence</td></tr>
+      <tr><td><b>Validator</b></td><td>Account linked and delegated, rate limits, pair registered live, ticker not a stock symbol, fees-to target resolvable and allowed.</td><td>Not linked, slow down, pair unavailable</td></tr>
+      <tr><td><b>Queue</b></td><td>One launch at a time per account, retries with fresh reads on stale-configuration errors.</td><td>—</td></tr>
+      <tr><td><b>Executor</b></td><td>Reads the factory at one block, pins metadata, mines the salt, builds and simulates the call, checks funding, signs from the user's Privy wallet, broadcasts, waits, sends the fee-recipient update if needed.</td><td>Balance short, no dev-buy route, on-chain failure</td></tr>
+      <tr><td><b>Replier</b></td><td>Posts one reply with the outcome, localised to the post's language.</td><td>—</td></tr>
+      <tr><td><b>Indexer</b></td><td>Follows Launched and trade events on every o1 factory that ever existed on the chain, keeps o1bot-originated launches, serves the app.</td><td>—</td></tr>
+    </table></div>
+    <h2 id="stack">Stack</h2>
+    <p>TypeScript throughout. viem for chain reads and writes, Privy for wallets and login, the Anthropic SDK for the parser, Postgres with Prisma for users, mentions, launches and the signed-transaction audit log, Redis for the queue and dedupe, Next.js for the app. Verified contract ABIs are vendored from two independent sources and must agree.</p>
+  </div>
+</section>
+
+<!-- ================= LAUNCH INTERNALS ================= -->
+<section class="page" data-page="launch-internals" data-title="How a launch is built" data-group="Developers">
+  <div class="crumb"><b>Developers</b><span>/</span>How a launch is built</div>
+  <h1><span class="grad">How a launch is built</span></h1>
+  <p class="lead">The executor never trusts a cached number and never broadcasts a call it has not simulated. This is the order of operations.</p>
+  <div class="art">
+    <div class="steps">
+      <div class="step"><div class="n">1</div><div><b>Confirm the factory</b><p>o1's published registry is fetched and compared with the vendored snapshot. If o1 rotated the active factory, the run stops until the snapshot and ABIs are refreshed.</p></div></div>
+      <div class="step"><div class="n">2</div><div><b>Read the factory at one block</b><p><code>configVersion</code>, <code>launchSupply</code>, <code>tickSpacing</code>, <code>nativeLaunchFee</code>, <code>launchCreationEnabled</code>, <code>TOKEN_ADDRESS_SUFFIX</code>, the token deployer, the hook, the launch-buy adapter, and <code>quoteConfig</code> plus <code>quoteRevision</code> for the pair. All at the same block so they are mutually consistent. Creation disabled, pair unregistered, or a suffix other than 1 stops the run.</p></div></div>
+      <div class="step"><div class="n">3</div><div><b>Pin metadata</b><p>The image is validated by its magic bytes and size, then pinned; the metadata JSON is pinned; the resulting <code>ipfs://</code> URI goes into the launch parameters.</p></div></div>
+      <div class="step"><div class="n">4</div><div><b>Mine the salt</b><p>The factory scopes every salt to the caller: <code>scopedSalt = keccak256(abi.encode(creator, creatorSalt))</code>. The token address is <code>CREATE2(tokenDeployer, scopedSalt, launchTokenBytecodeHash)</code>. The bytecode hash does not depend on the salt, so it is read once and the search runs locally until the address ends in <code>01</code>, about 256 tries.</p></div></div>
+      <div class="step"><div class="n">5</div><div><b>Build the call</b><p><code>createLaunch(params)</code> with <code>value = nativeLaunchFee</code>, or <code>createLaunchAndBuy(params, buy)</code> with <code>value = nativeLaunchFee + amountIn</code> and native funding. <code>expectedConfigVersion</code> is the fresh read. Deadline is the block timestamp plus 30 minutes, or 5 minutes with a dev buy.</p></div></div>
+      <div class="step"><div class="n">6</div><div><b>Simulate as the creator</b><p>An <code>eth_call</code> from the user's address. The token the factory returns must equal the mined prediction. With a dev buy, every discovered route is simulated and the one with the largest output wins; its output minus 3% becomes <code>minAmountOut</code>.</p></div></div>
+      <div class="step"><div class="n">7</div><div><b>Check funding</b><p>Gas is estimated with 20% headroom; the required amount is value plus gas at the current fee. The user's real balance decides whether to continue.</p></div></div>
+      <div class="step"><div class="n">8</div><div><b>Sign, send, confirm</b><p>The call passes the allow-list guard, is signed by the user's Privy wallet, broadcast, and awaited. <code>Launched</code> in the receipt gives the token and pool id. With <code>fees to</code>, <code>setCreatorFeeRecipient</code> follows as a second transaction, and the reply waits for both.</p></div></div>
+    </div>
+    <h2 id="errors">Errors the executor understands</h2>
+    <div class="tbl"><table>
+      <tr><th>Revert</th><th>Meaning</th><th>Action</th></tr>
+      <tr><td class="mono">StaleConfig</td><td>o1 changed a setting after the read</td><td>Re-read and rebuild</td></tr>
+      <tr><td class="mono">LaunchExpired</td><td>Deadline passed</td><td>Rebuild with a fresh deadline</td></tr>
+      <tr><td class="mono">LaunchSaltUsed</td><td>The scoped salt was already used</td><td>Mine a new salt</td></tr>
+      <tr><td class="mono">QuoteNotRegistered</td><td>Pair removed from the factory</td><td>Tell the user</td></tr>
+      <tr><td class="mono">InvalidTokenAddressSuffix</td><td>Predicted address does not end in 01</td><td>Never expected; stop</td></tr>
+      <tr><td class="mono">DeadlineTooLong</td><td>Dev-buy adapter rejects deadlines beyond a few minutes</td><td>Handled: 5-minute deadline</td></tr>
+      <tr><td class="mono">UnsupportedRoute</td><td>Dev-buy adapter refuses the route shape (native ETH into a non-launch V4 pool)</td><td>Handled: such routes are never built</td></tr>
+    </table></div>
+    <h2 id="route-data">Dev-buy route data</h2>
+    <p>The launch-buy adapter is not source-verified on any explorer, so its route format was reverse-engineered from live transactions and is pinned byte for byte in tests. A route is <code>abi.encode(Step[])</code> where a step is <code>(kind, tokenIn, tokenOut, pool, fee, tickSpacing, hooks, hookData)</code>; kind 1 is a SwapX V3 pool, kind 2 a Uniswap V4 pool. The last step is always the new launch pool with fee 0 and o1's hook.</p>
+  </div>
+</section>
+
+<!-- ================= CONTRACTS ================= -->
+<section class="page" data-page="contracts" data-title="Contracts on Robinhood" data-group="Developers">
+  <div class="crumb"><b>Developers</b><span>/</span>Contracts on Robinhood</div>
+  <h1><span class="grad">Contracts on Robinhood Chain</span></h1>
+  <p class="lead">Chain id 4663. All launch contracts are o1's; o1bot only calls them. Snapshot from o1's published registry, 2026-09-06.</p>
+  <div class="art">
+    <h2 id="active-suite">Active launch suite (launchpad-v4-minimal)</h2>
+    <div class="tbl"><table>
+      <tr><th>Contract</th><th>Address</th></tr>
+      <tr><td>Launch Factory</td><td class="mono">0xcE9C48cFa068947f77738c81Be406B53338E5B0d</td></tr>
+      <tr><td>Launch Hook</td><td class="mono">0x0310cFEbE1D7A69f2414f6595bBe9d17c5342aCc</td></tr>
+      <tr><td>Fee Escrow</td><td class="mono">0xc5444b417a04a7E1B9C1E327c7D499803c14E5EF</td></tr>
+      <tr><td>Launch Token Deployer</td><td class="mono">0xf86dfDb678D8E5d932100Ef479A59fa65a82a5Eb</td></tr>
+      <tr><td>Announcement Registry</td><td class="mono">0x19C4c024Aca11e4A3d47792C69C80c8f4E596b23</td></tr>
+      <tr><td>Launch-Buy Adapter</td><td class="mono">0xF9804FeAB2F9b16EDE0Cd92E5C6e75C5cf64462f</td></tr>
+    </table></div>
+    <p class="small">Configuration version 14 at the snapshot; creation enabled; native launch fee 0.001 ETH; tick spacing 200; supply 1,000,000,000 tokens.</p>
+    <h2 id="deps">Uniswap and pairs</h2>
+    <div class="tbl"><table>
+      <tr><th>Contract</th><th>Address</th></tr>
+      <tr><td>v4 PoolManager</td><td class="mono">0x8366a39CC670B4001A1121B8F6A443A643e40951</td></tr>
+      <tr><td>v4 Quoter</td><td class="mono">0x8dc178efb8111bb0973dd9d722ebeff267c98f94</td></tr>
+      <tr><td>v4 StateView</td><td class="mono">0xf3334192d15450cdd385c8b70e03f9a6bd9e673b</td></tr>
+      <tr><td>Universal Router</td><td class="mono">0x8876789976decbfcbbbe364623c63652db8c0904</td></tr>
+      <tr><td>Permit2</td><td class="mono">0x000000000022D473030F116dDEE9F6B43aC78BA3</td></tr>
+      <tr><td>SwapX V3 factory (dev-buy routing)</td><td class="mono">0x1f7d7550B1b028f7571E69A784071F0205FD2EfA</td></tr>
+      <tr><td>WETH (routing only)</td><td class="mono">0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73</td></tr>
+      <tr><td>Native ETH</td><td class="mono">0x0000000000000000000000000000000000000000</td></tr>
+      <tr><td>USDG</td><td class="mono">0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168</td></tr>
+    </table></div>
+    <p>The 194 stock token addresses are in o1's <a href="https://docs.o1.exchange/launchpad/reference/robinhood-stock-quotes.json" target="_blank" rel="noreferrer">robinhood-stock-quotes.json</a>, mirrored in the repo's <code>config/</code>.</p>
+    <h2 id="historical">Historical factories</h2>
+    <p>o1 has rotated its Robinhood suite four times before the active one. Tokens created by those factories are still o1 tokens; the indexer keeps every suite from its first block and resolves a token by chain id and originating factory, never by assuming the current one.</p>
+    <p class="small">Explorer: <a href="https://robinhoodchain.blockscout.com" target="_blank" rel="noreferrer">robinhoodchain.blockscout.com</a>. Sources: <a href="https://docs.o1.exchange/launchpad/reference/production-contracts.md" target="_blank" rel="noreferrer">o1 production contracts</a>, <a href="https://docs.o1.exchange/launchpad/reference/launch-contract-suites.json" target="_blank" rel="noreferrer">launch-contract-suites.json</a>.</p>
+  </div>
+</section>
+
+<!-- ================= RUNNING ================= -->
+<section class="page" data-page="running" data-title="Running it yourself" data-group="Developers">
+  <div class="crumb"><b>Developers</b><span>/</span>Running it yourself</div>
+  <h1><span class="grad">Running it yourself</span></h1>
+  <p class="lead">A pnpm monorepo. Everything runs in dry-run mode until you say otherwise.</p>
+  <div class="art">
+    <h2 id="layout">Layout</h2>
+<pre><button class="copy" data-copy>copy</button><code>config/            o1 contract snapshot, regenerated with pnpm o1:sync
+abis/              verified ABIs (Sourcify + Blockscout must agree)
+packages/shared    env, chain + RPC fallbacks, o1 registry, tx allow-list
+packages/db        Prisma schema: users, mentions, launches, signed-tx audit
+packages/wallet    Privy: X user to wallet, pregeneration, guarded signer
+packages/executor  factory reads, salt mining, metadata, routes, planLaunch
+packages/parser    Claude mention parser with fixtures
+apps/web           Next.js app (Privy X login, wallet, onboarding)
+apps/bot           the worker</code></pre>
+    <h2 id="setup">Setup</h2>
+<pre><button class="copy" data-copy>copy</button><code>pnpm install
+cp .env.example .env        # Privy, X, Anthropic, Pinata keys; keep DRY_RUN=true
+pnpm o1:sync                # refresh config/o1.json from docs.o1.exchange
+pnpm abi:vendor             # re-vendor ABIs when o1:sync reports drift
+pnpm db:generate &amp;&amp; pnpm db:push
+pnpm typecheck &amp;&amp; pnpm test</code></pre>
+    <h2 id="dry-run">Dry-run a launch</h2>
+    <p>Simulates the whole thing against the live factory and sends nothing. A random creator is funded virtually inside the simulation, so it works with an empty wallet.</p>
+<pre><button class="copy" data-copy>copy</button><code>pnpm simulate --name "Rugrat" --symbol RUGRAT --pair ETH
+pnpm simulate --name "Rugrat" --symbol RUGRAT --pair ETH --devbuy 0.01
+pnpm simulate --name "Nvidia Dog" --symbol NVDOG --pair NVDA --devbuy 0.01</code></pre>
+    <h2 id="parser">Test the parser</h2>
+<pre><button class="copy" data-copy>copy</button><code>pnpm parse '@o1bot_exchange launch $RUGRAT "Rugrat" pair ETH on robinhood'
+pnpm parse --fixtures       # 24 fixtures against the live model</code></pre>
+    <h2 id="env">Environment</h2>
+    <div class="tbl"><table>
+      <tr><th>Variable</th><th>Purpose</th></tr>
+      <tr><td class="mono">DRY_RUN</td><td>Default true. Parse, validate, simulate, but never broadcast or reply.</td></tr>
+      <tr><td class="mono">PRIVY_APP_ID / PRIVY_APP_SECRET / NEXT_PUBLIC_PRIVY_APP_ID</td><td>Same Privy app for the web app and the bot. Enable Login with X, embedded Ethereum wallets, delegated actions.</td></tr>
+      <tr><td class="mono">X_BEARER_TOKEN, X_APP_*</td><td>Read mentions (Basic tier) and post replies as the bot account.</td></tr>
+      <tr><td class="mono">ANTHROPIC_API_KEY, PARSER_MODEL</td><td>The parser. Model defaults to claude-sonnet-4-6.</td></tr>
+      <tr><td class="mono">PINATA_JWT</td><td>IPFS pinning for images and metadata.</td></tr>
+      <tr><td class="mono">RPC_ROBINHOOD</td><td>Paid RPC for production. Unset rotates through public endpoints.</td></tr>
+      <tr><td class="mono">DATABASE_URL, REDIS_URL</td><td>Postgres and Redis.</td></tr>
+      <tr><td class="mono">TREASURY_ADDRESS, REFERRER_ADDRESS</td><td>o1bot's own wallets. Never user wallets; never sign user launches.</td></tr>
+    </table></div>
+    <div class="callout warn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/></svg>
+      <p>Test live launches on a fresh wallet with the minimum fee before enabling dev buys, and keep <code>DRY_RUN=true</code> until a full day of dry runs looks right.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section class="page" data-page="faq" data-title="FAQ" data-group="Reference">
+  <div class="crumb"><b>Reference</b><span>/</span>FAQ</div>
+  <h1><span class="grad">Questions people ask</span></h1>
+  <div class="art">
+    <h2 id="q-free">Is it free?</h2>
+    <p>o1bot charges nothing. You pay o1's 0.001 ETH creation fee and gas from your own wallet, like any launch on o1.</p>
+    <h2 id="q-token">Is the token different from one launched on o1's site?</h2>
+    <p>No. Same factory, same pool, same fees, same audits. The only extra is the metadata line that records which post launched it.</p>
+    <h2 id="q-wallet">Can I use my own wallet instead of the one o1bot creates?</h2>
+    <p>Not for bot launches. The bot needs a wallet it is allowed to sign from, and that is the Privy wallet tied to your X account. You can export its key and use it anywhere afterwards.</p>
+    <h2 id="q-nothing">I posted and nothing happened.</h2>
+    <p>Check three things: the post mentions <code>@o1bot_exchange</code> and is not a quote or retweet of the bot; your account is linked and the bot is allowed to sign; the wallet holds enough ETH. If the bot replied with a question, answer it in a new post with the full command.</p>
+    <h2 id="q-edit">Can I change the name or image after launch?</h2>
+    <p>No. Tokens launched through o1bot are created with metadata editing disabled.</p>
+    <h2 id="q-stock-fees">Stock pair: what do I actually earn?</h2>
+    <p>0.5% of every trade, paid in the stock token. Claim it from the app when it is live, or on o1 directly with your wallet.</p>
+    <h2 id="q-devbuy-fail">The dev buy failed but the token exists?</h2>
+    <p>That cannot happen. A dev buy is atomic with the launch: if the buy fails, the whole launch reverts and no token is created.</p>
+    <h2 id="q-base">When is Base coming?</h2>
+    <p>Not in v1. The bot, the pairs and the docs are Robinhood Chain only for now.</p>
+  </div>
+</section>
+
+<!-- ================= STATUS ================= -->
+<section class="page" data-page="status" data-title="Status and changelog" data-group="Reference">
+  <div class="crumb"><b>Reference</b><span>/</span>Status and changelog</div>
+  <h1><span class="grad">Status and changelog</span></h1>
+  <p class="lead">What is built, what is being tested, and what is next. Updated as the bot moves toward public launch.</p>
+  <div class="art">
+    <div class="tbl"><table>
+      <tr><th>Piece</th><th>State</th></tr>
+      <tr><td>Wallet and X login (Privy), delegation, onboarding</td><td><span class="pill usd">built</span></td></tr>
+      <tr><td>Executor: factory reads, salt mining, metadata, simulation, dev-buy routes</td><td><span class="pill usd">built</span> tested against the live factory, no broadcast yet</td></tr>
+      <tr><td>Parser with 24 fixtures</td><td><span class="pill usd">built</span> awaiting live model validation</td></tr>
+      <tr><td>Listener, validator, queue, signing, replies</td><td><span class="pill warn">next</span></td></tr>
+      <tr><td>App: board, token page, swap, claims</td><td><span class="pill warn">planned</span></td></tr>
+      <tr><td>Indexer</td><td><span class="pill warn">planned</span></td></tr>
+      <tr><td>Public launch</td><td><span class="pill down">not yet</span></td></tr>
+    </table></div>
+    <h2 id="changelog">Changelog</h2>
+    <h3>2026-09-07</h3>
+    <ul>
+      <li>Scope set to Robinhood Chain only for v1.</li>
+      <li>Verified ABIs vendored from Sourcify and Blockscout; token address prediction validated against four live launches.</li>
+      <li>Dev buy for ETH, USDG and 106 stock pairs through on-chain route discovery.</li>
+      <li>Mention parser with structured output and deterministic normalisation.</li>
+    </ul>
+    <h3>2026-09-06</h3>
+    <ul>
+      <li>Repository scaffolded: wallet, database schema, o1 snapshot, transaction allow-list, onboarding page.</li>
+    </ul>
+  </div>
+</section>
+
+</main>
+
+<aside class="toc" id="toc"><div class="tl">On this page</div><div id="toclist"></div></aside>
+</div>
+
+<script>
+(function(){
+  const pages=[...document.querySelectorAll('.page')];
+  const order=pages.map(p=>p.dataset.page);
+  const navLinks=[...document.querySelectorAll('.side a[data-nav]')];
+  const main=document.getElementById('main');
+  const tocList=document.getElementById('toclist');
+  const side=document.getElementById('side');
+  const overlay=document.getElementById('overlay');
+
+  function current(){const h=location.hash.replace(/^#\/?/,'');const [id,anchor]=h.split('#');return {id:order.includes(id)?id:'introduction',anchor};}
+
+  function render(){
+    const {id,anchor}=current();
+    pages.forEach(p=>p.classList.toggle('on',p.dataset.page===id));
+    navLinks.forEach(a=>a.classList.toggle('on',a.dataset.nav===id));
+    const page=pages.find(p=>p.dataset.page===id);
+    document.title=(page.dataset.title==='Introduction'?'':page.dataset.title+' · ')+'o1bot.exchange docs';
+    // prev / next
+    const old=page.querySelector('.pn');if(old)old.remove();
+    const i=order.indexOf(id);const pn=document.createElement('div');pn.className='pn';
+    const mk=(idx,cls,label)=>{if(idx<0||idx>=order.length)return `<a class="${cls} empty" aria-hidden="true"></a>`;const t=pages[idx].dataset.title;return `<a class="${cls}" href="#/${order[idx]}"><small>${label}</small>${t}</a>`};
+    pn.innerHTML=mk(i-1,'prev','Previous')+mk(i+1,'next','Next');
+    (page.querySelector('.art')||page).appendChild(pn);
+    // toc
+    const hs=[...page.querySelectorAll('h2[id]')];
+    tocList.innerHTML=hs.map(h=>`<a href="#/${id}#${h.id}" data-h="${h.id}">${h.textContent}</a>`).join('');
+    document.getElementById('toc').style.visibility=hs.length?'visible':'hidden';
+    closeSide();
+    if(anchor){const el=document.getElementById(anchor);if(el){el.scrollIntoView({block:'start'});}}
+    else window.scrollTo({top:0});
+    spy();
+  }
+  window.addEventListener('hashchange',render);
+
+  // scroll spy
+  function spy(){
+    const {id}=current();const page=pages.find(p=>p.dataset.page===id);if(!page)return;
+    const hs=[...page.querySelectorAll('h2[id]')];let active=hs[0]&&hs[0].id;
+    for(const h of hs){if(h.getBoundingClientRect().top-90<=0)active=h.id;}
+    tocList.querySelectorAll('a').forEach(a=>a.classList.toggle('on',a.dataset.h===active));
+  }
+  window.addEventListener('scroll',spy,{passive:true});
+
+  // mobile nav
+  function closeSide(){side.classList.remove('open');overlay.classList.remove('on');}
+  document.getElementById('menu').addEventListener('click',()=>{side.classList.toggle('open');overlay.classList.toggle('on',side.classList.contains('open'));});
+  overlay.addEventListener('click',closeSide);
+
+  // copy buttons
+  document.querySelectorAll('.cmd[data-copy]').forEach(el=>{
+    const b=document.createElement('button');b.className='copy';b.textContent='copy';b.setAttribute('aria-label','Copy command');el.appendChild(b);
+    b.addEventListener('click',()=>copy(el.dataset.copy,b));
+  });
+  document.querySelectorAll('pre .copy').forEach(b=>{b.addEventListener('click',()=>copy(b.parentElement.querySelector('code').textContent,b));});
+  function copy(text,b){navigator.clipboard.writeText(text).then(()=>{b.textContent='copied';b.classList.add('done');setTimeout(()=>{b.textContent='copy';b.classList.remove('done')},1400)}).catch(()=>{b.textContent='select to copy'})}
+
+  // search
+  const index=[];
+  pages.forEach(p=>{
+    const pid=p.dataset.page,title=p.dataset.title,group=p.dataset.group;
+    index.push({pid,title,group,heading:title,anchor:'',text:(p.querySelector('.lead')||{textContent:''}).textContent});
+    let cur=null;
+    [...p.querySelectorAll('.art > *, .art .step, .art tr')].forEach(el=>{
+      if(el.tagName==='H2'){cur={pid,title,group,heading:el.textContent,anchor:el.id,text:''};index.push(cur);return;}
+      if(cur&&!el.closest('.pn')){cur.text+=' '+el.textContent.replace(/\s+/g,' ').trim();}
+    });
+  });
+  const q=document.getElementById('q'),res=document.getElementById('results');let sel=-1,hits=[];
+  function search(term){
+    term=term.trim().toLowerCase();if(!term){res.classList.remove('on');res.innerHTML='';return;}
+    const words=term.split(/\s+/);
+    hits=index.map(it=>{const hay=(it.heading+' '+it.text).toLowerCase();let score=0;for(const w of words){if(it.heading.toLowerCase().includes(w))score+=3;if(hay.includes(w))score+=1;else return null;}return {it,score};}).filter(Boolean).sort((a,b)=>b.score-a.score).slice(0,8).map(x=>x.it);
+    sel=-1;
+    res.innerHTML=hits.length?hits.map(it=>{const i=(it.text||'').toLowerCase().indexOf(words[0]);const snip=i>=0?it.text.slice(Math.max(0,i-40),i+90):it.text.slice(0,120);return `<a href="#/${it.pid}${it.anchor?'#'+it.anchor:''}"><div class="rp">${it.group} / ${it.title}</div><div class="rt">${it.heading}</div><div class="rs">${snip.trim()}</div></a>`}).join(''):'<div class="none">No matches. Try a shorter word.</div>';
+    res.classList.add('on');
+  }
+  q.addEventListener('input',()=>search(q.value));
+  q.addEventListener('focus',()=>{if(q.value)search(q.value)});
+  q.addEventListener('keydown',e=>{const as=[...res.querySelectorAll('a')];if(e.key==='ArrowDown'){e.preventDefault();sel=Math.min(sel+1,as.length-1);}else if(e.key==='ArrowUp'){e.preventDefault();sel=Math.max(sel-1,0);}else if(e.key==='Enter'){if(as[sel>=0?sel:0]){as[sel>=0?sel:0].click();res.classList.remove('on');q.blur();}return;}else if(e.key==='Escape'){res.classList.remove('on');q.blur();return;}as.forEach((a,i)=>a.classList.toggle('sel',i===sel));});
+  document.addEventListener('click',e=>{if(!e.target.closest('#search'))res.classList.remove('on');});
+  res.addEventListener('click',()=>{res.classList.remove('on');q.value='';});
+  document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==q&&!/input|textarea/i.test(document.activeElement.tagName)){e.preventDefault();q.focus();}});
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+# o1bot.exchange
+
+Tweet-to-launch bot for o1 Launchpad. Mention `@o1bot_exchange` on X with a launch command; the bot parses it, deploys the token through o1's own factory on Robinhood Chain from the user's Privy wallet, and replies with the result. v1 is Robinhood Chain only (chain id 4663); Base is out of scope.
+
+## Layout
+
+```
+config/            o1 contract snapshot (dated; regenerate with `pnpm o1:sync`)
+abis/              verified ABIs (Sourcify + Blockscout must agree; `pnpm abi:vendor`)
+packages/shared    env, logger, chain + RPC fallbacks, o1 registry access, tx allow-list
+packages/db        Prisma schema + client (users, mentions, launches, signed-tx audit)
+packages/wallet    Privy server SDK: X user → wallet, pregeneration, guarded signer
+packages/executor  factory reads, salt mining, metadata pinning, dev-buy route, planLaunch (simulate only)
+packages/parser    Claude mention parser: structured output, deterministic normalisation, fixtures
+apps/web           Next.js front end (Privy X login, wallet + delegation, onboarding)
+apps/bot           worker: listener → parser → validator → queue → executor → replier
+docs/              product documentation site (single static page, deploy to docs.o1bot.exchange)
+scripts/           maintenance scripts (o1 sync, ABI vendoring)
+```
+
+## Status
+
+| Step | Scope | State |
+| ---- | ----- | ----- |
+| 1 | Wallet + login (Privy), DB schema, o1 snapshot, tx allow-list | done |
+| 2 | Chain executor: verified ABIs, live factory reads, `01` salt mining, metadata pinning, dev-buy route, simulation (no broadcast) | done |
+| 3 | Parser (Claude, structured output) with test fixtures | done (live fixture run pending an API key) |
+| 4 | X listener + replier, Redis queue, signing + broadcast behind DRY_RUN | next |
+| 5 | Front end (board, token page, swap with o1bot referrer) | |
+| 6 | Indexer | |
+
+## Quickstart
+
+```bash
+pnpm install
+cp .env.example .env            # fill Privy + X + Anthropic + Pinata keys; keep DRY_RUN=true
+pnpm o1:sync                    # refresh config/o1.json from docs.o1.exchange
+pnpm abi:vendor                 # re-vendor ABIs when o1:sync reports drift
+pnpm db:generate                # Prisma client
+pnpm db:push                    # create tables in DATABASE_URL (dev only; use migrate for prod)
+pnpm typecheck && pnpm test
+pnpm dev:web                    # http://localhost:3000 — sign in with X, fund wallet, delegate signing
+pnpm dev:bot                    # boots, verifies the o1 registry, exits (listener arrives in step 4)
+```
+
+Dry-run a launch against the live factory without sending anything:
+
+```bash
+pnpm simulate --name "Rugrat" --symbol RUGRAT --pair ETH
+pnpm simulate --name "Rugrat" --symbol RUGRAT --pair ETH --devbuy 0.01
+pnpm simulate --name "Nvidia Dog" --symbol NVDOG --pair NVDA
+```
+
+The plan reports the predicted token address (always ending in `01`), pool id, gas, the exact native value, and the creator's real balance versus what the launch needs. A random creator is funded virtually through an `eth_call` state override so the simulation runs on an empty wallet; pass `--creator 0x…` to simulate a real one.
+
+Parse a mention, or run the 24 parser fixtures, against the live model (needs `ANTHROPIC_API_KEY`):
+
+```bash
+pnpm parse '@o1bot_exchange launch $RUGRAT "Rugrat" pair ETH on robinhood'
+pnpm parse --fixtures
+```
+
+## Parser
+
+`packages/parser` turns one post into a `ParseResult`: `launch`, `clarify` (launch intent with a missing or ambiguous value, plus one question in the user's language), `unsupported_chain`, `help` (a short reply in the user's language), or `ignore`. The model returns a flat structured object (`client.messages.parse` with a zod `output_config.format`); `normalizeParseOutput` then enforces the rules deterministically: ticker 1-11 uppercase letters or digits, name at most 50 characters, pair required, dev-buy amounts only as plain ETH decimals, handles normalised. A launch that fails those checks becomes a `clarify`, never a guess. The system prompt carries the full pair menu from `config/o1.json` so company names map to stock symbols, and it is cached as a stable prefix. The model is `claude-sonnet-4-6` by default (`PARSER_MODEL` overrides it; sampling parameters are only sent to models that accept them). A chain that is not stated is treated as Robinhood; a stated other chain is refused.
+
+
+## How a launch is built
+
+1. `config/o1.json` is checked against o1's live registry; any factory rotation aborts the run.
+2. `configVersion`, `launchSupply`, `tickSpacing`, `nativeLaunchFee`, `launchCreationEnabled`, `TOKEN_ADDRESS_SUFFIX`, the token deployer, the hook and the pair's `quoteConfig` are read at one block.
+3. `launchTokenBytecodeHash` is read once (it does not depend on the salt), then a `creatorSalt` is mined locally so that `CREATE2(deployer, keccak256(abi.encode(creator, creatorSalt)), hash)` ends in `01`.
+4. The call is simulated as the creator. The factory's returned token must equal the local prediction.
+5. With a dev buy, `createLaunchAndBuy` is used with native funding and `minAmountOut` set from the simulated output minus slippage. The adapter rejects long deadlines, so dev-buy launches use a 5-minute deadline instead of 30.
+
+Dev-buy routes are discovered on chain (`packages/executor/src/route-discovery.ts`). ETH pairs go straight into the new pool. USDG and stock pairs try every liquid candidate, SwapX V3 WETH/quote, V3 WETH/USDG then V3 USDG/quote, and V3 WETH/USDG then hook-free V4 USDG/quote, simulate each through the factory, and keep the route with the largest output. The adapter refuses native ETH fed directly into a non-launch V4 pool (`UnsupportedRoute()`), so those are never candidates. Survey of 2026-09-07: 106 of the 194 stock tokens have at least one liquid route; for the others the plan fails with `dev_buy_no_route` and the launch must go without a dev buy.
+
+## Privy setup
+
+1. Create an app at dashboard.privy.io. Enable **Login with X**, **Embedded wallets → Ethereum**, and **Delegated actions**.
+2. Put the App ID in both `PRIVY_APP_ID` and `NEXT_PUBLIC_PRIVY_APP_ID`; the App Secret in `PRIVY_APP_SECRET`.
+3. A user is "linked" for the bot only when they have logged in on o1bot.exchange at least once, hold a Privy embedded wallet, and have delegated signing to o1bot (step 2 of the onboarding page). Wallets that exist only because someone wrote `fees to @them` are pregenerated and not linked.
+
+## Signing rules
+
+The bot never signs arbitrary calldata. `packages/wallet/src/signer.ts` wraps the Privy viem account so it refuses anything that is not one of: `createLaunch`, `createLaunchAndBuy`, an ERC-20 `approve` to a registered quote token, `setCreatorFeeRecipient`, or a fee-escrow claim, and only to the active o1 contracts for that chain. Every signed transaction is recorded in `SignedTransaction` with tweet ID, X user ID, wallet, and calldata hash.
+
+## RPC
+
+`RPC_ROBINHOOD` unset means the public endpoints are rotated (publicnode, ordofi, then the chain's own). Public endpoints refuse archive log queries, and some ISPs intercept `rpc.mainnet.chain.robinhood.com`; use a paid RPC in production and for the indexer.

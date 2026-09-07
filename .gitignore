@@ -1,0 +1,40 @@
+# dependencies and build output
+node_modules/
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+apps/web/next-env.d.ts
+packages/db/generated/
+.vercel/
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# private working files: AI assistant instructions, plans, notes, scratch
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.claude/
+plan.md
+PLAN.md
+*.plan.md
+plans/
+notes/
+scratch/
+tmp/
+*.local.md
+
+# raw artwork exports (curated copies live in brand/)
+IMG_*.PNG
+IMG_*.png
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+*.log
+
+# design reference kept locally only
+1o-exchange-demo.html

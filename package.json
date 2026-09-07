@@ -1,0 +1,30 @@
+{
+  "name": "o1bot-exchange",
+  "private": true,
+  "packageManager": "pnpm@11.5.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "dev:web": "pnpm --filter @o1bot/web dev",
+    "dev:bot": "pnpm --filter @o1bot/bot dev",
+    "build:web": "pnpm --filter @o1bot/web build",
+    "db:generate": "pnpm --filter @o1bot/db generate",
+    "db:migrate": "pnpm --filter @o1bot/db migrate",
+    "db:push": "pnpm --filter @o1bot/db push",
+    "o1:sync": "tsx scripts/sync-o1-config.ts",
+    "abi:vendor": "tsx scripts/vendor-abi.ts",
+    "simulate": "pnpm --filter @o1bot/executor simulate",
+    "parse": "pnpm --filter @o1bot/parser parse"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "viem": "^2.56.3",
+    "vitest": "^5.0.0"
+  },
+  "license": "MIT"
+}

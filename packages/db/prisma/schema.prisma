@@ -1,0 +1,150 @@
+// o1bot.exchange — users, mentions, launches, signed-transaction audit log.
+// Amounts are stored as decimal strings (wei), never as floats.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// One row per X account that has touched o1bot: either logged in on the web
+/// app, or been named as a `fees to` recipient (pregenerated wallet).
+model User {
+  id            String    @id @default(cuid())
+  /// Stable X user ID (the OAuth `sub`). Handles change; this does not.
+  xUserId       String    @unique
+  xHandle       String
+  xName         String?
+  xAvatarUrl    String?
+  privyUserId   String?   @unique
+  /// Privy embedded wallet address (checksummed).
+  walletAddress String?   @unique
+  /// Privy server-wallet ID, required for bot-side signing.
+  walletId      String?
+  /// True while the wallet exists only because someone said `fees to @them`.
+  pregenerated  Boolean   @default(false)
+  /// True once the user granted delegated signing to o1bot in the web app.
+  delegated     Boolean   @default(false)
+  /// First successful X login on o1bot.exchange.
+  linkedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  launches       Launch[] @relation("LaunchCreator")
+  feeRecipientOf Launch[] @relation("LaunchFeeRecipient")
+
+  @@index([xHandle])
+}
+
+enum MentionStatus {
+  RECEIVED
+  PARSED
+  CLARIFY
+  NOT_REGISTERED
+  REJECTED
+  QUEUED
+  DONE
+  FAILED
+}
+
+/// Every mention of the bot, deduped by tweet ID.
+model Mention {
+  id            String        @id @default(cuid())
+  tweetId       String        @unique
+  authorXUserId String
+  authorHandle  String
+  text          String
+  mediaUrl      String?
+  language      String?
+  postedAt      DateTime?
+  receivedAt    DateTime      @default(now())
+  /// Parser output (LaunchCommand or clarify question), verbatim.
+  parse         Json?
+  status        MentionStatus @default(RECEIVED)
+  error         String?
+  replyTweetId  String?
+
+  launch Launch?
+
+  @@index([authorXUserId, receivedAt])
+  @@index([status])
+}
+
+enum LaunchStatus {
+  QUEUED
+  SIMULATING
+  SIGNING
+  BROADCAST
+  CONFIRMED
+  FEE_RECIPIENT_PENDING
+  REPLIED
+  FAILED
+}
+
+model Launch {
+  id             String       @id @default(cuid())
+  mentionId      String       @unique
+  mention        Mention      @relation(fields: [mentionId], references: [id])
+  creatorId      String
+  creator        User         @relation("LaunchCreator", fields: [creatorId], references: [id])
+  feeRecipientId String?
+  feeRecipient   User?        @relation("LaunchFeeRecipient", fields: [feeRecipientId], references: [id])
+  chainId        Int
+  /// Originating factory. Historical launches keep the factory they used.
+  factory        String
+  quoteAddress   String
+  quoteSymbol    String
+  ticker         String
+  name           String
+  /// Dev buy in wei of the native asset, decimal string. Null = no dev buy.
+  devBuyWei      String?
+  imageUri       String?
+  metadataUri    String?
+  creatorSalt    String?
+  status         LaunchStatus @default(QUEUED)
+  tokenAddress   String?
+  poolId         String?
+  launchTxHash   String?
+  feeRecipientTxHash String?
+  error          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  signedTxs SignedTransaction[]
+
+  @@index([creatorId, createdAt])
+  @@index([chainId, tokenAddress])
+  @@index([status])
+}
+
+enum SignedTxKind {
+  CREATE_LAUNCH
+  CREATE_LAUNCH_AND_BUY
+  ERC20_APPROVE
+  SET_CREATOR_FEE_RECIPIENT
+  FEE_CLAIM
+}
+
+/// Append-only audit of everything the bot signed with a user wallet.
+model SignedTransaction {
+  id           String       @id @default(cuid())
+  launchId     String?
+  launch       Launch?      @relation(fields: [launchId], references: [id])
+  tweetId      String
+  xUserId      String
+  wallet       String
+  chainId      Int
+  kind         SignedTxKind
+  to           String
+  /// keccak256 of the calldata.
+  calldataHash String
+  valueWei     String
+  txHash       String?
+  createdAt    DateTime     @default(now())
+
+  @@index([xUserId, createdAt])
+  @@index([tweetId])
+}

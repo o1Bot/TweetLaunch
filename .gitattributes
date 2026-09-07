@@ -1,0 +1,3 @@
+# Keep LF line endings for every text file regardless of the contributor OS.
+* text=auto eol=lf
+*.png binary
