@@ -21,7 +21,8 @@
     "decode-launch": "pnpm --filter @o1bot/executor exec tsx scripts/decode-launch.ts",
     "survey:routes": "pnpm --filter @o1bot/executor exec tsx scripts/survey-dev-buy-routes.ts",
     "env:split": "tsx scripts/env-split.ts",
-    "doctor": "pnpm --filter @o1bot/bot exec tsx scripts/doctor.ts"
+    "doctor": "pnpm --filter @o1bot/bot exec tsx scripts/doctor.ts",
+    "privy:signer": "pnpm --filter @o1bot/bot exec tsx scripts/privy-signer.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
