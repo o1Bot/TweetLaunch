@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FakeXClient, XRateLimitError, type XMention } from "@o1bot/x";
 import { MemoryQueue } from "../src/queue";
 import { MemoryBotStore } from "../src/store";
+import { leadingHandles } from "../src/pipeline";
 import { nextDelayMs, pollOnce, SINCE_ID_CURSOR } from "../src/x-listener";
 
 const mention = (id: string, over: Partial<XMention> = {}): XMention => ({
@@ -60,5 +61,13 @@ describe("nextDelayMs", () => {
 
   it("keeps the normal interval for other errors", () => {
     expect(nextDelayMs(new Error("boom"), 30_000)).toBe(30_000);
+  });
+});
+
+describe("leadingHandles", () => {
+  it("lists the handles X prepends to a reply, in order and lowercased", () => {
+    expect(leadingHandles("@T_McKee @o1bot_exchange yes perfect master")).toEqual(["t_mckee", "o1bot_exchange"]);
+    expect(leadingHandles("@o1bot_exchange launch $A \"A\" pair ETH")).toEqual(["o1bot_exchange"]);
+    expect(leadingHandles("hello @o1bot_exchange")).toEqual([]);
   });
 });

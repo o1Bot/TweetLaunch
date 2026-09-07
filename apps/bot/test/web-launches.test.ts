@@ -144,7 +144,7 @@ describe("web launches", () => {
     await drainWebLaunches(h.deps);
     const row = h.store.launches[0]!;
     expect(row.status).toBe("FAILED");
-    expect(row.userMessage).toContain("Link this X account first");
+    expect(row.userMessage).toContain("sign in with X at");
     expect(h.state.executed).toBe(0);
   });
 

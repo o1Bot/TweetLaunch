@@ -32,14 +32,14 @@ const { values, positionals } = parseArgs({
 const json = (v: unknown) => JSON.stringify(v, null, 2);
 
 if (values.fixtures) {
-  type Fixture = { id: string; text: string; hasImage: boolean; expect: Record<string, unknown> };
+  type Fixture = { id: string; text: string; hasImage: boolean; alsoTagged?: string[]; isReply?: boolean; expect: Record<string, unknown> };
   const fixtures = JSON.parse(readFileSync(fileURLToPath(new URL("../test/fixtures/mentions.json", import.meta.url)), "utf8")) as Fixture[];
   let pass = 0;
   let totalIn = 0;
   let totalOut = 0;
   let cacheHits = 0;
   for (const f of fixtures) {
-    const { result, usage } = await parseMention({ text: f.text, authorHandle: "tester", hasImage: f.hasImage, tweetId: f.id }, { model: values.model });
+    const { result, usage } = await parseMention({ text: f.text, authorHandle: "tester", hasImage: f.hasImage, tweetId: f.id, alsoTagged: f.alsoTagged, isReply: f.isReply }, { model: values.model });
     totalIn += usage.input + usage.cacheRead + usage.cacheWrite;
     totalOut += usage.output;
     if (usage.cacheRead > 0) cacheHits++;

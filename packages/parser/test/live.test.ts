@@ -29,9 +29,9 @@ type Expect = {
 const hasKey = Boolean(process.env.ANTHROPIC_API_KEY);
 
 describe.skipIf(!hasKey)("parser against the live model", () => {
-  for (const f of fixtures as Array<{ id: string; text: string; hasImage: boolean; expect: Expect }>) {
+  for (const f of fixtures as Array<{ id: string; text: string; hasImage: boolean; alsoTagged?: string[]; isReply?: boolean; expect: Expect }>) {
     it(f.id, async () => {
-      const { result } = await parseMention({ text: f.text, authorHandle: "tester", hasImage: f.hasImage, tweetId: f.id });
+      const { result } = await parseMention({ text: f.text, authorHandle: "tester", hasImage: f.hasImage, tweetId: f.id, alsoTagged: f.alsoTagged, isReply: f.isReply });
       const e = f.expect;
       if (e.kind) expect(result.kind).toBe(e.kind);
       if (e.kindIn) expect(e.kindIn).toContain(result.kind);

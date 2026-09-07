@@ -400,5 +400,78 @@
       "telegram": null,
       "xHandle": null
     }
+  },
+  {
+    "id": "lost-retry",
+    "text": "@o1bot_exchange Retry",
+    "hasImage": false,
+    "alsoTagged": [],
+    "isReply": true,
+    "expect": {
+      "kind": "help",
+      "replyIncludes": [
+        "sign in"
+      ]
+    }
+  },
+  {
+    "id": "lost-token-name",
+    "text": "@o1bot_exchange My token name A20P",
+    "hasImage": false,
+    "alsoTagged": [],
+    "isReply": false,
+    "expect": {
+      "kindIn": [
+        "help",
+        "clarify"
+      ]
+    }
+  },
+  {
+    "id": "lost-bare-launch",
+    "text": "@o1bot_exchange launch",
+    "hasImage": false,
+    "alsoTagged": [],
+    "isReply": false,
+    "expect": {
+      "kindIn": [
+        "help",
+        "clarify"
+      ]
+    }
+  },
+  {
+    "id": "thread-chatter",
+    "text": "@T_McKee @o1bot_exchange yes perfect master",
+    "hasImage": false,
+    "alsoTagged": [
+      "T_McKee"
+    ],
+    "isReply": true,
+    "expect": {
+      "kind": "ignore"
+    }
+  },
+  {
+    "id": "thread-market-talk",
+    "text": "@T_McKee @o1bot_exchange last go 1mcap",
+    "hasImage": false,
+    "alsoTagged": [
+      "T_McKee"
+    ],
+    "isReply": true,
+    "expect": {
+      "kind": "ignore"
+    }
+  },
+  {
+    "id": "one-word-cheer",
+    "text": "@o1bot_exchange moon",
+    "hasImage": false,
+    "alsoTagged": [],
+    "isReply": false,
+    "expect": {
+      "kind": "ignore"
+    }
   }
 ]

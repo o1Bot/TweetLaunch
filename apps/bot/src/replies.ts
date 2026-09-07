@@ -71,7 +71,8 @@ export function successReply(p: SuccessInput): string {
 }
 
 export const replies = {
-  notRegistered: (siteUrl: string) => `Link this X account first at ${siteUrl}, then post again. That creates your wallet and lets me launch from it.`,
+  notRegistered: (siteUrl: string) =>
+    `Three steps first: 1) sign in with X at ${siteUrl} and allow signing, 2) send a little ETH on Robinhood Chain to the wallet it shows, 3) post the full launch command again. Then I launch from your wallet.`,
 
   unsupportedChain: () => `Only Robinhood Chain is supported right now. Leave the chain out or write "on robinhood" and post again.`,
 
@@ -107,7 +108,7 @@ export const replies = {
 
   devBuyNoRoute: (pair: string) => `There is no liquid route from ETH to ${pair} for a dev buy right now. Post again without "devbuy" to launch anyway.`,
 
-  launchFailed: (detail: string) => `The launch did not go through (${detail}). Nothing was spent except gas, if any. Post again to retry.`,
+  launchFailed: (detail: string) => `The launch did not go through (${detail}). Nothing was spent except gas, if any. Post the full launch command again to retry.`,
 
   success: successReply,
 };

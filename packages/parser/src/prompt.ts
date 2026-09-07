@@ -53,7 +53,7 @@ Users are sloppy: casing, missing quotes, extra words, other languages, and diff
 - pair: the asset the token trades against. Available pairs on Robinhood Chain:
   crypto: ${menu.crypto}
   stocks: ${menu.stocks}
-  Map aliases only when unambiguous: "eth", "ether", "ethereum" -> ETH; "usdg" -> USDG; a company name that clearly identifies one listed stock (e.g. "nvidia" -> NVDA, "tesla" -> TSLA, "apple" -> AAPL). If the user names an asset that is not listed, return it uppercased as written (the bot will explain it is unavailable). If two listed stocks could match, set pair to null and clarify.
+  Map aliases only when unambiguous: "eth", "ether", "ethereum" -> ETH; "usdg" -> USDG; a company name that clearly identifies one listed stock (e.g. "nvidia" -> NVDA, "tesla" -> TSLA, "apple" -> AAPL). If the user names an asset that is not listed, still return kind launch with the pair uppercased as written; never clarify for an unlisted pair, the bot explains that itself with the list of pairs. Only when two listed stocks could match, set pair to null and clarify.
 - chain: "robinhood" when the user says robinhood, robinhood chain, rh or hood; "base" when they say base; "other" for any other chain. null when no chain is mentioned. Never guess a chain.
 - devbuy_native: the amount as a plain decimal string exactly as written ("0.05", not 0.05 rounded or converted). Only ETH amounts count; "$50", "50 usd" or "10%" are not valid -> kind clarify with missing ["devbuy_amount"].
 - fees_to_handle: the handle after "fees to" without the @. null when absent.
@@ -66,7 +66,8 @@ Users are sloppy: casing, missing quotes, extra words, other languages, and diff
 - clarify: the post asks to launch a token but at least one of ticker, name, pair is missing or ambiguous, or a dev buy amount is not in ETH, or a fees-to handle is malformed. List the missing values in "missing" and ask ONE short question in "question", in the post's language, naming exactly what is missing. Do not ask about the chain.
 - help: the post asks something about the bot, o1bot.exchange, o1 Launchpad, launching or trading tokens on Robinhood Chain, pairs, fees, wallets, safety, limits, or where the docs are, and does not try to launch. Answer it from the facts below. Write "reply": max 240 characters, the post's language, plain text, no hashtags, no emoji, no em dashes (use commas or full stops), at most one link, and only to ${ctx.siteUrl} or ${ctx.docsUrl}. Point to ${ctx.docsUrl} when the answer needs more than one sentence or the facts below do not cover it; never invent a fact.
   Greetings and check-ins addressed to the bot ("hey, are you alive?", "hi bot", "can you hear me", "gm @bot") are also help: answer in one friendly line, in the post's language, that says the bot is listening and what it does (launch a token from one post, or answer questions about it). No link in those.
-- ignore: the post is not addressed to the bot (the bot is tagged inside a conversation between other people), has nothing to do with the project (general crypto or market talk, price predictions, unrelated requests like poems or jokes), or is spam, scam bait or abuse. Retweets are never processed. Do not reply to those.
+  Someone trying to use the bot without knowing how is also help: a bare "launch", "retry", "again", "my token name X", "how do I start", a ticker with nothing else, or a fragment of the command, when the post is addressed to the bot (also_tagged="none"). Reply with the three steps in one post: sign in with X at ${ctx.siteUrl} and allow signing, send a little ETH on Robinhood Chain to the wallet it shows, then post the full command, quoting the format above. The reply language follows the post.
+- ignore: the post is part of a conversation between other people (also_tagged lists other accounts and the text is about them, their token, or the market, not a request to this bot), has nothing to do with the project (general crypto or market talk, price predictions, unrelated requests like poems or jokes), is a one-word cheer such as "moon", "lfg", "nice", or is spam, scam bait or abuse. Retweets are never processed. Do not reply to those. When is_reply="true" and also_tagged="none", the post replies to the bot itself, so treat it as addressed to the bot.
 
 # Facts you may use in help replies
 
@@ -106,12 +107,14 @@ export type MentionInput = {
   authorHandle: string;
   hasImage: boolean;
   tweetId?: string;
+  /** Other accounts tagged at the start of the post (the bot excluded): a sign of someone else's conversation. */
+  alsoTagged?: string[];
+  /** The post is a reply to another post. */
+  isReply?: boolean;
 };
 
 export function buildUserMessage(input: MentionInput): string {
-  return [
-    `<post author="@${input.authorHandle}" has_image="${input.hasImage ? "true" : "false"}">`,
-    input.text.trim(),
-    "</post>",
-  ].join("\n");
+  const tagged = input.alsoTagged?.length ? ` also_tagged="${input.alsoTagged.map((h) => `@${h}`).join(", ")}"` : ` also_tagged="none"`;
+  const reply = ` is_reply="${input.isReply ? "true" : "false"}"`;
+  return [`<post author="@${input.authorHandle}" has_image="${input.hasImage ? "true" : "false"}"${tagged}${reply}>`, input.text.trim(), "</post>"].join("\n");
 }

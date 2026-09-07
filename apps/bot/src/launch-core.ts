@@ -121,7 +121,8 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
       telegram: input.telegram,
     });
   } catch (err) {
-    return fail("FAILED", `metadata: ${errMessage(err)}`, replies.launchFailed("the image or metadata upload failed"));
+    const detail = /plan usage limit|FORBIDDEN|429/i.test(errMessage(err)) ? "our IPFS pinning service is over its quota, the team has been alerted, try again later" : "the image or metadata upload failed";
+    return fail("FAILED", `metadata: ${errMessage(err)}`, replies.launchFailed(detail));
   }
   await store.updateLaunch(launchId, { imageUri: metadata.imageUri, metadataUri: metadata.uri, status: "SIMULATING", imageData: null });
 

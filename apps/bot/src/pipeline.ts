@@ -52,6 +52,13 @@ type ReplyResult = { text: string; tweetId: string | null; posted: boolean; erro
 
 const errMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/** Handles X prepends to a reply, lowercased and without the @, in order. */
+export function leadingHandles(text: string): string[] {
+  const m = text.match(/^(\s*@\w{1,15}\s+)+/);
+  if (!m) return [];
+  return [...m[0].matchAll(/@(\w{1,15})/g)].map((x) => x[1]!.toLowerCase());
+}
+
 export async function processMention(mention: XMention, deps: PipelineDeps): Promise<PipelineOutcome> {
   const { store, config } = deps;
   const now = deps.now ?? (() => new Date());
@@ -119,7 +126,14 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
   // 2. Parse.
   let parsed: ParsedMention;
   try {
-    parsed = await deps.parse({ text: stripLeadingMentions(mention.text), authorHandle: mention.authorHandle, hasImage: Boolean(mention.imageUrl), tweetId: mention.id });
+    parsed = await deps.parse({
+      text: stripLeadingMentions(mention.text),
+      authorHandle: mention.authorHandle,
+      hasImage: Boolean(mention.imageUrl),
+      tweetId: mention.id,
+      alsoTagged: leadingHandles(mention.text).filter((h) => h !== config.botHandle.toLowerCase() && h !== mention.authorHandle.toLowerCase()),
+      isReply: mention.referenced.some((r) => r.type === "replied_to"),
+    });
   } catch (err) {
     const error = err instanceof ParserError ? `parser: ${err.message}` : `parser: ${errMessage(err)}`;
     log.error({ err: errMessage(err) }, "parse failed");
