@@ -63,8 +63,7 @@ export function SiteFooter() {
       </div>
       <div className="wrap footer-bottom">
         <span>© 2026 {SITE_NAME}</span>
-        <span>Independent project. Not affiliated with o1 Launchpad, Robinhood, or Privy.</span>
-        <span className="beta">Private beta</span>
+        <span>Built on o1 Launchpad, Robinhood Chain.</span>
       </div>
     </footer>
   );

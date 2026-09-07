@@ -465,9 +465,6 @@ svg {
   font-size: 13px;
   color: var(--ink-3);
 }
-.footer-bottom .beta {
-  color: #f5c451;
-}
 
 /* legal and how-it-works articles */
 .legal {
