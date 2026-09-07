@@ -85,14 +85,16 @@ export function LaunchForm() {
     async (ev: React.FormEvent<HTMLFormElement>) => {
       ev.preventDefault();
       if (!formRef.current) return;
+      // Read the fields before anything re-renders: once `busy` disables the
+      // inputs, the browser leaves them out of FormData entirely.
+      const form = new FormData(formRef.current);
+      form.set("pair", pairMode === "stock" ? stock.trim().toUpperCase() : pairMode);
       setBusy(true);
       setError(null);
       setLaunch(null);
       try {
         const token = await getAccessToken();
         if (!token) throw new Error("Sign in first.");
-        const form = new FormData(formRef.current);
-        form.set("pair", pairMode === "stock" ? stock.trim().toUpperCase() : pairMode);
         const picked = form.get("image");
         if (picked instanceof File && picked.size > 0) {
           const shrunk = await shrinkImage(picked);
