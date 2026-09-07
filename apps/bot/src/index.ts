@@ -20,21 +20,27 @@ import { pollOnce, startPolling } from "./x-listener";
  *   pnpm --filter @o1bot/bot once           one poll, drain the queue, exit
  *   pnpm --filter @o1bot/bot once --mention 'launch $CAT "Cash Cat" pair ETH' --author alice --wallet 0x...
  *                                           feed one synthetic post through the whole pipeline (DRY_RUN only)
+ *   pnpm --filter @o1bot/bot once --post <tweet id>
+ *                                           process one real post on demand, whoever wrote it, including the
+ *                                           bot's own account (the poller never processes the bot's own posts).
+ *                                           A previous dry run of the same post is forgotten first; a post that
+ *                                           already had a transaction signed is refused. Honours DRY_RUN.
  *
  * Which real services are used depends on the env that is present; every
  * missing one falls back to an in-memory or dry-run stand-in when DRY_RUN
  * is on, and is an error when it is off.
  */
 
-type CliArgs = { once: boolean; mention: string | null; author: string; wallet: Address | null; image: string | null };
+type CliArgs = { once: boolean; mention: string | null; post: string | null; author: string; wallet: Address | null; image: string | null };
 
 function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { once: argv.includes("--once"), mention: null, author: "dryrun_user", wallet: null, image: null };
+  const args: CliArgs = { once: argv.includes("--once"), mention: null, post: null, author: "dryrun_user", wallet: null, image: null };
   const value = (flag: string) => {
     const i = argv.indexOf(flag);
     return i >= 0 ? (argv[i + 1] ?? null) : null;
   };
   args.mention = value("--mention");
+  args.post = value("--post");
   args.author = value("--author") ?? args.author;
   args.image = value("--image");
   const wallet = value("--wallet");
@@ -209,6 +215,25 @@ async function main() {
   });
 
   const listener = { x, store, queue, botUserId: cfg.botUserId };
+
+  if (args.post) {
+    // Operator path: one specific post, no author filter, no cursor movement.
+    const post = await x.fetchPost(args.post);
+    if (!post) throw new Error(`post ${args.post} was not found or is not visible to the app`);
+    const reset = await store.resetMentionForRerun(post.id);
+    if (!reset.reset && reset.reason !== "never processed") throw new Error(`refusing to process post ${post.id}: ${reset.reason}`);
+    logger.warn(
+      { tweetId: post.id, author: post.authorHandle, ownPost: post.authorId === cfg.botUserId, dryRun: cfg.dryRun, previous: reset.reason },
+      cfg.dryRun ? "processing one post in dry run: nothing will be signed or posted" : "processing one post LIVE: the author's wallet will sign and the bot will reply",
+    );
+    const result = await queue.enqueue({ mention: post });
+    if (result === "duplicate") throw new Error(`post ${post.id} is already queued`);
+    await queue.drain();
+    await queue.close();
+    logger.info("done");
+    return;
+  }
+
   if (args.once || args.mention) {
     const stats = await pollOnce(listener);
     logger.info(stats, "single poll done; draining the queue");

@@ -92,6 +92,11 @@ export interface BotStore {
   createLaunch(l: NewLaunch): Promise<{ id: string }>;
   updateLaunch(id: string, patch: LaunchPatch): Promise<void>;
   recordSignedTx(rec: SignedTxRecord): Promise<void>;
+  /**
+   * Operator use only (`once --post`): forget a post so it can be processed
+   * again, e.g. after a dry run. Refused when anything was ever signed for it.
+   */
+  resetMentionForRerun(tweetId: string): Promise<{ reset: boolean; reason: string }>;
 }
 
 export class PrismaBotStore implements BotStore {
@@ -161,6 +166,17 @@ export class PrismaBotStore implements BotStore {
   async recordSignedTx(rec: SignedTxRecord) {
     await db().signedTransaction.create({ data: { ...rec, txHash: rec.txHash ?? null } });
   }
+  async resetMentionForRerun(tweetId: string) {
+    const mention = await db().mention.findUnique({ where: { tweetId }, include: { launch: { include: { signedTxs: true, pool: true } } } });
+    if (!mention) return { reset: false, reason: "never processed" };
+    if (mention.launch?.signedTxs.length) return { reset: false, reason: `a transaction was already signed for this post (launch ${mention.launch.id})` };
+    if (mention.launch?.pool) return { reset: false, reason: `this post already produced a live pool (${mention.launch.pool.token})` };
+    await db().$transaction(async (tx) => {
+      if (mention.launch) await tx.launch.delete({ where: { id: mention.launch.id } });
+      await tx.mention.delete({ where: { id: mention.id } });
+    });
+    return { reset: true, reason: mention.launch ? `previous launch ${mention.launch.status} removed` : "previous mention removed" };
+  }
 }
 
 export class MemoryBotStore implements BotStore {
@@ -223,5 +239,14 @@ export class MemoryBotStore implements BotStore {
   }
   async recordSignedTx(rec: SignedTxRecord) {
     this.signedTxs.push(rec);
+  }
+  async resetMentionForRerun(tweetId: string) {
+    const mention = this.mentions.find((m) => m.tweetId === tweetId);
+    if (!mention) return { reset: false, reason: "never processed" };
+    const launch = this.launches.find((l) => l.mentionId === mention.id);
+    if (launch && this.signedTxs.some((t) => t.launchId === launch.id)) return { reset: false, reason: `a transaction was already signed for this post (launch ${launch.id})` };
+    this.launches = this.launches.filter((l) => l.mentionId !== mention.id);
+    this.mentions = this.mentions.filter((m) => m.id !== mention.id);
+    return { reset: true, reason: launch ? `previous launch ${launch.status} removed` : "previous mention removed" };
   }
 }

@@ -131,6 +131,19 @@ pnpm --filter @o1bot/bot once --mention 'launch $CAT "Cash Cat" pair ETH devbuy 
 
 The last command feeds one synthetic post through the whole pipeline with `DRY_RUN=true`: an in-memory store when `DATABASE_URL` is unset, a scripted X client, `--wallet` as the poster's linked wallet when Privy is not configured, `ipfs://dry-run/…` metadata when `PINATA_JWT` is unset, and the live factory for the plan. It needs `ANTHROPIC_API_KEY` for the parser and an RPC.
 
+### Launching from the bot's own account
+
+The poller never processes posts written by the bot itself, so that the "try it" examples on the bot's timeline cannot trigger launches. To launch a token from @o1bot_exchange anyway (the project's own token, for instance), process one post on demand from a machine that holds the root `.env`:
+
+```bash
+# 1. sign in with the bot's X account at the site and delegate signing, fund the wallet
+# 2. post the launch command from the bot's account, copy the post id from its URL
+DRY_RUN=true  pnpm --filter @o1bot/bot once --post 1234567890123456789   # simulate only
+DRY_RUN=false pnpm --filter @o1bot/bot once --post 1234567890123456789   # sign, broadcast, reply under the post
+```
+
+`--post` works for any author. It forgets a previous dry run of the same post first, and refuses a post that already had a transaction signed. The reply lands under the post as usual, and the token appears on the board because it went through the normal pipeline.
+
 ## Indexer and token pages
 
 `apps/indexer` polls Robinhood Chain with topic-filtered `eth_getLogs`: the v4 PoolManager `Swap` event for the poolIds of tracked launches and the o1 hook `Trade` event for referrer, fee and comment. Only tokens with a confirmed row in `Launch` are tracked (plus `INDEXER_DEV_TOKENS` for local testing), so the board and token pages never show other o1 tokens. Ranges adapt to RPC errors, the cursor is committed with each batch, and swap ids (`txHash-logIndex`) keep re-scans idempotent. Prices come from `sqrtPriceX96` (`packages/market`), candles are built on demand, and USD values use on-chain WETH/USDG and USDG/stock pools. Holder snapshots come from o1's Public API when `O1_API_KEY` is set.

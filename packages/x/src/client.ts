@@ -6,6 +6,14 @@ const API = "https://api.x.com";
 /** Pages of 100 mentions followed per poll; more than this in one interval is not a real-world case. */
 const MAX_MENTION_PAGES = 5;
 
+/** Fields and expansions that turn a raw post into an XMention. */
+const POST_FIELDS = {
+  "tweet.fields": "author_id,created_at,entities,attachments,referenced_tweets,lang",
+  expansions: "author_id,attachments.media_keys,referenced_tweets.id",
+  "user.fields": "username,name,profile_image_url",
+  "media.fields": "url,preview_image_url,type",
+} as const;
+
 /** `x-rate-limit-reset` is epoch seconds; fall back to a short wait when the header is missing. */
 function resetAtFromHeaders(headers: Headers): number {
   const raw = Number(headers.get("x-rate-limit-reset"));
@@ -80,14 +88,20 @@ export class HttpXClient implements XClient {
     return out.sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
   }
 
+  async fetchPost(id: string): Promise<XMention | null> {
+    if (!/^\d{1,25}$/.test(id)) return null;
+    const params = new URLSearchParams(POST_FIELDS);
+    const res = await fetch(`${API}/2/tweets/${id}?${params}`, { headers: { Authorization: `Bearer ${this.bearer}` }, signal: AbortSignal.timeout(20_000) });
+    if (res.status === 429) throw new XRateLimitError("mentions", resetAtFromHeaders(res.headers));
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`post HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
+    const json = (await res.json()) as { data?: TweetJson; includes?: MentionsJson["includes"]; errors?: unknown[] };
+    if (!json.data) return null;
+    return this.toMentions({ data: [json.data], includes: json.includes })[0] ?? null;
+  }
+
   private async mentionsPage(sinceId: string | undefined, paginationToken: string | undefined): Promise<MentionsJson> {
-    const params = new URLSearchParams({
-      max_results: "100",
-      "tweet.fields": "author_id,created_at,entities,attachments,referenced_tweets,lang",
-      expansions: "author_id,attachments.media_keys,referenced_tweets.id",
-      "user.fields": "username,name,profile_image_url",
-      "media.fields": "url,preview_image_url,type",
-    });
+    const params = new URLSearchParams({ max_results: "100", ...POST_FIELDS });
     if (sinceId) params.set("since_id", sinceId);
     if (paginationToken) params.set("pagination_token", paginationToken);
     const res = await fetch(`${API}/2/users/${this.botUserId}/mentions?${params}`, {
@@ -182,6 +196,9 @@ export class FakeXClient implements XClient {
   }
   async fetchMentions(sinceId?: string): Promise<XMention[]> {
     return this.mentions.filter((m) => !sinceId || BigInt(m.id) > BigInt(sinceId)).sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
+  }
+  async fetchPost(id: string): Promise<XMention | null> {
+    return this.mentions.find((m) => m.id === id) ?? null;
   }
   async lookupUser(handle: string): Promise<UserLookup> {
     const clean = normalizeHandle(handle);

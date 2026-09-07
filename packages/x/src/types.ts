@@ -26,6 +26,8 @@ export type UserLookup = { found: true; user: XUser } | { found: false; reason: 
 export interface XClient {
   /** Mentions of the bot newer than `sinceId`, oldest first. */
   fetchMentions(sinceId?: string): Promise<XMention[]>;
+  /** One post by id, in the same shape as a mention; null when it does not exist or is not visible. */
+  fetchPost(id: string): Promise<XMention | null>;
   lookupUser(handle: string): Promise<UserLookup>;
   /** Post a reply under a post; returns the new post id. */
   postReply(text: string, inReplyToTweetId: string): Promise<string>;
