@@ -334,5 +334,30 @@
     "expect": {
       "kind": "ignore"
     }
+  },
+  {
+    "id": "greeting-alive",
+    "text": "@o1bot_exchange\n\nhey, are you alive?",
+    "hasImage": false,
+    "expect": {
+      "kind": "help"
+    }
+  },
+  {
+    "id": "greeting-id",
+    "text": "@o1bot_exchange halo bot, ada orang ga?",
+    "hasImage": false,
+    "expect": {
+      "kind": "help",
+      "languageStartsWith": "id"
+    }
+  },
+  {
+    "id": "greeting-gm",
+    "text": "gm @o1bot_exchange",
+    "hasImage": false,
+    "expect": {
+      "kind": "help"
+    }
   }
 ]
