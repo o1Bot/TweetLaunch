@@ -13,7 +13,7 @@ import { fetchTokenMetadata } from "@/lib/metadata";
 export const dynamic = "force-dynamic";
 
 const EXPLORER = "https://robinhoodchain.blockscout.com";
-const O1_TOKEN_URL = (token: string) => `https://launch.o1.exchange/token/4663/${token}`;
+const O1_TOKEN_URL = (token: string) => `https://launch.o1.exchange/token/${token.toLowerCase()}?chain=4663`;
 
 export async function generateMetadata({ params }: { params: Promise<{ address: string }> }): Promise<Metadata> {
   const { address } = await params;

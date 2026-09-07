@@ -7,7 +7,7 @@ const SITE = "https://o1bot.exchange";
 
 describe("xWeightedLength", () => {
   it("counts every URL as 23 characters", () => {
-    expect(xWeightedLength(`see https://launch.o1.exchange/token/4663/${TOKEN} now`)).toBe(4 + 23 + 4);
+    expect(xWeightedLength(`see https://launch.o1.exchange/token/${TOKEN}?chain=4663 now`)).toBe(4 + 23 + 4);
   });
   it("counts CJK and emoji as two", () => {
     expect(xWeightedLength("日本")).toBe(4);
@@ -22,7 +22,7 @@ describe("successReply", () => {
     const text = successReply(base);
     expect(fitsX(text)).toBe(true);
     expect(text).toContain(`Token ${TOKEN}`);
-    expect(text).toContain(`https://launch.o1.exchange/token/4663/${TOKEN}`);
+    expect(text).toContain(`https://launch.o1.exchange/token/${TOKEN.toLowerCase()}?chain=4663`);
     expect(text).toContain(`${SITE}/token/${TOKEN}`);
     expect(text).toContain("Dev buy 0.05 ETH.");
     expect(text).toContain("@bob");
@@ -32,7 +32,7 @@ describe("successReply", () => {
     const text = successReply({ ...base, name: "A very long token name that pushes the reply well past the limit on X", pair: "AAPL" });
     expect(fitsX(text)).toBe(true);
     expect(text).not.toContain("…");
-    expect(text).toContain("https://launch.o1.exchange/token/4663/");
+    expect(text).toContain("https://launch.o1.exchange/token/");
   });
 
   it("explains a failed fee redirect", () => {

@@ -10,7 +10,9 @@ import { fitsX, truncateForX } from "@o1bot/shared";
  * two links.
  */
 
-export const O1_TOKEN_BASE = "https://launch.o1.exchange/token/4663";
+/** o1's token page: the chain goes in the query string, not the path. */
+export const O1_TOKEN_BASE = "https://launch.o1.exchange/token";
+export const O1_CHAIN_QUERY = "?chain=4663";
 
 export function clampReply(text: string): string {
   return truncateForX(text);
@@ -24,7 +26,7 @@ export function formatEthCeil(wei: bigint, decimals = 4): string {
 }
 
 export function o1TokenUrl(token: string): string {
-  return `${O1_TOKEN_BASE}/${token}`;
+  return `${O1_TOKEN_BASE}/${token.toLowerCase()}${O1_CHAIN_QUERY}`;
 }
 
 export function tokenPageUrl(siteUrl: string, token: string): string {
