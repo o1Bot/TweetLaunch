@@ -708,3 +708,33 @@ a.row:hover {
   color: var(--ink);
   font-weight: 600;
 }
+
+/* Swap panel additions: slippage picker and status notes. */
+.swap .kv .slip {
+  display: inline-flex;
+  gap: 4px;
+}
+.swap .kv .slip button {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.swap .kv .slip button.on {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.swap .note.warn {
+  color: var(--warn);
+}
+.swap .note.ok {
+  color: var(--ok);
+}
+.swap .note a {
+  color: inherit;
+  text-decoration: underline;
+}

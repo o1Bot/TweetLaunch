@@ -161,7 +161,7 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
         </div>
 
         <aside>
-          <SwapPanel symbol={t.symbol} quoteSymbol={t.quoteSymbol} quoteKind={t.quoteKind} priceQuote={t.stats.priceQuote} launchedAt={t.launchedAt} />
+          <SwapPanel token={t.token} symbol={t.symbol} quoteSymbol={t.quoteSymbol} quoteKind={t.quoteKind} launchedAt={t.launchedAt} />
           <div className="card2">
             <h3>Pool</h3>
             <div className="kv">

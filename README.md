@@ -28,7 +28,7 @@ scripts/           maintenance scripts (o1 sync, ABI vendoring)
 | 2 | Chain executor: verified ABIs, live factory reads, `01` salt mining, metadata pinning, dev-buy route, simulation (no broadcast) | done |
 | 3 | Parser (Claude, structured output) with test fixtures | done (live fixture run pending an API key) |
 | 4 | X listener, validator, queue (memory or BullMQ), signing + broadcast behind `DRY_RUN`, localized replies | done; 42 tests with fakes, live run pending keys |
-| 5 | Front end: board and token page (chart, trades, holders, creator post) | done; swap execution next |
+| 5 | Front end: board, token page (chart, trades, holders, creator post, buy/sell), launch form, profile with fee claims | done |
 | 6 | Indexer (swaps, prices, candles) | done; needs a paid RPC and Postgres to run |
 
 ## Quickstart
@@ -134,6 +134,10 @@ The last command feeds one synthetic post through the whole pipeline with `DRY_R
 ### Launching from the web app
 
 `/launch` is a form for people who would rather not post: ticker, name, pair, dev buy, logo upload, description, links and an optional fee recipient. Submitting only records the request (`Launch` row with `source = WEB`, status `QUEUED`, the logo bytes on the row); the bot worker on Railway claims it within a few seconds and runs it through the same checks and the same signing path as a post on X (`apps/bot/src/launch-core.ts` is shared by both), then writes the outcome back. The page polls `GET /api/launch/:id` and shows the steps, the message and the token link. Nothing is posted on X for web launches, and the token page shows "launched on o1bot.exchange" instead of a genesis post. Rate limits, the dev-buy cap and the reserved fees-to handles apply exactly as on X.
+
+### Buy and sell on the token page
+
+The swap panel trades through o1's launch pool on Uniswap v4. `GET /api/token/:address/quote` prepares one exact-input swap: the pool key (token, quote asset, LP fee 0, o1's hook), the referral hook data (`REFERRER_ADDRESS` followed by a 32-byte comment, dropped when it would equal the creator or fee recipient because the hook rejects that), the V4 quoter's output with the chosen slippage, the live anti-snipe fee from the hook's `poolConfig`, and, for a signed-in wallet, its balances and the Permit2 approvals still needed. The browser then encodes a Universal Router `execute` with one `V4_SWAP` command (`SWAP_EXACT_IN_SINGLE`, `SETTLE_ALL`, `TAKE_ALL`; `apps/web/lib/v4-swap.ts`) and the user's embedded wallet signs it; ERC-20 inputs first approve Permit2 and the router. Exact input only, which is what the hook allows during the anti-snipe window. Encoding is covered by unit tests; the quoter path was checked live against the first launched pools.
 
 ### Profile and fee claims
 
