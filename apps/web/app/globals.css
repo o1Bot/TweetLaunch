@@ -923,3 +923,68 @@ svg {
     padding-right: 8px;
   }
 }
+
+/* Mobile menu: hidden on wide screens where the inline nav shows. */
+.mmenu-wrap {
+  position: relative;
+  display: none;
+  margin-left: 8px;
+}
+.mmenu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+}
+.mmenu-btn:hover {
+  border-color: var(--accent);
+}
+.mmenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}
+.mmenu a,
+.mmenu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+.mmenu a:hover,
+.mmenu button:hover {
+  background: var(--panel-2);
+}
+.mmenu .sep {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 4px;
+}
+@media (max-width: 860px) {
+  .mmenu-wrap {
+    display: block;
+  }
+}
