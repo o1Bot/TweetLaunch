@@ -712,3 +712,149 @@ svg {
     grid-template-columns: 1fr;
   }
 }
+
+/* Profile (/me). */
+.me {
+  max-width: 980px;
+  margin: 24px auto 60px;
+  display: grid;
+  gap: 16px;
+}
+.me .card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px;
+}
+.me h1 {
+  margin: 0 0 4px;
+}
+.me h2 {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+.me .sub {
+  color: var(--ink-2);
+  margin: 0 0 14px;
+  font-size: 14px;
+}
+.me .hint {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.me-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  align-items: center;
+}
+.me-head .who {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.me-head .av {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  overflow: hidden;
+  flex: none;
+}
+.me-head .av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.me-head .stats {
+  display: flex;
+  gap: 26px;
+}
+.me-head .stats .k {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.me-head .stats .v {
+  font-weight: 600;
+  font-size: 16px;
+  margin-top: 2px;
+}
+.me-head .actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+}
+.me-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.me table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.me th {
+  text-align: left;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.me td {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.me tr:last-child td {
+  border-bottom: 0;
+}
+.me td.r,
+.me th.r {
+  text-align: right;
+}
+.me td.tk {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.me .dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.me .ok {
+  color: var(--ok);
+}
+.me .need {
+  color: var(--warn);
+}
+.me .cp {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+@media (max-width: 760px) {
+  .me-head,
+  .me-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.me .logo.sm {
+  width: 28px;
+  height: 28px;
+  font-size: 10px;
+  flex: none;
+}

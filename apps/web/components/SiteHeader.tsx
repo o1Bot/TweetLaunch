@@ -14,6 +14,7 @@ export function SiteHeader() {
         <a href={DOCS_URL} target="_blank" rel="noreferrer">
           Docs
         </a>
+        <Link href="/me">Profile</Link>
       </nav>
       <div className="grow" />
       <Link className="btn-p" href="/launch" style={{ padding: "8px 14px" }}>

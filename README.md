@@ -135,6 +135,10 @@ The last command feeds one synthetic post through the whole pipeline with `DRY_R
 
 `/launch` is a form for people who would rather not post: ticker, name, pair, dev buy, logo upload, description, links and an optional fee recipient. Submitting only records the request (`Launch` row with `source = WEB`, status `QUEUED`, the logo bytes on the row); the bot worker on Railway claims it within a few seconds and runs it through the same checks and the same signing path as a post on X (`apps/bot/src/launch-core.ts` is shared by both), then writes the outcome back. The page polls `GET /api/launch/:id` and shows the steps, the message and the token link. Nothing is posted on X for web launches, and the token page shows "launched on o1bot.exchange" instead of a genesis post. Rate limits, the dev-buy cap and the reserved fees-to handles apply exactly as on X.
 
+### Profile and fee claims
+
+`/me` shows the signed-in account: wallet address (copy, explorer, key export), holdings in ETH, USDG and every o1bot token (balances read on chain, valued with the same prices as the board), the account's launches as creator or as fee recipient with their status, and the creator fees waiting in o1's escrow per paired asset (`FeeEscrow.owed`). Claiming is a transaction the user signs in the browser with their own embedded wallet (`claimFor(wallet, currency)`, which always pays the recorded recipient), so the bot's signer is never involved; it needs a little ETH for gas. Gas sponsorship for pregenerated `fees to` recipients is not built yet.
+
 ### Launching from the bot's own account
 
 The poller never processes posts written by the bot itself, so that the "try it" examples on the bot's timeline cannot trigger launches. To launch a token from @o1bot_exchange anyway (the project's own token, for instance), process one post on demand from a machine that holds the root `.env`:
