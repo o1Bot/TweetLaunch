@@ -87,9 +87,9 @@ Each file is paste-ready for the host's raw environment editor and ends with the
 
 One Postgres database (Railway Postgres or Neon) is shared by all three services. Create it first, put its URL in `DATABASE_URL`, and run `pnpm db:push` from your machine to create the tables.
 
-**Vercel (web).** Import the GitHub repository, set Root Directory to `apps/web` (Vercel installs the pnpm workspace from the repository root on its own), and set Build Command to `pnpm --filter @o1bot/db generate && pnpm build` so the Prisma client exists before Next builds. Paste `deploy/web.env` into Environment Variables. `NEXT_PUBLIC_*` values are baked in at build time, so a change to them needs a redeploy.
+**Vercel (web).** Import the GitHub repository and set Root Directory to `apps/web`; Vercel installs the pnpm workspace from the repository root on its own, and the web `build` script generates the Prisma client before `next build`, so the default build command (`pnpm run build`) is enough. Paste `deploy/web.env` into Environment Variables. `NEXT_PUBLIC_*` values are baked in at build time, so a change to them needs a redeploy.
 
-**Railway (bot and indexer).** Create two services from the same repository. For each: Build Command `pnpm db:generate`, Start Command `pnpm --filter @o1bot/bot start` or `pnpm --filter @o1bot/indexer start`, and paste the matching `deploy/*.env` into Variables → Raw Editor. Add a Railway Redis service and set `QUEUE_DRIVER=redis` with its `REDIS_URL` when the bot should survive restarts with jobs intact. Keep `DRY_RUN=true` on the first deploy, watch a few mentions go through the log, do one real launch with the minimum fee from a fresh wallet, then set `DRY_RUN=false`.
+**Railway (bot and indexer).** Create two services from the same repository. For each: leave the build command at its default, set Start Command `pnpm --filter @o1bot/bot start` or `pnpm --filter @o1bot/indexer start` (both generate the Prisma client before starting), and paste the matching `deploy/*.env` into Variables → Raw Editor. Add a Railway Redis service and set `QUEUE_DRIVER=redis` with its `REDIS_URL` when the bot should survive restarts with jobs intact. Keep `DRY_RUN=true` on the first deploy, watch a few mentions go through the log, do one real launch with the minimum fee from a fresh wallet, then set `DRY_RUN=false`.
 
 ## Parser
 
