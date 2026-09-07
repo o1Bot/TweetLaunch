@@ -82,8 +82,13 @@ export type Env = z.infer<typeof schema>;
 
 let cached: Env | null = null;
 
+/** An empty value in .env means "unset": defaults and optional checks must treat it that way. */
+function withoutEmpty(source: NodeJS.ProcessEnv): Record<string, string | undefined> {
+  return Object.fromEntries(Object.entries(source).map(([k, v]) => [k, v === "" ? undefined : v]));
+}
+
 export function env(): Env {
-  if (!cached) cached = schema.parse(process.env);
+  if (!cached) cached = schema.parse(withoutEmpty(process.env));
   return cached;
 }
 

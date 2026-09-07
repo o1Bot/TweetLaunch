@@ -3,5 +3,10 @@
   "compilerOptions": {
     "allowImportingTsExtensions": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "../../abis/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "../../abis/*.ts",
+    "scripts/**/*.ts"
+  ]
 }
