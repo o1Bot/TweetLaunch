@@ -11,6 +11,10 @@ RUN corepack enable && corepack prepare pnpm@11.5.0 --activate
 
 WORKDIR /app
 COPY . .
+# The build context must be the repository root. On Railway that means the
+# service's Root Directory setting is empty; a subfolder such as apps/bot
+# arrives here without the workspace files and cannot be installed.
+RUN test -f pnpm-lock.yaml && test -f pnpm-workspace.yaml || { echo "ERROR: pnpm-lock.yaml not found: the build context is not the repository root. On Railway, clear the service's Root Directory setting and redeploy."; exit 1; }
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @o1bot/db generate
 
