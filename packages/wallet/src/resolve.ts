@@ -1,7 +1,7 @@
 import type { User } from "@privy-io/server-auth";
 import { getAddress } from "viem";
 import { logger, normalizeHandle } from "@o1bot/shared";
-import { privy } from "./privy";
+import { privy, privySignerId } from "./privy";
 import { PREGEN_METADATA_KEY, PREGEN_METADATA_VALUE, type EmbeddedWallet, type LinkStatus, type LinkedUser } from "./types";
 
 /**
@@ -42,14 +42,32 @@ export function toLinkedUser(user: User): LinkedUser | null {
   };
 }
 
+/**
+ * "Delegated" for TEE wallets means o1bot's key quorum is a signer on the
+ * wallet. The user object does not say so; the wallet API does. The legacy
+ * on-device `delegated` flag is kept as a fallback for apps still on it.
+ */
+export async function withSignerStatus(user: LinkedUser | null): Promise<LinkedUser | null> {
+  const signerId = privySignerId();
+  if (!user?.wallet?.walletId || !signerId) return user;
+  try {
+    const w = await privy().walletApi.getWallet({ id: user.wallet.walletId });
+    const granted = w.ownerId === signerId || (w.additionalSigners ?? []).some((s) => s.signerId === signerId);
+    return { ...user, wallet: { ...user.wallet, delegated: granted || user.wallet.delegated } };
+  } catch (err) {
+    logger.warn({ walletId: user.wallet.walletId, err: err instanceof Error ? err.message : String(err) }, "could not read wallet signers");
+    return user;
+  }
+}
+
 export async function findUserByXUserId(xUserId: string): Promise<LinkedUser | null> {
   const user = await privy().getUserByTwitterSubject(xUserId);
-  return user ? toLinkedUser(user) : null;
+  return withSignerStatus(user ? toLinkedUser(user) : null);
 }
 
 export async function findUserByPrivyId(privyUserId: string): Promise<LinkedUser | null> {
   const user = await privy().getUserById(privyUserId);
-  return user ? toLinkedUser(user) : null;
+  return withSignerStatus(user ? toLinkedUser(user) : null);
 }
 
 /** Handle lookups are a convenience only; resolve handle → ID via X first when it matters. */
@@ -57,7 +75,7 @@ export async function findUserByHandle(handle: string): Promise<LinkedUser | nul
   const clean = normalizeHandle(handle);
   if (!clean) return null;
   const user = await privy().getUserByTwitterUsername(clean);
-  return user ? toLinkedUser(user) : null;
+  return withSignerStatus(user ? toLinkedUser(user) : null);
 }
 
 /**

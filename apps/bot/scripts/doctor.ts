@@ -142,6 +142,15 @@ async function checkPrivy() {
   } catch (err) {
     fail("privy", errMsg(err));
   }
+  const signerId = e.PRIVY_SIGNER_ID;
+  const authKey = e.PRIVY_AUTHORIZATION_PRIVATE_KEY;
+  if (!signerId || !authKey) {
+    (e.DRY_RUN ? skip : fail)("privy signer", `${signerId ? "" : "PRIVY_SIGNER_ID "}${authKey ? "" : "PRIVY_AUTHORIZATION_PRIVATE_KEY "}missing: the bot cannot sign from user wallets`.trim());
+  } else if (!authKey.startsWith("wallet-auth:")) {
+    fail("privy signer", "PRIVY_AUTHORIZATION_PRIVATE_KEY should be the value the dashboard shows, starting with wallet-auth:");
+  } else {
+    ok("privy signer", `key quorum ${signerId} with a matching authorization key`);
+  }
 }
 
 async function checkO1Api() {

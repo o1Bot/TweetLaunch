@@ -31,6 +31,10 @@ const schema = z.object({
 
   PRIVY_APP_ID: z.string().optional(),
   PRIVY_APP_SECRET: z.string().optional(),
+  /** Private key of the app's key quorum ("wallet-auth:…"); signs wallet API requests on behalf of users. */
+  PRIVY_AUTHORIZATION_PRIVATE_KEY: z.string().optional(),
+  /** Key quorum id of that key; users add it as a signer on their wallet, the bot checks for it. */
+  PRIVY_SIGNER_ID: z.string().optional(),
   NEXT_PUBLIC_PRIVY_APP_ID: z.string().optional(),
 
   ANTHROPIC_API_KEY: z.string().optional(),

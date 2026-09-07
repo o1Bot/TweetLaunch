@@ -76,8 +76,8 @@ Each file is paste-ready for the host's raw environment editor and ends with the
 
 | Service | Host | Reads |
 | ------- | ---- | ----- |
-| web | Vercel, root directory `apps/web` | `DATABASE_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_DOCS_URL`, `NEXT_PUBLIC_X_URL`, `NEXT_PUBLIC_GITHUB_URL`, `NEXT_PUBLIC_CONTACT_EMAIL`, `RPC_ROBINHOOD`, `O1_API_URL`, `O1_API_KEY`, `IPFS_GATEWAY`, `LOG_LEVEL`, `LOG_PRETTY` |
-| bot | Railway | `DRY_RUN`, `SITE_URL`, `DOCS_URL`, `DATABASE_URL`, `QUEUE_DRIVER`, `REDIS_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `X_BEARER_TOKEN`, `X_APP_KEY`, `X_APP_SECRET`, `X_APP_ACCESS_TOKEN`, `X_APP_ACCESS_TOKEN_SECRET`, `X_BOT_USER_ID`, `X_BOT_HANDLE`, `X_POLL_MS`, `ANTHROPIC_API_KEY`, `PARSER_MODEL`, `PINATA_JWT`, `RPC_ROBINHOOD`, `MAX_LAUNCHES_PER_USER_PER_DAY`, `LAUNCH_COOLDOWN_SECONDS`, `MAX_DEV_BUY_ETH`, `DEV_BUY_SLIPPAGE_BPS`, `MAX_REPLIES_PER_USER_PER_DAY`, `LOG_LEVEL`, `LOG_PRETTY` |
+| web | Vercel, root directory `apps/web` | `DATABASE_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_AUTHORIZATION_PRIVATE_KEY`, `PRIVY_SIGNER_ID`, `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_PRIVY_SIGNER_ID`, `NEXT_PUBLIC_DOCS_URL`, `NEXT_PUBLIC_X_URL`, `NEXT_PUBLIC_GITHUB_URL`, `NEXT_PUBLIC_CONTACT_EMAIL`, `RPC_ROBINHOOD`, `O1_API_URL`, `O1_API_KEY`, `IPFS_GATEWAY`, `LOG_LEVEL`, `LOG_PRETTY` |
+| bot | Railway | `DRY_RUN`, `SITE_URL`, `DOCS_URL`, `DATABASE_URL`, `QUEUE_DRIVER`, `REDIS_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_AUTHORIZATION_PRIVATE_KEY`, `PRIVY_SIGNER_ID`, `X_BEARER_TOKEN`, `X_APP_KEY`, `X_APP_SECRET`, `X_APP_ACCESS_TOKEN`, `X_APP_ACCESS_TOKEN_SECRET`, `X_BOT_USER_ID`, `X_BOT_HANDLE`, `X_POLL_MS`, `ANTHROPIC_API_KEY`, `PARSER_MODEL`, `PINATA_JWT`, `RPC_ROBINHOOD`, `MAX_LAUNCHES_PER_USER_PER_DAY`, `LAUNCH_COOLDOWN_SECONDS`, `MAX_DEV_BUY_ETH`, `DEV_BUY_SLIPPAGE_BPS`, `MAX_REPLIES_PER_USER_PER_DAY`, `LOG_LEVEL`, `LOG_PRETTY` |
 | indexer | Railway | `DATABASE_URL`, `INDEXER_RPC`, `RPC_ROBINHOOD`, `INDEXER_POLL_MS`, `INDEXER_START_BLOCK`, `IPFS_GATEWAY`, `LOG_LEVEL`, `LOG_PRETTY` |
 | db | your machine | `DATABASE_URL` for `pnpm db:push` / `pnpm db:migrate` against the production database |
 
@@ -163,9 +163,11 @@ Web routes: `/` board, `/token/[address]`, `/api/tokens`, `/api/token/[address]`
 
 ## Privy setup
 
-1. Create an app at dashboard.privy.io. Enable **Login with X**, **Embedded wallets → Ethereum**, and **Delegated actions**.
+1. Create an app at dashboard.privy.io. Enable **Login with X** and **Embedded wallets → Ethereum**. New apps run wallets in Privy's TEE, which is what server-side signing needs.
 2. Put the App ID in both `PRIVY_APP_ID` and `NEXT_PUBLIC_PRIVY_APP_ID`; the App Secret in `PRIVY_APP_SECRET`.
-3. A user is "linked" for the bot only when they have logged in on o1bot.exchange at least once, hold a Privy embedded wallet, and have delegated signing to o1bot (step 2 of the onboarding page). Wallets that exist only because someone wrote `fees to @them` are pregenerated and not linked.
+3. Create the bot's signer: **Wallet infrastructure → Authorization keys → Create new key**. The dialog shows a key quorum ID and a private key (`wallet-auth:…`). Put the ID in `PRIVY_SIGNER_ID` and `NEXT_PUBLIC_PRIVY_SIGNER_ID`, the private key in `PRIVY_AUTHORIZATION_PRIVATE_KEY`. Privy never stores the private key; keep a copy somewhere safe.
+4. Onboarding step 2 calls `addSigners` with that key quorum, which grants o1bot's key signing rights on the user's wallet. The bot's own allow-list still decides which transactions it will ever sign; a Privy policy can be added on top later.
+5. A user is "linked" for the bot only when they have logged in on o1bot.exchange at least once, hold a Privy embedded wallet, and have o1bot's key quorum as a signer on it (checked through the wallet API, not the user object). Wallets that exist only because someone wrote `fees to @them` are pregenerated and not linked.
 
 ## Signing rules
 
