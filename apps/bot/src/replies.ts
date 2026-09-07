@@ -45,29 +45,45 @@ export type SuccessInput = {
   feesToFailed?: string | null;
 };
 
-/** Build the success reply, dropping optional sentences until it fits X's limit. */
+/**
+ * Success replies carry no contract address (X blocks addresses posted by
+ * young accounts) and a single link, the o1bot token page, which has the
+ * chart, the swap and the address. Several phrasings are rotated,
+ * picked from the token address so the same launch always gets the same
+ * text, and the localizer turns it into the post's language.
+ */
+const SUCCESS_OPENERS: Array<(p: SuccessInput) => string> = [
+  (p) => `$${p.ticker} is live on Robinhood Chain, paired with ${p.pair}. Chart, trades and swap:`,
+  (p) => `Done. $${p.ticker} (${p.name}) just launched against ${p.pair}. Trade it here:`,
+  (p) => `${p.name} is out. $${p.ticker} went live a moment ago on o1, paired with ${p.pair}. Watch it move:`,
+  (p) => `Launched. $${p.ticker} is trading now, ${p.pair} pair, permanent liquidity. Everything about it:`,
+  (p) => `Your token is live: $${p.ticker} (${p.name}), paired with ${p.pair}. Page with chart and swap:`,
+  (p) => `$${p.ticker} now live. ${p.name} trades against ${p.pair} on o1 as of this block. Check it out:`,
+];
+
 export function successReply(p: SuccessInput): string {
-  const headline = `Launched $${p.ticker} (${p.name}) on Robinhood Chain, paired with ${p.pair}.`;
-  const links = [o1TokenUrl(p.token), tokenPageUrl(p.siteUrl, p.token)];
-  const devBuy = p.devBuyEth ? `Dev buy ${p.devBuyEth} ETH.` : null;
+  const link = tokenPageUrl(p.siteUrl, p.token);
+  const index = Number.parseInt(p.token.slice(-4), 16) % SUCCESS_OPENERS.length;
+  const opener = SUCCESS_OPENERS[Number.isNaN(index) ? 0 : index]!(p);
+  const devBuy = p.devBuyEth ? `Dev buy of ${p.devBuyEth} ETH filled inside the launch.` : null;
   const fees = p.feesTo
-    ? `Creator fees go to @${p.feesTo}: sign in with X at the second link to claim.`
+    ? `Creator fees go to @${p.feesTo}, claimable after signing in with X at the link.`
     : p.feesToFailed
       ? `The fee redirect to @${p.feesToFailed} failed, so creator fees stay with you for now.`
       : null;
   const feesShort = p.feesTo ? `Creator fees go to @${p.feesTo}.` : fees;
 
   const variants: string[][] = [
-    [headline, `Token ${p.token}`, ...links, [devBuy, fees].filter(Boolean).join(" ")],
-    [headline, `Token ${p.token}`, ...links, [devBuy, feesShort].filter(Boolean).join(" ")],
-    [headline, ...links, [devBuy, feesShort].filter(Boolean).join(" ")],
-    [headline, ...links],
+    [opener, link, [devBuy, fees].filter(Boolean).join(" ")],
+    [opener, link, [devBuy, feesShort].filter(Boolean).join(" ")],
+    [opener, link, feesShort ?? ""],
+    [opener, link],
   ];
   for (const lines of variants) {
     const text = lines.filter((l) => l && l.length > 0).join("\n");
     if (fitsX(text)) return text;
   }
-  return clampReply(variants[variants.length - 1]!.join("\n"));
+  return clampReply(`$${p.ticker} is live:\n${link}`);
 }
 
 export const replies = {

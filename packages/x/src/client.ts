@@ -179,7 +179,7 @@ export class HttpXClient implements XClient {
     });
     const body = await res.text().catch(() => "");
     if (res.status === 429) throw new XRateLimitError("post", resetAtFromHeaders(res.headers));
-    if (!res.ok) throw new XPostError(`post reply HTTP ${res.status}`, res.status, body.slice(0, 500));
+    if (!res.ok) throw new XPostError(`post reply HTTP ${res.status}: ${body.replace(/\s+/g, " ").slice(0, 200)}`, res.status, body.slice(0, 500));
     const json = JSON.parse(body) as { data?: { id: string } };
     return json.data?.id ?? "";
   }

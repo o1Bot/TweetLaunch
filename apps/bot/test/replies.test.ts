@@ -18,21 +18,32 @@ describe("xWeightedLength", () => {
 describe("successReply", () => {
   const base = { ticker: "CASHCAT", name: "Cash Cat", pair: "ETH", token: TOKEN, siteUrl: SITE, devBuyEth: "0.05", feesTo: "bob" };
 
-  it("keeps the full address, both links, the dev buy and the fee note when they fit", () => {
+  it("carries the ticker, one link to the token page, the dev buy and the fee note, and never the address", () => {
     const text = successReply(base);
     expect(fitsX(text)).toBe(true);
-    expect(text).toContain(`Token ${TOKEN}`);
-    expect(text).toContain(`https://launch.o1.exchange/token/${TOKEN.toLowerCase()}?chain=4663`);
+    expect(text).toContain("$CASHCAT");
     expect(text).toContain(`${SITE}/token/${TOKEN}`);
-    expect(text).toContain("Dev buy 0.05 ETH.");
+    expect(text).not.toContain("launch.o1.exchange");
+    expect(text.split("https://").length - 1).toBe(1);
+    expect(text).not.toMatch(/Token 0x/);
+    expect(text).toContain("0.05 ETH");
     expect(text).toContain("@bob");
+  });
+
+  it("rotates the phrasing by token but stays stable for the same token", () => {
+    const a = successReply(base);
+    const b = successReply({ ...base, token: "0x0ab6bF0ffA6D5C5aAa8fC94a8fB2f4Ea2F4F5C02" });
+    const c = successReply({ ...base, token: "0x0ab6bF0ffA6D5C5aAa8fC94a8fB2f4Ea2F4F5C03" });
+    expect(successReply(base)).toBe(a);
+    const opener = (t: string) => t.split("\n")[0];
+    expect(new Set([opener(a), opener(b), opener(c)]).size).toBeGreaterThan(1);
   });
 
   it("drops optional sentences before ever truncating", () => {
     const text = successReply({ ...base, name: "A very long token name that pushes the reply well past the limit on X", pair: "AAPL" });
     expect(fitsX(text)).toBe(true);
     expect(text).not.toContain("…");
-    expect(text).toContain("https://launch.o1.exchange/token/");
+    expect(text).toContain(`${SITE}/token/`);
   });
 
   it("explains a failed fee redirect", () => {
