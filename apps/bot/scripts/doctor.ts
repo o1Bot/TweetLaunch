@@ -22,10 +22,12 @@ const ok = (service: string, detail: string) => results.push({ service, status: 
 const fail = (service: string, detail: string) => results.push({ service, status: "fail", detail });
 const skip = (service: string, detail: string) => results.push({ service, status: "skip", detail });
 /** First line of an error, with URLs removed: RPC errors echo the request URL, which can carry an API key. */
-const errMsg = (e: unknown) =>
-  (e instanceof Error ? e.message : String(e))
-    .replace(/https?:\/\/\S+/g, "<url>")
-    .split("\n")[0]!.slice(0, 160);
+const errMsg = (e: unknown) => {
+  const text = (e instanceof Error ? e.message : String(e)).replace(/https?:\/\/\S+/g, "<url>");
+  const firstLine = text.split("\n").map((l) => l.trim()).find(Boolean) ?? "unknown error";
+  const code = e instanceof Error && "code" in e && typeof e.code === "string" ? ` [${e.code}]` : "";
+  return `${firstLine}${code}`.slice(0, 160);
+};
 
 async function checkDatabase() {
   if (!dbConfigured()) return skip("database", "DATABASE_URL not set");
