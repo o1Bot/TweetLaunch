@@ -85,10 +85,19 @@ enum LaunchStatus {
   FAILED
 }
 
+enum LaunchSource {
+  /// Command posted on X and picked up by the listener.
+  X
+  /// Form on the web app; the bot worker processes it the same way.
+  WEB
+}
+
 model Launch {
   id             String       @id @default(cuid())
-  mentionId      String       @unique
-  mention        Mention      @relation(fields: [mentionId], references: [id])
+  source         LaunchSource @default(X)
+  /// The originating post for X launches; null for web launches.
+  mentionId      String?      @unique
+  mention        Mention?     @relation(fields: [mentionId], references: [id])
   creatorId      String
   creator        User         @relation("LaunchCreator", fields: [creatorId], references: [id])
   feeRecipientId String?
@@ -110,7 +119,15 @@ model Launch {
   poolId         String?
   launchTxHash   String?
   feeRecipientTxHash String?
+  /// Internal error detail for operators.
   error          String?
+  /// What the user is told about the outcome (the reply text for X launches).
+  userMessage    String?
+  /// Web launches: the form as submitted (description, links, fees-to handle, dev buy) until processed.
+  request        Json?
+  /// Web launches: uploaded logo bytes until the worker pins them, then cleared.
+  imageData      Bytes?
+  imageMime      String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -120,6 +137,7 @@ model Launch {
   @@index([creatorId, createdAt])
   @@index([chainId, tokenAddress])
   @@index([status])
+  @@index([source, status, createdAt])
 }
 
 enum SignedTxKind {

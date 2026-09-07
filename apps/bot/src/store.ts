@@ -39,8 +39,22 @@ export type UserUpsert = {
   linkedAt?: Date | null;
 };
 
+export type LaunchSourceValue = "X" | "WEB";
+
+/** What the web form submitted, kept on the row until the worker has used it. */
+export type WebLaunchRequest = {
+  devBuyNative: string | null;
+  description: string | null;
+  website: string | null;
+  telegram: string | null;
+  xHandle: string | null;
+  feesToHandle: string | null;
+};
+
 export type NewLaunch = {
-  mentionId: string;
+  /** The originating post for X launches; null for web launches. */
+  mentionId: string | null;
+  source: LaunchSourceValue;
   creatorUserId: string;
   feeRecipientUserId: string | null;
   chainId: number;
@@ -53,6 +67,9 @@ export type NewLaunch = {
   imageUri: string | null;
   metadataUri: string | null;
   status: LaunchStatusValue;
+  request?: WebLaunchRequest | null;
+  imageData?: Uint8Array | null;
+  imageMime?: string | null;
 };
 
 export type LaunchPatch = {
@@ -65,6 +82,22 @@ export type LaunchPatch = {
   creatorSalt?: string | null;
   metadataUri?: string | null;
   imageUri?: string | null;
+  userMessage?: string | null;
+  /** Set to null once the uploaded logo has been pinned. */
+  imageData?: Uint8Array | null;
+};
+
+/** A queued web launch handed to the worker, with what it needs to run it. */
+export type WebLaunchJob = {
+  id: string;
+  createdAt: Date;
+  creator: { xUserId: string; xHandle: string };
+  ticker: string;
+  name: string;
+  quoteAddress: string;
+  devBuyWei: bigint | null;
+  request: WebLaunchRequest;
+  imageData: Uint8Array | null;
 };
 
 export type SignedTxRecord = {
@@ -97,6 +130,8 @@ export interface BotStore {
    * again, e.g. after a dry run. Refused when anything was ever signed for it.
    */
   resetMentionForRerun(tweetId: string): Promise<{ reset: boolean; reason: string }>;
+  /** Oldest queued web launch, atomically moved to SIMULATING so no other worker takes it. Null when none. */
+  claimQueuedWebLaunch(): Promise<WebLaunchJob | null>;
 }
 
 export class PrismaBotStore implements BotStore {
@@ -143,6 +178,7 @@ export class PrismaBotStore implements BotStore {
     const row = await db().launch.create({
       data: {
         mentionId: l.mentionId,
+        source: l.source,
         creatorId: l.creatorUserId,
         feeRecipientId: l.feeRecipientUserId,
         chainId: l.chainId,
@@ -155,13 +191,46 @@ export class PrismaBotStore implements BotStore {
         imageUri: l.imageUri,
         metadataUri: l.metadataUri,
         status: l.status,
+        request: l.request ? (l.request as Prisma.InputJsonValue) : undefined,
+        imageData: l.imageData ? new Uint8Array(l.imageData) : undefined,
+        imageMime: l.imageMime ?? undefined,
       },
       select: { id: true },
     });
     return { id: row.id };
   }
   async updateLaunch(id: string, patch: LaunchPatch) {
-    await db().launch.update({ where: { id }, data: patch });
+    const { imageData, ...rest } = patch;
+    await db().launch.update({ where: { id }, data: { ...rest, ...(imageData !== undefined ? { imageData: imageData ? new Uint8Array(imageData) : null } : {}) } });
+  }
+  async claimQueuedWebLaunch() {
+    const candidate = await db().launch.findFirst({
+      where: { source: "WEB", status: "QUEUED" },
+      orderBy: { createdAt: "asc" },
+      include: { creator: { select: { xUserId: true, xHandle: true } } },
+    });
+    if (!candidate) return null;
+    const claimed = await db().launch.updateMany({ where: { id: candidate.id, status: "QUEUED" }, data: { status: "SIMULATING" } });
+    if (claimed.count === 0) return null;
+    const request = (candidate.request ?? {}) as Partial<WebLaunchRequest>;
+    return {
+      id: candidate.id,
+      createdAt: candidate.createdAt,
+      creator: candidate.creator,
+      ticker: candidate.ticker,
+      name: candidate.name,
+      quoteAddress: candidate.quoteAddress,
+      devBuyWei: candidate.devBuyWei ? BigInt(candidate.devBuyWei) : null,
+      request: {
+        devBuyNative: request.devBuyNative ?? null,
+        description: request.description ?? null,
+        website: request.website ?? null,
+        telegram: request.telegram ?? null,
+        xHandle: request.xHandle ?? null,
+        feesToHandle: request.feesToHandle ?? null,
+      },
+      imageData: candidate.imageData ? new Uint8Array(candidate.imageData) : null,
+    };
   }
   async recordSignedTx(rec: SignedTxRecord) {
     await db().signedTransaction.create({ data: { ...rec, txHash: rec.txHash ?? null } });
@@ -232,6 +301,23 @@ export class MemoryBotStore implements BotStore {
     const id = `l${++this.seq}`;
     this.launches.push({ ...l, id, createdAt: this.now() });
     return { id };
+  }
+  async claimQueuedWebLaunch() {
+    const row = this.launches.find((l) => l.source === "WEB" && l.status === "QUEUED");
+    if (!row) return null;
+    row.status = "SIMULATING";
+    const creator = this.users.find((u) => u.id === row.creatorUserId);
+    return {
+      id: row.id,
+      createdAt: row.createdAt,
+      creator: { xUserId: creator?.xUserId ?? "", xHandle: creator?.xHandle ?? "" },
+      ticker: row.ticker,
+      name: row.name,
+      quoteAddress: row.quoteAddress,
+      devBuyWei: row.devBuyWei,
+      request: row.request ?? { devBuyNative: null, description: null, website: null, telegram: null, xHandle: null, feesToHandle: null },
+      imageData: row.imageData ?? null,
+    };
   }
   async updateLaunch(id: string, patch: LaunchPatch) {
     const row = this.launches.find((x) => x.id === id);

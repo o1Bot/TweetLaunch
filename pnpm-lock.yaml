@@ -112,6 +112,9 @@ importers:
       '@o1bot/market':
         specifier: workspace:*
         version: link:../../packages/market
+      '@o1bot/parser':
+        specifier: workspace:*
+        version: link:../../packages/parser
       '@o1bot/shared':
         specifier: workspace:*
         version: link:../../packages/shared

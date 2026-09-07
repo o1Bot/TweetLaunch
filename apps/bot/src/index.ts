@@ -11,7 +11,11 @@ import { executeLaunchPlan, setCreatorFeeRecipient } from "./execute";
 import { processMention, type PipelineDeps } from "./pipeline";
 import { BullQueue, MemoryQueue, type JobQueue } from "./queue";
 import { MemoryBotStore, PrismaBotStore, type BotStore } from "./store";
+import { drainWebLaunches, startWebLaunchPolling } from "./web-launches";
 import { pollOnce, startPolling } from "./x-listener";
+
+/** How often the worker looks for launches submitted through the web form. */
+const WEB_LAUNCH_POLL_MS = 5_000;
 
 /**
  * Bot entry point: listener → queue → pipeline.
@@ -238,15 +242,18 @@ async function main() {
     const stats = await pollOnce(listener);
     logger.info(stats, "single poll done; draining the queue");
     await queue.drain();
+    const webRan = await drainWebLaunches(deps);
+    if (webRan) logger.info({ webRan }, "web launches processed");
     await queue.close();
     logger.info("done");
     return;
   }
 
   const poller = startPolling(listener, cfg.pollMs);
+  const webPoller = startWebLaunchPolling(deps, WEB_LAUNCH_POLL_MS);
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "shutting down");
-    await poller.stop();
+    await Promise.all([poller.stop(), webPoller.stop()]);
     await queue.close();
     process.exit(0);
   };

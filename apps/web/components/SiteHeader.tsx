@@ -16,7 +16,7 @@ export function SiteHeader() {
         </a>
       </nav>
       <div className="grow" />
-      <Link className="btn-p" href="/start" style={{ padding: "8px 14px" }}>
+      <Link className="btn-p" href="/launch" style={{ padding: "8px 14px" }}>
         Launch a token
       </Link>
     </header>

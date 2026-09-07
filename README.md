@@ -131,6 +131,10 @@ pnpm --filter @o1bot/bot once --mention 'launch $CAT "Cash Cat" pair ETH devbuy 
 
 The last command feeds one synthetic post through the whole pipeline with `DRY_RUN=true`: an in-memory store when `DATABASE_URL` is unset, a scripted X client, `--wallet` as the poster's linked wallet when Privy is not configured, `ipfs://dry-run/…` metadata when `PINATA_JWT` is unset, and the live factory for the plan. It needs `ANTHROPIC_API_KEY` for the parser and an RPC.
 
+### Launching from the web app
+
+`/launch` is a form for people who would rather not post: ticker, name, pair, dev buy, logo upload, description, links and an optional fee recipient. Submitting only records the request (`Launch` row with `source = WEB`, status `QUEUED`, the logo bytes on the row); the bot worker on Railway claims it within a few seconds and runs it through the same checks and the same signing path as a post on X (`apps/bot/src/launch-core.ts` is shared by both), then writes the outcome back. The page polls `GET /api/launch/:id` and shows the steps, the message and the token link. Nothing is posted on X for web launches, and the token page shows "launched on o1bot.exchange" instead of a genesis post. Rate limits, the dev-buy cap and the reserved fees-to handles apply exactly as on X.
+
 ### Launching from the bot's own account
 
 The poller never processes posts written by the bot itself, so that the "try it" examples on the bot's timeline cannot trigger launches. To launch a token from @o1bot_exchange anyway (the project's own token, for instance), process one post on demand from a machine that holds the root `.env`:

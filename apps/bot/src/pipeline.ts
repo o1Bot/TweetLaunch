@@ -1,13 +1,14 @@
 import { getAddress, type Address, type Hex } from "viem";
-import { classifyError, type LaunchErrorKind, type LaunchPlan, type LaunchRequest, type PlanResult, type PreparedMetadata, type TokenMetadataInput } from "@o1bot/executor";
+import type { LaunchPlan, LaunchRequest, PlanResult, PreparedMetadata, TokenMetadataInput } from "@o1bot/executor";
 import { ParserError, type LaunchCommand, type MentionInput, type ParsedMention } from "@o1bot/parser";
-import { activeFactory, findQuote, logger, tickerCollidesWithStock, type AllowedTxKind } from "@o1bot/shared";
-import type { EnsureWalletInput, LinkedUser, LinkStatus, SignAudit } from "@o1bot/wallet";
+import { activeFactory, findQuote, logger, tickerCollidesWithStock } from "@o1bot/shared";
+import type { EnsureWalletInput, LinkedUser, LinkStatus } from "@o1bot/wallet";
 import { stripLeadingMentions, XPostError, type XClient, type XMention } from "@o1bot/x";
 import type { BotConfig } from "./config";
-import { ExecutionError, type AuditSink, type ExecutionResult, type WalletRef } from "./execute";
+import type { AuditSink, ExecutionResult, WalletRef } from "./execute";
+import { runLaunch } from "./launch-core";
 import { clampReply, formatEthCeil, replies } from "./replies";
-import type { BotStore, MentionStatusValue, SignedTxKindValue } from "./store";
+import type { BotStore, MentionStatusValue } from "./store";
 import { checkDevBuy, checkFeesToHandle, checkRate, startOfUtcDay } from "./validator";
 
 /**
@@ -48,32 +49,6 @@ export type PipelineOutcome =
   | { outcome: "failed"; error: string; reply: string | null; launchId: string | null };
 
 type ReplyResult = { text: string; tweetId: string | null; posted: boolean; error: string | null };
-
-const SIGNED_KIND: Record<AllowedTxKind, SignedTxKindValue> = {
-  createLaunch: "CREATE_LAUNCH",
-  createLaunchAndBuy: "CREATE_LAUNCH_AND_BUY",
-  erc20Approve: "ERC20_APPROVE",
-  setCreatorFeeRecipient: "SET_CREATOR_FEE_RECIPIENT",
-  feeClaimFor: "FEE_CLAIM",
-  feeClaimTo: "FEE_CLAIM",
-};
-
-/** Short, user-facing phrasing for plan / execution failures that are not the user's fault. */
-const FAILURE_DETAIL: Partial<Record<LaunchErrorKind, string>> = {
-  stale_config: "o1 changed its factory config while I was preparing the launch",
-  expired: "the launch deadline passed before it was mined",
-  salt_used: "address collision, a retry picks a fresh one",
-  creation_disabled: "o1 has paused new launches",
-  registry_drift: "o1 rotated its factory and the bot needs an update",
-  rpc_error: "the chain RPC did not respond",
-  unknown_revert: "the factory rejected the transaction",
-  config_error: "factory configuration mismatch",
-  token_check_failed: "token address prediction mismatch",
-  dev_buy_rejected: "o1 rejected the dev buy",
-  bad_payment: "payment amount mismatch",
-  bad_suffix: "factory address rules changed",
-  unknown: "unexpected error",
-};
 
 const errMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -289,9 +264,10 @@ async function handleLaunch(cmd: LaunchCommand, ctx: LaunchContext): Promise<Pip
     }
   }
 
-  // 9. Persist the launch before anything slow or irreversible happens.
+  // 9. Persist the launch, then run the shared core (metadata, plan, funding, signing).
   const launch = await store.createLaunch({
     mentionId,
+    source: "X",
     creatorUserId: creator.id,
     feeRecipientUserId: recipient?.userId ?? null,
     chainId: 4663,
@@ -308,157 +284,52 @@ async function handleLaunch(cmd: LaunchCommand, ctx: LaunchContext): Promise<Pip
   const launchId = launch.id;
   await setMention("QUEUED");
 
-  const failed = async (error: string, text: string, status: MentionStatusValue = "FAILED", patch: Parameters<BotStore["updateLaunch"]>[1] = {}): Promise<PipelineOutcome> => {
-    log.error({ error }, "launch failed");
-    await store.updateLaunch(launchId, { status: "FAILED", error, ...patch });
-    const r = await reply(text);
-    await setMention(status, { error });
-    return { outcome: "failed", error, reply: r.posted || config.dryRun ? r.text : null, launchId };
-  };
-
-  // 10. Image + ERC-7572 metadata on IPFS.
-  let metadata: PreparedMetadata;
-  try {
-    metadata = await deps.prepareMetadata({
-      name: cmd.name,
-      symbol: cmd.ticker,
-      description: cmd.description ?? `${cmd.name} ($${cmd.ticker}) was launched on o1 Launchpad from a post by @${authorHandle}.`,
-      externalLink: config.siteUrl,
-      launchedBy: { xHandle: authorHandle, xUserId: mention.authorId, tweetId: mention.id, tweetUrl: `https://x.com/${authorHandle}/status/${mention.id}` },
-      imageUrl: cmd.imageFromTweet ? mention.imageUrl : null,
-      website: cmd.website,
-      // The project's X profile: the handle the user named, else the poster's own account.
-      x: `https://x.com/${cmd.xHandle ?? authorHandle}`,
-      telegram: cmd.telegram,
-    });
-  } catch (err) {
-    return failed(`metadata: ${errMessage(err)}`, replies.launchFailed("the image or metadata upload failed"));
-  }
-  await store.updateLaunch(launchId, { imageUri: metadata.imageUri, metadataUri: metadata.uri, status: "SIMULATING" });
-
-  // 11. Plan: live factory reads, salt, route, simulation, funding.
-  const planned = await deps.plan({
-    creator: wallet.address,
-    name: cmd.name,
-    symbol: cmd.ticker,
-    tokenContractURI: metadata.uri,
-    pair: quote.address,
-    devBuyWei: devBuy.wei ?? undefined,
-  });
-  if (!planned.ok) {
-    const { kind, message } = planned.error;
-    const error = `plan/${planned.stage}: ${kind}: ${message}`;
-    switch (kind) {
-      case "dev_buy_no_route":
-        return failed(error, replies.devBuyNoRoute(quote.symbol), "REJECTED");
-      case "pair_not_registered":
-        return failed(error, replies.pairUnavailable(quote.symbol, config.siteUrl), "REJECTED");
-      case "ticker_collides_with_stock":
-        return failed(error, replies.tickerCollides(cmd.ticker), "REJECTED");
-      case "bad_token_fields":
-        return failed(error, replies.launchFailed(message), "REJECTED");
-      case "insufficient_balance":
-        return failed(error, replies.insufficientUnknown(wallet.address), "REJECTED");
-      default:
-        return failed(error, replies.launchFailed(FAILURE_DETAIL[kind] ?? kind));
-    }
-  }
-  const plan = planned.plan;
-  await store.updateLaunch(launchId, { creatorSalt: plan.salt.creatorSalt, tokenAddress: plan.salt.token, poolId: plan.simulation.poolId });
-
-  // 12. Funding: exact shortfall in the reply, deposit address included when X allows it.
-  if (plan.funding.shortfallWei > 0n) {
-    const short = formatEthCeil(plan.funding.shortfallWei);
-    log.info({ shortfallWei: plan.funding.shortfallWei.toString(), wallet: wallet.address }, "insufficient balance");
-    await store.updateLaunch(launchId, { status: "FAILED", error: `insufficient balance: short ${plan.funding.shortfallWei} wei` });
-    return rejected(replies.insufficient(short, wallet.address), "insufficient balance", { safe: replies.insufficientSafe(short, config.siteUrl) });
-  }
-
-  const successText = (extra: { feesToFailed?: string | null } = {}) =>
-    replies.success({
+  const result = await runLaunch(
+    {
+      launchId,
+      wallet,
+      author: { xUserId: mention.authorId, handle: authorHandle },
+      quote,
       ticker: cmd.ticker,
       name: cmd.name,
-      pair: quote.symbol,
-      token: plan.salt.token,
-      siteUrl: config.siteUrl,
-      devBuyEth: cmd.devBuyNative,
-      feesTo: extra.feesToFailed ? null : (recipient?.handle ?? null),
-      feesToFailed: extra.feesToFailed ?? null,
-    });
+      devBuyWei: devBuy.wei,
+      devBuyNative: cmd.devBuyNative,
+      description: cmd.description,
+      website: cmd.website,
+      telegram: cmd.telegram,
+      xHandle: cmd.xHandle,
+      image: { url: cmd.imageFromTweet ? mention.imageUrl : null },
+      origin: { kind: "x", tweetId: mention.id, tweetUrl: `https://x.com/${authorHandle}/status/${mention.id}` },
+      recipient,
+    },
+    deps,
+    log,
+  );
 
-  // 13. Dry run stops here: record what would be signed, log the reply, sign nothing.
-  if (config.dryRun) {
-    await store.updateLaunch(launchId, { status: "DRY_RUN" });
-    log.info(
-      {
-        launchId,
-        fn: plan.call.functionName,
-        factory: plan.factory,
-        valueWei: plan.call.value.toString(),
-        token: plan.salt.token,
-        poolId: plan.simulation.poolId,
-        route: plan.route?.label ?? null,
-        gas: plan.simulation.gas.toString(),
-        feeRecipient: recipient?.address ?? null,
-      },
-      "dry run: would sign and broadcast",
-    );
-    const r = await reply(successText());
+  if (!result.ok) {
+    if (result.outcome === "rejected") {
+      const r = await reply(result.userText, result.safeText ? { safe: result.safeText } : {});
+      await setMention("REJECTED", { error: result.error });
+      return { outcome: "replied", kind: "rejected", reply: r.posted || config.dryRun ? r.text : null };
+    }
+    const r = await reply(result.userText);
+    await setMention(result.terminal, { error: result.error });
+    return { outcome: "failed", error: result.error, reply: r.posted || config.dryRun ? r.text : null, launchId };
+  }
+
+  if (result.dryRun) {
+    const r = await reply(result.userText);
     await setMention("DONE");
-    return { outcome: "dry_run", launchId, token: plan.salt.token, reply: r.text };
+    return { outcome: "dry_run", launchId, token: result.token, reply: r.text };
   }
 
-  // 14. Sign + broadcast from the user's wallet; every signature is audited first.
-  const audit: AuditSink = async (rec: SignAudit) =>
-    store.recordSignedTx({
-      launchId,
-      tweetId: mention.id,
-      xUserId: mention.authorId,
-      wallet: rec.wallet,
-      chainId: rec.chainId,
-      kind: SIGNED_KIND[rec.kind],
-      to: rec.to,
-      calldataHash: rec.calldataHash,
-      valueWei: rec.valueWei,
-    });
-  await store.updateLaunch(launchId, { status: "SIGNING" });
-  let executed: ExecutionResult;
-  try {
-    executed = await deps.execute(plan, wallet, audit);
-  } catch (err) {
-    if (err instanceof ExecutionError) {
-      const detail = err.txHash ? "the transaction reverted on chain" : FAILURE_DETAIL[classifyError(err.cause).kind] ?? "the transaction could not be sent";
-      return failed(`execute: ${err.message}`, replies.launchFailed(detail), "FAILED", { launchTxHash: err.txHash });
-    }
-    const classified = classifyError(err);
-    return failed(`execute: ${classified.kind}: ${classified.message}`, replies.launchFailed(FAILURE_DETAIL[classified.kind] ?? classified.kind));
-  }
-  await store.updateLaunch(launchId, { status: "CONFIRMED", tokenAddress: executed.token, poolId: executed.poolId, launchTxHash: executed.txHash });
-  log.info({ launchId, token: executed.token, txHash: executed.txHash }, "launch confirmed");
-
-  // 15. Optional second transaction: redirect creator fees.
-  let feeRecipientTxHash: Hex | null = null;
-  let feesToFailed: string | null = null;
-  if (recipient) {
-    await store.updateLaunch(launchId, { status: "FEE_RECIPIENT_PENDING" });
-    try {
-      feeRecipientTxHash = await deps.setFeeRecipient({ factory: plan.factory, chainId: plan.chainId, token: executed.token, recipient: recipient.address }, wallet, audit);
-      await store.updateLaunch(launchId, { status: "CONFIRMED", feeRecipientTxHash });
-    } catch (err) {
-      feesToFailed = recipient.handle;
-      log.error({ err: errMessage(err), recipient: recipient.address }, "setCreatorFeeRecipient failed; fees stay with the creator");
-      await store.updateLaunch(launchId, { status: "CONFIRMED", error: `fee recipient: ${errMessage(err)}` });
-    }
-  }
-
-  // 16. Success reply. A failed post never undoes the launch.
-  const r = await reply(successText({ feesToFailed }));
+  // Success reply. A failed post never undoes the launch.
+  const r = await reply(result.userText);
   if (r.posted) {
     await store.updateLaunch(launchId, { status: "REPLIED" });
     await setMention("DONE");
   } else {
     await setMention("FAILED", { error: r.error ?? "reply not posted" });
   }
-  return { outcome: "launched", launchId, token: executed.token, txHash: executed.txHash, feeRecipientTxHash, reply: r.posted ? r.text : null };
+  return { outcome: "launched", launchId, token: result.token, txHash: result.txHash, feeRecipientTxHash: result.feeRecipientTxHash, reply: r.posted ? r.text : null };
 }
-

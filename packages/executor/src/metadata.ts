@@ -53,6 +53,15 @@ export async function fetchTweetImage(url: string): Promise<ImageFetchResult> {
   return { ok: true, image: { bytes, mime: sniffed } };
 }
 
+/** Apply o1's image limits to bytes that are already in hand (a web upload). */
+export function checkImageBytes(bytes: Uint8Array): ImageFetchResult {
+  if (bytes.length === 0) return { ok: false, reason: "empty" };
+  if (bytes.length > IMAGE_MAX_BYTES) return { ok: false, reason: "too_large" };
+  const mime = sniffImageMime(bytes);
+  if (!mime) return { ok: false, reason: "mime_not_allowed" };
+  return { ok: true, image: { bytes, mime } };
+}
+
 export type PinResult = { cid: string; uri: string };
 
 async function pinata(path: string, init: RequestInit): Promise<PinResult> {
@@ -90,10 +99,12 @@ export type TokenMetadataInput = {
   description?: string;
   /** o1bot token page URL. */
   externalLink?: string;
-  /** Attribution to the originating post; verifiable by anyone. */
-  launchedBy?: { xHandle: string; xUserId: string; tweetId: string; tweetUrl: string };
+  /** Attribution to the launcher and, for X launches, the originating post; verifiable by anyone. */
+  launchedBy?: { xHandle: string; xUserId: string; tweetId?: string; tweetUrl?: string };
   /** Tweet attachment; placeholder is used when missing or rejected. */
   imageUrl?: string | null;
+  /** Already-downloaded image (web upload); checked like a fetched one, wins over imageUrl. */
+  imageBytes?: Uint8Array | null;
   /** Public links, using the same keys o1's own metadata documents use. */
   website?: string | null;
   x?: string | null;
@@ -115,7 +126,7 @@ export async function prepareTokenMetadata(input: TokenMetadataInput): Promise<P
   let image: FetchedImage;
   let imageSource: PreparedMetadata["imageSource"] = "placeholder";
   let imageRejectReason: ImageRejectReason | null = null;
-  const fetched = input.imageUrl ? await fetchTweetImage(input.imageUrl) : null;
+  const fetched = input.imageBytes ? checkImageBytes(input.imageBytes) : input.imageUrl ? await fetchTweetImage(input.imageUrl) : null;
   if (fetched?.ok) {
     image = fetched.image;
     imageSource = "tweet";
@@ -145,8 +156,7 @@ export async function prepareTokenMetadata(input: TokenMetadataInput): Promise<P
             platform: "x",
             handle: input.launchedBy.xHandle,
             user_id: input.launchedBy.xUserId,
-            post_id: input.launchedBy.tweetId,
-            post_url: input.launchedBy.tweetUrl,
+            ...(input.launchedBy.tweetId ? { post_id: input.launchedBy.tweetId, post_url: input.launchedBy.tweetUrl } : { via: "o1bot.exchange" }),
           },
         }
       : {}),

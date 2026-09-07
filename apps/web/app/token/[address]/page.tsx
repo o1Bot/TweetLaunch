@@ -130,7 +130,7 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
               {t.post ? (
                 <div className="body" dangerouslySetInnerHTML={{ __html: postText ?? "" }} />
               ) : (
-                <div className="body">Launched on o1 directly from this wallet.</div>
+                <div className="body">Launched on o1bot.exchange from this wallet, without a post.</div>
               )}
               <div className="meta">
                 {t.post && t.creator.xHandle && (
