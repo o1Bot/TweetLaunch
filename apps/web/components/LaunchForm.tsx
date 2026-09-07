@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LOGO_MAX_BYTES, shrinkImage } from "@/lib/shrink-image";
+import { useGrantSigner, useLinkedRefresh } from "@/lib/use-grant-signer";
 
 /**
  * The web way to launch: same checks, same wallet, same signing path as a
@@ -43,6 +44,8 @@ const FINAL = new Set(["CONFIRMED", "REPLIED", "DRY_RUN", "FAILED"]);
 
 export function LaunchForm() {
   const { ready, authenticated, login, getAccessToken } = usePrivy();
+  const signer = useGrantSigner();
+  const granting = signer.busy;
   const [me, setMe] = useState<Me | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +65,7 @@ export function LaunchForm() {
     if (ready && authenticated) void refresh();
     if (ready && !authenticated) setMe(null);
   }, [ready, authenticated, refresh]);
+  useLinkedRefresh(refresh);
 
   // Poll the launch until it reaches a final state.
   useEffect(() => {
@@ -126,10 +130,22 @@ export function LaunchForm() {
     return (
       <div className="card">
         <h1 className="grad">Launch a token</h1>
-        <p className="sub">Your wallet is not set up for the bot yet ({me.reason ?? "not linked"}).</p>
-        <Link className="btn-p" href="/start">
-          Finish linking your account
-        </Link>
+        <p className="sub">One more step: allow o1bot to sign launches from your wallet. Privy asks for your approval; nothing else is signed.</p>
+        <div className="actions">
+          <button
+            className="btn-p"
+            disabled={granting || !signer.embedded}
+            onClick={async () => {
+              if (await signer.grant()) await refresh();
+            }}
+          >
+            {granting ? "Waiting for Privy…" : "Allow o1bot to sign"}
+          </button>
+          <Link className="btn-s" href="/start">
+            Open the setup page
+          </Link>
+        </div>
+        {signer.error && <div className="alert">{signer.error}</div>}
       </div>
     );
   }

@@ -3,6 +3,7 @@
 import { PrivyProvider } from "@privy-io/react-auth";
 import { robinhood } from "viem/chains";
 import type { ReactNode } from "react";
+import { AutoSigner } from "@/components/AutoSigner";
 
 /**
  * Privy: X login only, one embedded Ethereum wallet per user, created on
@@ -33,6 +34,7 @@ export function Providers({ children }: { children: ReactNode }) {
         },
       }}
     >
+      <AutoSigner />
       {children}
     </PrivyProvider>
   );

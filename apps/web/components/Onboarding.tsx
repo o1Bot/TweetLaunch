@@ -1,9 +1,7 @@
 "use client";
 
-import { usePrivy, useSigners, useWallets } from "@privy-io/react-auth";
-
-/** Key quorum id of o1bot's authorization key; users add it as a signer on their wallet. */
-const SIGNER_ID = process.env.NEXT_PUBLIC_PRIVY_SIGNER_ID ?? "";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useGrantSigner, useLinkedRefresh } from "@/lib/use-grant-signer";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**
@@ -36,7 +34,7 @@ function short(address: string): string {
 export function Onboarding() {
   const { ready, authenticated, user, login, logout, getAccessToken, exportWallet } = usePrivy();
   const { wallets } = useWallets();
-  const { addSigners } = useSigners();
+  const signer = useGrantSigner();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [me, setMe] = useState<Me | null>(null);
@@ -67,26 +65,18 @@ export function Onboarding() {
     setStep((s) => (s === 1 ? 2 : s));
     void refresh();
   }, [ready, authenticated, refresh]);
+  useLinkedRefresh(refresh);
 
   const delegate = useCallback(async () => {
-    if (!embedded) return;
-    if (!SIGNER_ID) {
-      setError("This deployment has no signer configured (NEXT_PUBLIC_PRIVY_SIGNER_ID).");
-      return;
-    }
     setBusy("delegate");
     setError(null);
     try {
-      // Grants o1bot's key quorum signing rights on this wallet. The bot's own
-      // allow-list still decides which transactions it will ever sign.
-      await addSigners({ address: embedded.address, signers: [{ signerId: SIGNER_ID, policyIds: [] }] });
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Granting access was cancelled.");
+      if (await signer.grant()) await refresh();
+      else if (signer.error) setError(signer.error);
     } finally {
       setBusy(null);
     }
-  }, [embedded, addSigners, refresh]);
+  }, [signer, refresh]);
 
   const copy = useCallback(async () => {
     if (!me?.wallet) return;

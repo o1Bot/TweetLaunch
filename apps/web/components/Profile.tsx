@@ -5,6 +5,7 @@ import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
 import { useCallback, useEffect, useState } from "react";
 import { encodeFunctionData, parseAbi, type Address } from "viem";
 import { TokenLogo } from "@/components/TokenLogo";
+import { useGrantSigner, useLinkedRefresh } from "@/lib/use-grant-signer";
 
 /**
  * The signed-in user's page: wallet, holdings, launches and creator fees.
@@ -50,6 +51,7 @@ const STATUS_LABEL: Record<string, string> = {
 export function Profile() {
   const { ready, authenticated, user, login, logout, getAccessToken, exportWallet } = usePrivy();
   const { sendTransaction } = useSendTransaction();
+  const signer = useGrantSigner();
   const [me, setMe] = useState<Me | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +76,7 @@ export function Profile() {
       setOverview(null);
     }
   }, [ready, authenticated, load]);
+  useLinkedRefresh(load);
 
   const claim = useCallback(
     async (currency: string, symbol: string) => {
@@ -160,7 +163,21 @@ export function Profile() {
           </div>
           <div>
             <div className="k">Bot signing</div>
-            <div className="v">{me?.linked ? <span className="ok">allowed</span> : <Link href="/start">set up</Link>}</div>
+            <div className="v">
+              {me?.linked ? (
+                <span className="ok">allowed</span>
+              ) : (
+                <button
+                  className="btn-s"
+                  disabled={signer.busy || !signer.embedded}
+                  onClick={async () => {
+                    if (await signer.grant()) await load();
+                  }}
+                >
+                  {signer.busy ? "Waiting for Privy…" : "Allow"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
         <div className="actions">
