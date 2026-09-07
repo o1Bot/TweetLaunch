@@ -35,7 +35,7 @@ scripts/           maintenance scripts (o1 sync, ABI vendoring)
 
 ```bash
 pnpm install
-cp .env.example .env            # fill Privy + X + Anthropic + Pinata keys; keep DRY_RUN=true
+cp .env.example .env            # one file at the repo root for every app; keep DRY_RUN=true
 pnpm o1:sync                    # refresh config/o1.json from docs.o1.exchange
 pnpm abi:vendor                 # re-vendor ABIs when o1:sync reports drift
 pnpm db:generate                # Prisma client
@@ -61,6 +61,19 @@ Parse a mention, or run the 24 parser fixtures, against the live model (needs `A
 pnpm parse '@o1bot_exchange launch $RUGRAT "Rugrat" pair ETH on robinhood'
 pnpm parse --fixtures
 ```
+
+## Environment
+
+There is one `.env`, at the repository root, and every entry point loads it from there no matter which package directory pnpm started the process in (`packages/shared/src/load-env.ts`; Next.js gets the same file through `next.config.ts`, Prisma through `prisma.config.ts`). Shell variables win over the file, so hosts that set variables per service (Railway for the bot and indexer, Vercel for the web app) ship no file at all.
+
+| Service | Reads |
+| ------- | ----- |
+| bot | `DRY_RUN`, `SITE_URL`, `DATABASE_URL`, `QUEUE_DRIVER`, `REDIS_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `X_*`, `ANTHROPIC_API_KEY`, `PARSER_MODEL`, `PINATA_JWT`, `RPC_ROBINHOOD`, `MAX_*`, `LAUNCH_COOLDOWN_SECONDS` |
+| web | `SITE_URL`, `DATABASE_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `NEXT_PUBLIC_*`, `RPC_ROBINHOOD`, `O1_API_URL`, `O1_API_KEY`, `IPFS_GATEWAY`, `SHOW_DEV_TOKENS` |
+| indexer | `DATABASE_URL`, `INDEXER_*`, `RPC_ROBINHOOD` |
+| db (migrate, push) | `DATABASE_URL` |
+
+`.env.example` tags every section with the services that read it. Nothing in the bot needs a value at boot except in live mode: with `DRY_RUN=true` every missing service falls back to an in-memory or dry-run stand-in and says so in the log.
 
 ## Parser
 

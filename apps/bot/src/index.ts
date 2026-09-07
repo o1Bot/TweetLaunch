@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "@o1bot/shared/load-env";
 import { formatEther, getAddress, isAddress, keccak256, toHex, type Address } from "viem";
 import { dbConfigured } from "@o1bot/db";
 import { planLaunch, prepareTokenMetadata, type LaunchRequest, type PreparedMetadata, type TokenMetadataInput } from "@o1bot/executor";

@@ -50,9 +50,6 @@ importers:
       bullmq:
         specifier: ^6.3.4
         version: 6.3.4(ioredis@6.0.0)(pg@8.23.0)
-      dotenv:
-        specifier: ^17.4.2
-        version: 17.4.2
       ioredis:
         specifier: ^6.0.0
         version: 6.0.0
@@ -146,6 +143,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.0
         version: 19.2.7(@types/react@19.2.18)
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -249,6 +249,9 @@ importers:
 
   packages/shared:
     dependencies:
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
       pino:
         specifier: ^10.3.1
         version: 10.3.1

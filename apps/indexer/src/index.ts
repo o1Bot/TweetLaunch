@@ -1,3 +1,4 @@
+import "@o1bot/shared/load-env";
 import { fileURLToPath } from "node:url";
 import { formatUnits, type Hex } from "viem";
 import { dbConfigured } from "@o1bot/db";

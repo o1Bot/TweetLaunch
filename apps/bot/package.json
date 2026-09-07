@@ -19,7 +19,6 @@
     "@o1bot/wallet": "workspace:*",
     "@o1bot/x": "workspace:*",
     "bullmq": "^6.3.4",
-    "dotenv": "^17.4.2",
     "ioredis": "^6.0.0",
     "viem": "^2.56.3"
   },

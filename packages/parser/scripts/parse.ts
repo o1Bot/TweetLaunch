@@ -7,6 +7,7 @@
  *
  * Needs ANTHROPIC_API_KEY (from the repo .env or the environment).
  */
+import "@o1bot/shared/load-env";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";

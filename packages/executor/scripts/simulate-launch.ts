@@ -8,6 +8,7 @@
  * virtual balance via eth_call state override so the simulation runs on an
  * empty wallet. The funding section always reports the REAL balance.
  */
+import "@o1bot/shared/load-env";
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
