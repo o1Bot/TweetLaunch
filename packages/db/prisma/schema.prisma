@@ -74,6 +74,7 @@ model Mention {
 }
 
 enum LaunchStatus {
+  DRY_RUN
   QUEUED
   SIMULATING
   SIGNING
@@ -229,4 +230,11 @@ model Swap {
 
   @@index([token, timestamp])
   @@index([timestamp])
+}
+
+/// Small key/value state for the bot (X since_id, last poll time).
+model BotCursor {
+  id        String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

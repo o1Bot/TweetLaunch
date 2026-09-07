@@ -645,7 +645,7 @@ Dev buy: 0.05 ETH. Fees go to @alice.</div><div class="why">The launch confirmed
       <tr><td><b>Listener</b></td><td>Polls mentions of the bot, dedupes by post id, ignores retweets and quotes of the bot, keeps the author's X id, handle and first image.</td><td>Silence</td></tr>
       <tr><td><b>Parser</b></td><td>One Claude call with a strict output schema, then deterministic normalisation. Never invents values.</td><td>A question, a help reply, or silence</td></tr>
       <tr><td><b>Validator</b></td><td>Account linked and delegated, rate limits, pair registered live, ticker not a stock symbol, fees-to target resolvable and allowed.</td><td>Not linked, slow down, pair unavailable</td></tr>
-      <tr><td><b>Queue</b></td><td>One launch at a time per account, retries with fresh reads on stale-configuration errors.</td><td>—</td></tr>
+      <tr><td><b>Queue</b></td><td>One job per post, keyed by post id, processed one at a time. A job that fails after signing is never retried automatically.</td><td>—</td></tr>
       <tr><td><b>Executor</b></td><td>Reads the factory at one block, pins metadata, mines the salt, builds and simulates the call, checks funding, signs from the user's Privy wallet, broadcasts, waits, sends the fee-recipient update if needed.</td><td>Balance short, no dev-buy route, on-chain failure</td></tr>
       <tr><td><b>Replier</b></td><td>Posts one reply with the outcome, localised to the post's language.</td><td>—</td></tr>
       <tr><td><b>Indexer</b></td><td>Follows Launched and trade events on every o1 factory that ever existed on the chain, keeps o1bot-originated launches, serves the app.</td><td>—</td></tr>
@@ -809,7 +809,7 @@ pnpm parse --fixtures       # 24 fixtures against the live model</code></pre>
       <tr><td>Wallet and X login (Privy), delegation, onboarding</td><td><span class="pill usd">built</span></td></tr>
       <tr><td>Executor: factory reads, salt mining, metadata, simulation, dev-buy routes</td><td><span class="pill usd">built</span> tested against the live factory, no broadcast yet</td></tr>
       <tr><td>Parser with 24 fixtures</td><td><span class="pill usd">built</span> awaiting live model validation</td></tr>
-      <tr><td>Listener, validator, queue, signing, replies</td><td><span class="pill warn">next</span></td></tr>
+      <tr><td>Listener, validator, queue, signing, replies</td><td><span class="pill usd">built</span> end to end with fakes and dry runs; live run pending API keys</td></tr>
       <tr><td>App: board and token page (chart, trades, holders, creator post)</td><td><span class="pill usd">built</span> swap execution and claims next</td></tr>
       <tr><td>Indexer: swaps, prices, candles for o1bot launches</td><td><span class="pill usd">built</span> validated against live pools</td></tr>
       <tr><td>Public launch</td><td><span class="pill down">not yet</span></td></tr>

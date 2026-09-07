@@ -43,6 +43,13 @@ const schema = z.object({
   X_APP_ACCESS_TOKEN_SECRET: z.string().optional(),
   X_BOT_USER_ID: z.string().optional(),
   X_BOT_HANDLE: z.string().default("o1bot_exchange"),
+  /** Mentions poll interval. Basic tier allows few requests per 15 minutes; keep this high. */
+  X_POLL_MS: z.coerce.number().int().positive().default(90_000),
+  /** Replies of any kind (help, questions, errors, success) per X account per UTC day. */
+  MAX_REPLIES_PER_USER_PER_DAY: z.coerce.number().int().positive().default(8),
+  /** Largest dev buy the bot will sign, in ETH. */
+  MAX_DEV_BUY_ETH: z.string().default("1"),
+  QUEUE_DRIVER: z.enum(["memory", "redis"]).default("memory"),
 
   RPC_ROBINHOOD: z.string().optional(),
 

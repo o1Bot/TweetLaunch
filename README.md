@@ -27,7 +27,7 @@ scripts/           maintenance scripts (o1 sync, ABI vendoring)
 | 1 | Wallet + login (Privy), DB schema, o1 snapshot, tx allow-list | done |
 | 2 | Chain executor: verified ABIs, live factory reads, `01` salt mining, metadata pinning, dev-buy route, simulation (no broadcast) | done |
 | 3 | Parser (Claude, structured output) with test fixtures | done (live fixture run pending an API key) |
-| 4 | X listener + replier, Redis queue, signing + broadcast behind DRY_RUN | next |
+| 4 | X listener, validator, queue (memory or BullMQ), signing + broadcast behind `DRY_RUN`, localized replies | done; 42 tests with fakes, live run pending keys |
 | 5 | Front end: board and token page (chart, trades, holders, creator post) | done; swap execution next |
 | 6 | Indexer (swaps, prices, candles) | done; needs a paid RPC and Postgres to run |
 
@@ -42,7 +42,7 @@ pnpm db:generate                # Prisma client
 pnpm db:push                    # create tables in DATABASE_URL (dev only; use migrate for prod)
 pnpm typecheck && pnpm test
 pnpm dev:web                    # http://localhost:3000 — sign in with X, fund wallet, delegate signing
-pnpm dev:bot                    # boots, verifies the o1 registry, exits (listener arrives in step 4)
+pnpm dev:bot                    # verifies the o1 registry, then polls X every X_POLL_MS
 ```
 
 Dry-run a launch against the live factory without sending anything:
@@ -76,6 +76,29 @@ pnpm parse --fixtures
 5. With a dev buy, `createLaunchAndBuy` is used with native funding and `minAmountOut` set from the simulated output minus slippage. The adapter rejects long deadlines, so dev-buy launches use a 5-minute deadline instead of 30.
 
 Dev-buy routes are discovered on chain (`packages/executor/src/route-discovery.ts`). ETH pairs go straight into the new pool. USDG and stock pairs try every liquid candidate, SwapX V3 WETH/quote, V3 WETH/USDG then V3 USDG/quote, and V3 WETH/USDG then hook-free V4 USDG/quote, simulate each through the factory, and keep the route with the largest output. The adapter refuses native ETH fed directly into a non-launch V4 pool (`UnsupportedRoute()`), so those are never candidates. Survey of 2026-09-07: 106 of the 194 stock tokens have at least one liquid route; for the others the plan fails with `dev_buy_no_route` and the launch must go without a dev buy.
+
+## Bot pipeline
+
+```
+X mentions → listener (poll, since_id cursor, filter) → queue (one job per post)
+           → pipeline: dedupe (Mention.tweetId) → parse (Claude) → validate → pin metadata
+             → plan (live reads, salt, route, simulation, funding) → sign + broadcast → fee recipient → reply
+```
+
+- `DRY_RUN=true` (default) means no signatures and no posts on X. Replies are logged in full, launches are stored with status `DRY_RUN` and the predicted token address, and everything before signing (including the funding check against the real balance) runs for real.
+- Live launches move `SIGNING → CONFIRMED → FEE_RECIPIENT_PENDING → REPLIED`. Every signature is written to `SignedTransaction` (post id, X user id, wallet, calldata hash) before it happens, through the allow-list guard in `packages/wallet`.
+- Nothing is retried automatically once a launch reaches signing. A failed job stays on its `Mention` row with the error; re-drive it by hand after reading the log.
+- Replies are English templates (`apps/bot/src/replies.ts`) localized into the post's language by the model, with addresses, handles, tickers, URLs and amounts checked verbatim. Length is measured the way X measures it (every URL counts as 23 characters). When X refuses a crypto address in a reply, the address-free variant is sent instead.
+- Validator limits: one launch per account per `LAUNCH_COOLDOWN_SECONDS`, `MAX_LAUNCHES_PER_USER_PER_DAY`, `MAX_DEV_BUY_ETH`, `MAX_REPLIES_PER_USER_PER_DAY`. `fees to` rejects bot and o1 handles, unknown or suspended X users, and resolves handles to X user ids before creating a Privy pregenerated wallet.
+- Queue: `QUEUE_DRIVER=memory` (default, single process) or `redis` with `REDIS_URL` (BullMQ, job id = post id, concurrency 1).
+
+```bash
+pnpm --filter @o1bot/bot once        # one poll, drain the queue, exit
+pnpm --filter @o1bot/bot test        # pipeline, validator and reply tests with fakes (no keys needed)
+pnpm --filter @o1bot/bot once --mention 'launch $CAT "Cash Cat" pair ETH devbuy 0.01' --author alice --wallet 0x…
+```
+
+The last command feeds one synthetic post through the whole pipeline with `DRY_RUN=true`: an in-memory store when `DATABASE_URL` is unset, a scripted X client, `--wallet` as the poster's linked wallet when Privy is not configured, `ipfs://dry-run/…` metadata when `PINATA_JWT` is unset, and the live factory for the plan. It needs `ANTHROPIC_API_KEY` for the parser and an RPC.
 
 ## Indexer and token pages
 

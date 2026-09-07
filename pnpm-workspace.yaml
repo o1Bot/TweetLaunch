@@ -12,3 +12,5 @@ allowBuilds:
   utf-8-validate: true
   # Transitive dep of @privy-io/react-auth; its postinstall is not needed.
   "@reown/appkit": false
+  # Optional native accelerator for bullmq; the pure-JS fallback is fine.
+  msgpackr-extract: false
