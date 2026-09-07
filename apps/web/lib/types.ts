@@ -1,0 +1,75 @@
+import type { TokenStats } from "@o1bot/market";
+
+export type QuoteKind = "eth" | "usd" | "stk";
+
+export type Creator = {
+  wallet: string;
+  xHandle: string | null;
+  xName: string | null;
+  xAvatarUrl: string | null;
+};
+
+export type GenesisPost = {
+  tweetId: string;
+  text: string;
+  postedAt: string | null;
+};
+
+export type TokenRow = {
+  token: string;
+  name: string;
+  symbol: string;
+  imageUrl: string | null;
+  quoteSymbol: string;
+  quoteAddress: string;
+  quoteDecimals: number;
+  quoteKind: QuoteKind;
+  launchedAt: string;
+  launchTxHash: string;
+  creator: Creator;
+  post: GenesisPost | null;
+  stats: TokenStats;
+  tradeCount: number;
+  source: "BOT" | "DEV";
+};
+
+export type TradeRow = {
+  id: string;
+  time: string;
+  side: "BUY" | "SELL";
+  /** Human units. */
+  amountToken: number;
+  amountQuote: number;
+  priceQuote: number;
+  trader: string;
+  txHash: string;
+  comment: string | null;
+};
+
+export type TokenDetail = TokenRow & {
+  poolId: string;
+  tickSpacing: number;
+  hook: string;
+  factory: string;
+  launchBlock: string;
+  supplyTokens: number;
+  metadataUri: string | null;
+  /** Hook fees paid in the quote asset since launch (human units); the creator's share is half. */
+  feesQuoteTotal: number;
+  trades: TradeRow[];
+};
+
+export type Holder = {
+  address: string;
+  /** Human units when known. */
+  balance: number | null;
+  percent: number | null;
+  label: string | null;
+};
+
+export type HoldersResult = {
+  holders: Holder[];
+  total: number | null;
+  source: "o1";
+  error: string | null;
+};

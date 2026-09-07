@@ -17,7 +17,9 @@
     "next": "^16.3.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "viem": "^2.56.3"
+    "viem": "^2.56.3",
+    "@o1bot/executor": "workspace:*",
+    "@o1bot/market": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

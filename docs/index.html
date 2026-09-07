@@ -598,8 +598,7 @@ Dev buy: 0.05 ETH. Fees go to @alice.</div><div class="why">The launch confirmed
     </ul>
     <h2 id="coming">Coming <span class="pill warn">soon</span></h2>
     <ul>
-      <li><strong>Board</strong>: every token launched through o1bot, with the post that launched it, price, volume and holders.</li>
-      <li><strong>Token page</strong>: chart, trades, holders, the creator's posts, and the genesis post.</li>
+      <li><strong>Board and token pages</strong> are live in the app: every token launched through o1bot, with the post that launched it, chart, trades, holders and price.</li>
       <li><strong>Swap</strong>: buy and sell through o1's pool from your o1bot wallet, with the anti-snipe countdown shown live. Trades made here carry o1bot as the referrer.</li>
       <li><strong>Claim fees</strong>: collect your creator fees from o1's escrow, grouped by asset.</li>
     </ul>
@@ -811,13 +810,15 @@ pnpm parse --fixtures       # 24 fixtures against the live model</code></pre>
       <tr><td>Executor: factory reads, salt mining, metadata, simulation, dev-buy routes</td><td><span class="pill usd">built</span> tested against the live factory, no broadcast yet</td></tr>
       <tr><td>Parser with 24 fixtures</td><td><span class="pill usd">built</span> awaiting live model validation</td></tr>
       <tr><td>Listener, validator, queue, signing, replies</td><td><span class="pill warn">next</span></td></tr>
-      <tr><td>App: board, token page, swap, claims</td><td><span class="pill warn">planned</span></td></tr>
-      <tr><td>Indexer</td><td><span class="pill warn">planned</span></td></tr>
+      <tr><td>App: board and token page (chart, trades, holders, creator post)</td><td><span class="pill usd">built</span> swap execution and claims next</td></tr>
+      <tr><td>Indexer: swaps, prices, candles for o1bot launches</td><td><span class="pill usd">built</span> validated against live pools</td></tr>
       <tr><td>Public launch</td><td><span class="pill down">not yet</span></td></tr>
     </table></div>
     <h2 id="changelog">Changelog</h2>
     <h3>2026-09-07</h3>
     <ul>
+      <li>Board and token pages with chart, trades, holders and the genesis post; indexer for swaps and prices. Only tokens launched through the bot are listed.</li>
+      <li>Privacy policy, terms of use and how-it-works pages; repository published under the MIT license.</li>
       <li>Scope set to Robinhood Chain only for v1.</li>
       <li>Verified ABIs vendored from Sourcify and Blockscout; token address prediction validated against four live launches.</li>
       <li>Dev buy for ETH, USDG and 106 stock pairs through on-chain route discovery.</li>

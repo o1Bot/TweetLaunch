@@ -9,12 +9,16 @@ export function SiteHeader() {
         {SITE_NAME}
       </Link>
       <nav className="nav" aria-label="Main">
+        <Link href="/">Board</Link>
         <Link href="/how-it-works">How it works</Link>
         <a href={DOCS_URL} target="_blank" rel="noreferrer">
           Docs
         </a>
       </nav>
       <div className="grow" />
+      <Link className="btn-p" href="/start" style={{ padding: "8px 14px" }}>
+        Launch a token
+      </Link>
     </header>
   );
 }

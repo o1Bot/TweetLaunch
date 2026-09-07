@@ -49,6 +49,22 @@ const schema = z.object({
   TREASURY_ADDRESS: address.optional(),
   REFERRER_ADDRESS: address.optional(),
 
+  /** o1 Public API (read side only: holder snapshots). */
+  O1_API_URL: z.string().default("https://api.launch.o1.exchange/v1"),
+  O1_API_KEY: z.string().optional(),
+
+  /** Indexer. RPC must support eth_getLogs over historical ranges. */
+  INDEXER_RPC: z.string().optional(),
+  INDEXER_START_BLOCK: z.coerce.number().int().nonnegative().optional(),
+  /** Stop at this block instead of the chain tip (bounded dry runs). */
+  INDEXER_END_BLOCK: z.coerce.number().int().nonnegative().optional(),
+  /** Comma-separated token addresses to track without a bot launch (local testing only). */
+  INDEXER_DEV_TOKENS: z.string().optional(),
+  INDEXER_POLL_MS: z.coerce.number().int().positive().default(3000),
+  /** Show INDEXER_DEV_TOKENS pools in the web app (local previews only). */
+  SHOW_DEV_TOKENS: bool,
+  IPFS_GATEWAY: z.string().default("https://ipfs.io/ipfs/"),
+
   MAX_LAUNCHES_PER_USER_PER_DAY: z.coerce.number().int().positive().default(5),
   LAUNCH_COOLDOWN_SECONDS: z.coerce.number().int().nonnegative().default(600),
 });

@@ -70,7 +70,8 @@ async function pinata(path: string, init: RequestInit): Promise<PinResult> {
 
 export async function pinImage(image: FetchedImage, filename: string): Promise<PinResult> {
   const form = new FormData();
-  form.set("file", new Blob([image.bytes], { type: image.mime }), filename);
+  const bytes = image.bytes.buffer.slice(image.bytes.byteOffset, image.bytes.byteOffset + image.bytes.byteLength) as ArrayBuffer;
+  form.set("file", new Blob([bytes], { type: image.mime }), filename);
   form.set("pinataMetadata", JSON.stringify({ name: filename }));
   return pinata("pinFileToIPFS", { method: "POST", body: form });
 }

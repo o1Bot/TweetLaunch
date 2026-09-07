@@ -114,6 +114,7 @@ model Launch {
   updatedAt      DateTime     @updatedAt
 
   signedTxs SignedTransaction[]
+  pool      Pool?
 
   @@index([creatorId, createdAt])
   @@index([chainId, tokenAddress])
@@ -147,4 +148,85 @@ model SignedTransaction {
 
   @@index([xUserId, createdAt])
   @@index([tweetId])
+}
+
+/// Persisted scan cursor per indexer source (crash-safe resume).
+model IndexerCursor {
+  id          String   @id
+  blockNumber BigInt
+  updatedAt   DateTime @updatedAt
+}
+
+enum PoolSource {
+  BOT
+  DEV
+}
+
+/// A launch pool the indexer tracks. Only tokens launched through o1bot are
+/// inserted (plus DEV rows listed in INDEXER_DEV_TOKENS for local testing),
+/// so the UI never shows other o1 tokens.
+model Pool {
+  token            String     @id
+  poolId           String     @unique
+  chainId          Int
+  factory          String
+  hook             String
+  quoteAddress     String
+  quoteSymbol      String
+  quoteDecimals    Int
+  tokenIsCurrency0 Boolean
+  tickSpacing      Int
+  creatorWallet    String
+  /// Raw units (18 decimals).
+  launchSupply     Decimal    @db.Decimal(78, 0)
+  launchBlock      BigInt
+  launchTxHash     String
+  launchedAt       DateTime
+  name             String
+  symbol           String
+  imageUri         String?
+  metadataUri      String?
+  source           PoolSource @default(BOT)
+  launchId         String?    @unique
+  launch           Launch?    @relation(fields: [launchId], references: [id])
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  swaps Swap[]
+
+  @@index([launchedAt])
+}
+
+enum SwapSide {
+  BUY
+  SELL
+}
+
+/// One Uniswap v4 swap on a tracked pool. id = txHash-logIndex (idempotent).
+model Swap {
+  id           String   @id
+  token        String
+  pool         Pool     @relation(fields: [token], references: [token])
+  poolId       String
+  blockNumber  BigInt
+  txHash       String
+  logIndex     Int
+  timestamp    DateTime
+  /// Transaction sender (the wallet), not the router.
+  trader       String
+  side         SwapSide
+  /// Raw token units (18 decimals).
+  amountToken  Decimal  @db.Decimal(78, 0)
+  /// Raw quote units.
+  amountQuote  Decimal  @db.Decimal(78, 0)
+  /// Quote per token in human units, after the swap.
+  priceQuote   Decimal  @db.Decimal(60, 18)
+  sqrtPriceX96 Decimal  @db.Decimal(78, 0)
+  referrer     String?
+  /// Hook fee in the quote currency, raw units.
+  feeQuote     Decimal? @db.Decimal(78, 0)
+  comment      String?
+
+  @@index([token, timestamp])
+  @@index([timestamp])
 }

@@ -56,3 +56,16 @@ export function publicClient(key: ChainKey): PublicClient {
   clients.set(key, client);
   return client;
 }
+
+/**
+ * Client for historical `eth_getLogs` scans (indexer). INDEXER_RPC, then
+ * RPC_ROBINHOOD, else the public list with ordofi first: publicnode refuses
+ * archive log ranges, ordofi serves them.
+ */
+export function logsClient(key: ChainKey): PublicClient {
+  const e = env();
+  const override = e.INDEXER_RPC ?? (key === "robinhood" ? e.RPC_ROBINHOOD : undefined);
+  const ordofi = "https://rpc.ordofi.network";
+  const urls = override ? [override] : [ordofi, ...PUBLIC_RPCS[key].filter((u) => u !== ordofi)];
+  return createPublicClient({ chain: CHAINS[key], transport: fallback(urls.map((u) => http(u, { timeout: 30_000 })), { rank: false }) });
+}

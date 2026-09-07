@@ -12,8 +12,10 @@ packages/db        Prisma schema + client (users, mentions, launches, signed-tx 
 packages/wallet    Privy server SDK: X user → wallet, pregeneration, guarded signer
 packages/executor  factory reads, salt mining, metadata pinning, dev-buy route, planLaunch (simulate only)
 packages/parser    Claude mention parser: structured output, deterministic normalisation, fixtures
+packages/market    price math (sqrtPriceX96), swap classification, candles, stats
 apps/web           Next.js front end (Privy X login, wallet + delegation, onboarding)
 apps/bot           worker: listener → parser → validator → queue → executor → replier
+apps/indexer       follows o1bot launch pools: swaps, prices, fees, crash-safe cursor
 docs/              product documentation site (single static page, deploy to docs.o1bot.exchange)
 scripts/           maintenance scripts (o1 sync, ABI vendoring)
 ```
@@ -26,8 +28,8 @@ scripts/           maintenance scripts (o1 sync, ABI vendoring)
 | 2 | Chain executor: verified ABIs, live factory reads, `01` salt mining, metadata pinning, dev-buy route, simulation (no broadcast) | done |
 | 3 | Parser (Claude, structured output) with test fixtures | done (live fixture run pending an API key) |
 | 4 | X listener + replier, Redis queue, signing + broadcast behind DRY_RUN | next |
-| 5 | Front end (board, token page, swap with o1bot referrer) | |
-| 6 | Indexer | |
+| 5 | Front end: board and token page (chart, trades, holders, creator post) | done; swap execution next |
+| 6 | Indexer (swaps, prices, candles) | done; needs a paid RPC and Postgres to run |
 
 ## Quickstart
 
@@ -74,6 +76,23 @@ pnpm parse --fixtures
 5. With a dev buy, `createLaunchAndBuy` is used with native funding and `minAmountOut` set from the simulated output minus slippage. The adapter rejects long deadlines, so dev-buy launches use a 5-minute deadline instead of 30.
 
 Dev-buy routes are discovered on chain (`packages/executor/src/route-discovery.ts`). ETH pairs go straight into the new pool. USDG and stock pairs try every liquid candidate, SwapX V3 WETH/quote, V3 WETH/USDG then V3 USDG/quote, and V3 WETH/USDG then hook-free V4 USDG/quote, simulate each through the factory, and keep the route with the largest output. The adapter refuses native ETH fed directly into a non-launch V4 pool (`UnsupportedRoute()`), so those are never candidates. Survey of 2026-09-07: 106 of the 194 stock tokens have at least one liquid route; for the others the plan fails with `dev_buy_no_route` and the launch must go without a dev buy.
+
+## Indexer and token pages
+
+`apps/indexer` polls Robinhood Chain with topic-filtered `eth_getLogs`: the v4 PoolManager `Swap` event for the poolIds of tracked launches and the o1 hook `Trade` event for referrer, fee and comment. Only tokens with a confirmed row in `Launch` are tracked (plus `INDEXER_DEV_TOKENS` for local testing), so the board and token pages never show other o1 tokens. Ranges adapt to RPC errors, the cursor is committed with each batch, and swap ids (`txHash-logIndex`) keep re-scans idempotent. Prices come from `sqrtPriceX96` (`packages/market`), candles are built on demand, and USD values use on-chain WETH/USDG and USDG/stock pools. Holder snapshots come from o1's Public API when `O1_API_KEY` is set.
+
+```bash
+pnpm --filter @o1bot/indexer start        # long-running, needs DATABASE_URL and a log-capable RPC
+pnpm --filter @o1bot/indexer dry          # no database: scan, print decoded swaps, exit
+```
+
+Bounded dry run against live tokens (validates decoding without a database):
+
+```bash
+INDEXER_DEV_TOKENS=0xTOKEN@0xLAUNCH_TX INDEXER_START_BLOCK=56174900 INDEXER_END_BLOCK=56195000 pnpm --filter @o1bot/indexer dry
+```
+
+Web routes: `/` board, `/token/[address]`, `/api/tokens`, `/api/token/[address]` (+ `/trades`, `/candles?tf=15m`, `/holders`).
 
 ## Privy setup
 

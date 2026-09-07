@@ -4,6 +4,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Providers } from "./providers";
 import "./globals.css";
+import "./market.css";
 
 export const metadata: Metadata = {
   title: "o1bot.exchange — launch on o1 from a post",
