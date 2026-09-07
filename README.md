@@ -72,7 +72,7 @@ Locally there is one `.env`, at the repository root, and every entry point loads
 pnpm env:split        # deploy/web.env, deploy/bot.env, deploy/indexer.env, deploy/db.env (gitignored)
 ```
 
-Each file is paste-ready for the host's raw environment editor and ends with the list of variables that are still empty.
+Each file is paste-ready for the host's raw environment editor and ends with the list of variables that are still empty. Hosted services get `LOG_PRETTY=false`; when the database or Redis lives on Railway, the bot and indexer files reference them as `${{Postgres.DATABASE_URL}}` and `${{Redis.REDIS_URL}}` so Railway resolves the private-network address itself, while the web file keeps the public URL because Vercel sits outside that network. Locally, always use Railway's public URL (`DATABASE_PUBLIC_URL` on the Postgres service); the `*.railway.internal` host only resolves inside Railway.
 
 | Service | Host | Reads |
 | ------- | ---- | ----- |
