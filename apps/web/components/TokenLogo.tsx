@@ -1,9 +1,37 @@
+"use client";
+
+import { useState } from "react";
 import { symbolColor } from "@/lib/ipfs";
 
+/** Public gateway used when the configured one refuses or fails to serve a logo. */
+const FALLBACK_GATEWAY = "https://ipfs.io/ipfs/";
+
+/** `…/ipfs/<cid>` on any gateway → the same path on the public fallback; null when not an IPFS URL. */
+function fallbackFor(url: string): string | null {
+  const m = url.match(/\/ipfs\/([^/?#]+.*)$/);
+  return m ? `${FALLBACK_GATEWAY}${m[1]}` : null;
+}
+
 export function TokenLogo({ symbol, imageUrl, className = "logo" }: { symbol: string; imageUrl: string | null; className?: string }) {
+  const [src, setSrc] = useState(imageUrl);
+  const [failed, setFailed] = useState(false);
+  const showImage = Boolean(src) && !failed;
   return (
-    <div className={className} style={{ background: imageUrl ? "var(--panel-2)" : symbolColor(symbol) }} aria-hidden="true">
-      {imageUrl ? <img src={imageUrl} alt="" loading="lazy" /> : symbol.slice(0, 2).toUpperCase()}
+    <div className={className} style={{ background: showImage ? "var(--panel-2)" : symbolColor(symbol) }} aria-hidden="true">
+      {showImage ? (
+        <img
+          src={src ?? undefined}
+          alt=""
+          loading="lazy"
+          onError={() => {
+            const next = src ? fallbackFor(src) : null;
+            if (next && next !== src) setSrc(next);
+            else setFailed(true);
+          }}
+        />
+      ) : (
+        symbol.slice(0, 2).toUpperCase()
+      )}
     </div>
   );
 }
