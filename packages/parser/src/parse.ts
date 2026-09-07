@@ -44,9 +44,11 @@ export function promptContext(overrides: Partial<PromptContext> = {}): PromptCon
   const e = env();
   const chain = o1Chain("robinhood");
   const creatorBps = chain.feeConfiguration.components.find((c) => c.recipientKind === "creator")?.feeBps ?? 50;
+  const siteUrl = e.SITE_URL.replace(/\/$/, "");
   return {
     botHandle: e.X_BOT_HANDLE,
-    siteUrl: e.SITE_URL.replace(/\/$/, ""),
+    siteUrl,
+    docsUrl: (e.DOCS_URL ?? `${siteUrl}/how-it-works`).replace(/\/$/, ""),
     creationFee: chain.snapshot.nativeLaunchFeeDisplay,
     creatorShare: `${(creatorBps / 100).toString()}%`,
     ...overrides,

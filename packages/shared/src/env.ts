@@ -23,6 +23,8 @@ const schema = z.object({
     .default("true")
     .transform((v) => v !== "false" && v !== "0"),
   SITE_URL: z.url().default("http://localhost:3000"),
+  /** Public docs URL the bot may link in help replies. Defaults to the site's how-it-works page. */
+  DOCS_URL: z.url().optional(),
 
   DATABASE_URL: z.string().optional(),
   REDIS_URL: z.string().optional(),

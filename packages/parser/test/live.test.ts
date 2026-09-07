@@ -18,6 +18,8 @@ type Expect = {
   feesToHandle?: string | null;
   missingIncludes?: string[];
   languageStartsWith?: string;
+  /** Case-insensitive substrings a help reply must contain. */
+  replyIncludes?: string[];
 };
 
 const hasKey = Boolean(process.env.ANTHROPIC_API_KEY);
@@ -42,6 +44,11 @@ describe.skipIf(!hasKey)("parser against the live model", () => {
         for (const m of e.missingIncludes) expect(result.missing).toContain(m);
       }
       if (result.kind === "unsupported_chain" && e.chain !== undefined) expect(result.chain).toBe(e.chain);
+      if (result.kind === "help") {
+        expect(result.reply.length).toBeLessThanOrEqual(280);
+        expect((result.reply.match(/https?:\/\//g) ?? []).length).toBeLessThanOrEqual(1);
+        for (const s of e.replyIncludes ?? []) expect(result.reply.toLowerCase()).toContain(s.toLowerCase());
+      }
     });
   }
 });
