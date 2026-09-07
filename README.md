@@ -64,16 +64,32 @@ pnpm parse --fixtures
 
 ## Environment
 
-There is one `.env`, at the repository root, and every entry point loads it from there no matter which package directory pnpm started the process in (`packages/shared/src/load-env.ts`; Next.js gets the same file through `next.config.ts`, Prisma through `prisma.config.ts`). Shell variables win over the file, so hosts that set variables per service (Railway for the bot and indexer, Vercel for the web app) ship no file at all.
+Locally there is one `.env`, at the repository root, and every entry point loads it from there no matter which package directory pnpm started the process in (`packages/shared/src/load-env.ts`; Next.js gets the same file through `next.config.ts`, Prisma through `prisma.config.ts`). In production there is no file: each host holds only the variables its service reads, and shell variables always win over the file.
 
-| Service | Reads |
-| ------- | ----- |
-| bot | `DRY_RUN`, `SITE_URL`, `DATABASE_URL`, `QUEUE_DRIVER`, `REDIS_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `X_*`, `ANTHROPIC_API_KEY`, `PARSER_MODEL`, `PINATA_JWT`, `RPC_ROBINHOOD`, `MAX_*`, `LAUNCH_COOLDOWN_SECONDS` |
-| web | `SITE_URL`, `DATABASE_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `NEXT_PUBLIC_*`, `RPC_ROBINHOOD`, `O1_API_URL`, `O1_API_KEY`, `IPFS_GATEWAY`, `SHOW_DEV_TOKENS` |
-| indexer | `DATABASE_URL`, `INDEXER_*`, `RPC_ROBINHOOD` |
-| db (migrate, push) | `DATABASE_URL` |
+`.env.example` tags every section with the services that read it. Fill the root `.env` once, then:
 
-`.env.example` tags every section with the services that read it. Nothing in the bot needs a value at boot except in live mode: with `DRY_RUN=true` every missing service falls back to an in-memory or dry-run stand-in and says so in the log.
+```bash
+pnpm env:split        # deploy/web.env, deploy/bot.env, deploy/indexer.env, deploy/db.env (gitignored)
+```
+
+Each file is paste-ready for the host's raw environment editor and ends with the list of variables that are still empty.
+
+| Service | Host | Reads |
+| ------- | ---- | ----- |
+| web | Vercel, root directory `apps/web` | `DATABASE_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_DOCS_URL`, `NEXT_PUBLIC_X_URL`, `NEXT_PUBLIC_GITHUB_URL`, `NEXT_PUBLIC_CONTACT_EMAIL`, `RPC_ROBINHOOD`, `O1_API_URL`, `O1_API_KEY`, `IPFS_GATEWAY`, `LOG_LEVEL`, `LOG_PRETTY` |
+| bot | Railway | `DRY_RUN`, `SITE_URL`, `DATABASE_URL`, `QUEUE_DRIVER`, `REDIS_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `X_BEARER_TOKEN`, `X_APP_KEY`, `X_APP_SECRET`, `X_APP_ACCESS_TOKEN`, `X_APP_ACCESS_TOKEN_SECRET`, `X_BOT_USER_ID`, `X_BOT_HANDLE`, `X_POLL_MS`, `ANTHROPIC_API_KEY`, `PARSER_MODEL`, `PINATA_JWT`, `RPC_ROBINHOOD`, `MAX_LAUNCHES_PER_USER_PER_DAY`, `LAUNCH_COOLDOWN_SECONDS`, `MAX_DEV_BUY_ETH`, `DEV_BUY_SLIPPAGE_BPS`, `MAX_REPLIES_PER_USER_PER_DAY`, `LOG_LEVEL`, `LOG_PRETTY` |
+| indexer | Railway | `DATABASE_URL`, `INDEXER_RPC`, `RPC_ROBINHOOD`, `INDEXER_POLL_MS`, `INDEXER_START_BLOCK`, `IPFS_GATEWAY`, `LOG_LEVEL`, `LOG_PRETTY` |
+| db | your machine | `DATABASE_URL` for `pnpm db:push` / `pnpm db:migrate` against the production database |
+
+`INDEXER_DEV_TOKENS`, `INDEXER_END_BLOCK` and `SHOW_DEV_TOKENS` are local-preview switches and never leave your machine. With `DRY_RUN=true` every missing service falls back to an in-memory or dry-run stand-in and says so in the log.
+
+## Deploying
+
+One Postgres database (Railway Postgres or Neon) is shared by all three services. Create it first, put its URL in `DATABASE_URL`, and run `pnpm db:push` from your machine to create the tables.
+
+**Vercel (web).** Import the GitHub repository, set Root Directory to `apps/web` (Vercel installs the pnpm workspace from the repository root on its own), and set Build Command to `pnpm --filter @o1bot/db generate && pnpm build` so the Prisma client exists before Next builds. Paste `deploy/web.env` into Environment Variables. `NEXT_PUBLIC_*` values are baked in at build time, so a change to them needs a redeploy.
+
+**Railway (bot and indexer).** Create two services from the same repository. For each: Build Command `pnpm db:generate`, Start Command `pnpm --filter @o1bot/bot start` or `pnpm --filter @o1bot/indexer start`, and paste the matching `deploy/*.env` into Variables → Raw Editor. Add a Railway Redis service and set `QUEUE_DRIVER=redis` with its `REDIS_URL` when the bot should survive restarts with jobs intact. Keep `DRY_RUN=true` on the first deploy, watch a few mentions go through the log, do one real launch with the minimum fee from a fresh wallet, then set `DRY_RUN=false`.
 
 ## Parser
 
