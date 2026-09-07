@@ -20,6 +20,10 @@ type Expect = {
   languageStartsWith?: string;
   /** Case-insensitive substrings a help reply must contain. */
   replyIncludes?: string[];
+  description?: string | null;
+  website?: string | null;
+  telegram?: string | null;
+  xHandle?: string | null;
 };
 
 const hasKey = Boolean(process.env.ANTHROPIC_API_KEY);
@@ -39,6 +43,10 @@ describe.skipIf(!hasKey)("parser against the live model", () => {
         if (e.chain !== undefined) expect(result.chain).toBe(e.chain);
         if (e.devBuyNative !== undefined) expect(result.devBuyNative).toBe(e.devBuyNative);
         if (e.feesToHandle !== undefined) expect(result.feesToHandle).toBe(e.feesToHandle);
+        if (e.description !== undefined) expect(result.description).toBe(e.description);
+        if (e.website !== undefined) expect(result.website).toBe(e.website);
+        if (e.telegram !== undefined) expect(result.telegram).toBe(e.telegram);
+        if (e.xHandle !== undefined) expect(result.xHandle).toBe(e.xHandle);
       }
       if (result.kind === "clarify" && e.missingIncludes) {
         for (const m of e.missingIncludes) expect(result.missing).toContain(m);

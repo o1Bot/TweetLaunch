@@ -94,6 +94,10 @@ export type TokenMetadataInput = {
   launchedBy?: { xHandle: string; xUserId: string; tweetId: string; tweetUrl: string };
   /** Tweet attachment; placeholder is used when missing or rejected. */
   imageUrl?: string | null;
+  /** Public links, using the same keys o1's own metadata documents use. */
+  website?: string | null;
+  x?: string | null;
+  telegram?: string | null;
 };
 
 export type PreparedMetadata = {
@@ -121,11 +125,19 @@ export async function prepareTokenMetadata(input: TokenMetadataInput): Promise<P
   }
 
   const imagePin = await pinImage(image, `${input.symbol.toLowerCase()}.${EXT[image.mime]}`);
+  // Same keys as the documents o1's UI writes, so o1's token pages show the
+  // description and links; the o1bot-specific fields sit alongside them.
   const json: Record<string, unknown> = {
     name: input.name,
     symbol: input.symbol,
     description: input.description ?? "",
+    standard: "ERC20",
+    launchpad: "o1 Launchpad",
+    launchpadUrl: "https://launch.o1.exchange",
     image: imagePin.uri,
+    ...(input.website ? { website: input.website } : {}),
+    ...(input.x ? { x: input.x } : {}),
+    ...(input.telegram ? { telegram: input.telegram } : {}),
     ...(input.externalLink ? { external_link: input.externalLink } : {}),
     ...(input.launchedBy
       ? {

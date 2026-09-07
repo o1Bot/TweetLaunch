@@ -8,6 +8,7 @@ import { EXT_ICON, PAIR_CLASS, STOCK_ICON, TokenLogo, X_ICON } from "@/component
 import { TokenTabs } from "@/components/TokenTabs";
 import { shortAddress, timeAgo } from "@/lib/ipfs";
 import { getTokenDetail } from "@/lib/market";
+import { fetchTokenMetadata } from "@/lib/metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,12 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
   const { address } = await params;
   const t = await getTokenDetail(address).catch(() => null);
   if (!t) notFound();
+  const meta = await fetchTokenMetadata(t.metadataUri);
+  const links = [
+    meta?.website ? { label: "Website", href: meta.website } : null,
+    meta?.x ? { label: "X", href: meta.x } : null,
+    meta?.telegram ? { label: "Telegram", href: meta.telegram } : null,
+  ].filter((l): l is { label: string; href: string } => l !== null);
 
   const usd = t.stats.priceUsd;
   const mcap = t.stats.mcapUsd !== null ? formatUsd(t.stats.mcapUsd) : formatPrice(t.stats.mcapQuote, t.quoteSymbol);
@@ -80,6 +87,20 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
                   View on o1 {EXT_ICON}
                 </a>
               </div>
+              {(meta?.description || links.length > 0) && (
+                <div className="about">
+                  {meta?.description && <p>{meta.description}</p>}
+                  {links.length > 0 && (
+                    <div className="links">
+                      {links.map((l) => (
+                        <a key={l.label} href={l.href} target="_blank" rel="noreferrer">
+                          {l.label} {EXT_ICON}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="stats">
               <div>

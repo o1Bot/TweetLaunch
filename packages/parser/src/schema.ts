@@ -35,6 +35,13 @@ export const ParseOutputSchema = z.object({
     .nullable()
     .describe("Dev buy amount in ETH as a plain decimal string exactly as written, e.g. \"0.05\". null when absent. If the amount is in another unit (USD, %), leave null and clarify."),
   fees_to_handle: z.string().nullable().describe("X handle without @ that should receive the creator fees. null when absent."),
+  description: z
+    .string()
+    .nullable()
+    .describe('Token description the user gave explicitly (after "desc", "description" or "about", or a quoted tagline that is clearly about the token). Verbatim, not invented. null when absent.'),
+  website: z.string().nullable().describe("Project website URL the user gave (after \"site\", \"website\" or as a bare URL that is not a t.me or x.com link). null when absent."),
+  telegram: z.string().nullable().describe("Telegram link or @handle the user gave (after \"tg\", \"telegram\" or a t.me URL). null when absent."),
+  x_handle: z.string().nullable().describe("Project X handle without @ when the user names one for the token's profile (after \"x\" or \"twitter\", or an x.com link). null when absent; the poster's own account is used then."),
   missing: z.array(z.enum(MISSING_FIELDS)).describe("For kind=clarify: the required values that are missing or ambiguous. Empty otherwise."),
   question: z.string().nullable().describe("For kind=clarify: one short question to the user in the post's language. null otherwise."),
   reply: z.string().nullable().describe("For kind=help: a reply of at most 240 characters in the post's language. null otherwise."),

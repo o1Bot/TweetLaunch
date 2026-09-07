@@ -20,7 +20,17 @@ type TweetJson = {
   lang?: string;
   attachments?: { media_keys?: string[] };
   referenced_tweets?: Array<{ type: "retweeted" | "quoted" | "replied_to"; id: string }>;
+  entities?: { urls?: Array<{ url: string; expanded_url?: string; display_url?: string }> };
 };
+
+/** X replaces every link in a post with a t.co URL; the parser needs the real one. */
+function expandUrls(t: TweetJson): string {
+  let text = t.text;
+  for (const u of t.entities?.urls ?? []) {
+    if (u.url && u.expanded_url) text = text.split(u.url).join(u.expanded_url);
+  }
+  return text;
+}
 type UserJson = { id: string; username: string; name?: string; profile_image_url?: string };
 type MediaJson = { media_key: string; type: string; url?: string; preview_image_url?: string };
 type MentionsJson = {
@@ -107,7 +117,7 @@ export class HttpXClient implements XClient {
       const author = users.get(t.author_id);
       return {
         id: t.id,
-        text: t.text,
+        text: expandUrls(t),
         authorId: t.author_id,
         authorHandle: author?.username ?? "",
         authorName: author?.name ?? null,

@@ -682,3 +682,29 @@ a.row:hover {
     display: none;
   }
 }
+
+/* Description and public links from the token's metadata document. */
+.thead .t .about {
+  margin-top: 10px;
+  max-width: 62ch;
+}
+.thead .t .about p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.thead .t .about .links {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 13px;
+}
+.thead .t .about .links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink);
+  font-weight: 600;
+}

@@ -58,7 +58,7 @@ The plan reports the predicted token address (always ending in `01`), pool id, g
 Parse a mention, or run the 24 parser fixtures, against the live model (needs `ANTHROPIC_API_KEY`):
 
 ```bash
-pnpm parse '@o1bot_exchange launch $RUGRAT "Rugrat" pair ETH on robinhood'
+pnpm parse '@o1bot_exchange launch $RUGRAT "Rugrat" pair ETH on robinhood desc "Rats, but on chain." site rugrat.xyz tg @rugrat_chat'
 pnpm parse --fixtures
 ```
 
@@ -92,6 +92,8 @@ One Postgres database (Railway Postgres or Neon) is shared by all three services
 **Railway (bot and indexer).** Create two services from the same repository and keep Root Directory at the repository root (empty or `/`): a subfolder such as `apps/bot` hides the pnpm workspace and lockfile, so Railway falls back to npm and fails on `workspace:*`. `railway.toml` selects the root `Dockerfile` (Node 22 on Debian slim, pnpm 11, Prisma client generated at build). For each service: set Start Command `pnpm --filter @o1bot/bot start` or `pnpm --filter @o1bot/indexer start` (both generate the Prisma client before starting), and paste the matching `deploy/*.env` into Variables → Raw Editor. Add a Railway Redis service and set `QUEUE_DRIVER=redis` with its `REDIS_URL` when the bot should survive restarts with jobs intact. Keep `DRY_RUN=true` on the first deploy, watch a few mentions go through the log, do one real launch with the minimum fee from a fresh wallet, then set `DRY_RUN=false`.
 
 ## Parser
+
+A launch post carries the ticker, name and pair, plus optional extras: `devbuy <eth>`, `fees to @handle`, `desc "…"`, `site <url>`, `tg <link or @name>` and `x @handle`. The extras land in the token's ERC-7572 metadata under the same keys o1's own documents use (`description`, `website`, `x`, `telegram`), so o1's token page and the o1bot token page both show them. The bot never invents a description or a link; `x` defaults to the poster's own profile.
 
 `packages/parser` turns one post into a `ParseResult`: `launch`, `clarify` (launch intent with a missing or ambiguous value, plus one question in the user's language), `unsupported_chain`, `help` (a short reply in the user's language), or `ignore`. The model returns a flat structured object (`client.messages.parse` with a zod `output_config.format`); `normalizeParseOutput` then enforces the rules deterministically: ticker 1-11 uppercase letters or digits, name at most 50 characters, pair required, dev-buy amounts only as plain ETH decimals, handles normalised. A launch that fails those checks becomes a `clarify`, never a guess. The system prompt carries the full pair menu from `config/o1.json` so company names map to stock symbols, and it is cached as a stable prefix. The model is `claude-sonnet-4-6` by default (`PARSER_MODEL` overrides it; sampling parameters are only sent to models that accept them). A chain that is not stated is treated as Robinhood; a stated other chain is refused.
 

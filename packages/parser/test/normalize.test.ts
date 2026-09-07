@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeParseOutput } from "../src/normalize";
+import { normalizeParseOutput, cleanDescription, cleanWebsite, cleanTelegram, cleanXHandle } from "../src/normalize";
 import type { ParseOutput } from "../src/schema";
 
 const base: ParseOutput = {
@@ -11,6 +11,10 @@ const base: ParseOutput = {
   chain: "robinhood",
   devbuy_native: null,
   fees_to_handle: null,
+  description: null,
+  website: null,
+  telegram: null,
+  x_handle: null,
   missing: [],
   question: null,
   reply: null,
@@ -62,5 +66,34 @@ describe("normalizeParseOutput", () => {
     expect(normalizeParseOutput({ ...base, kind: "help", reply: "Post: launch $T \"Name\" pair ETH on robinhood" }, { hasImage: false })).toMatchObject({ kind: "help" });
     expect(normalizeParseOutput({ ...base, kind: "help", reply: "   " }, { hasImage: false })).toMatchObject({ kind: "ignore" });
     expect(normalizeParseOutput({ ...base, kind: "ignore" }, { hasImage: false })).toMatchObject({ kind: "ignore" });
+  });
+});
+
+describe("metadata extras", () => {
+  it("keeps a description verbatim, unquoted and capped at o1's byte limit", () => {
+    expect(cleanDescription(' "Cats, but on chain." ')).toBe("Cats, but on chain.");
+    expect(cleanDescription(null)).toBeNull();
+    expect(Buffer.byteLength(cleanDescription("é".repeat(1500))!, "utf8")).toBeLessThanOrEqual(2000);
+  });
+
+  it("accepts http(s) websites only and adds the scheme when missing", () => {
+    expect(cleanWebsite("cashcat.xyz")).toBe("https://cashcat.xyz");
+    expect(cleanWebsite("https://cashcat.xyz/")).toBe("https://cashcat.xyz");
+    expect(cleanWebsite("ftp://cashcat.xyz")).toBeNull();
+    expect(cleanWebsite("not a url")).toBeNull();
+  });
+
+  it("turns telegram handles and links into t.me URLs", () => {
+    expect(cleanTelegram("@cashcat_chat")).toBe("https://t.me/cashcat_chat");
+    expect(cleanTelegram("t.me/cashcat_chat")).toBe("https://t.me/cashcat_chat");
+    expect(cleanTelegram("https://t.me/+AbCdEf123")).toBe("https://t.me/+AbCdEf123");
+    expect(cleanTelegram("nope!")).toBeNull();
+  });
+
+  it("extracts an X handle from a handle or a profile link", () => {
+    expect(cleanXHandle("@CashCatToken")).toBe("cashcattoken");
+    expect(cleanXHandle("https://x.com/CashCatToken")).toBe("cashcattoken");
+    expect(cleanXHandle("https://twitter.com/CashCatToken/")).toBe("cashcattoken");
+    expect(cleanXHandle("this is not a handle")).toBeNull();
   });
 });

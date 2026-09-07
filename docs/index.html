@@ -310,6 +310,10 @@ td .mono,.mono{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
       <tr><td><b>on robinhood</b></td><td>Names the chain. v1 only runs on Robinhood Chain, so leaving it out means Robinhood. Naming another chain gets a polite refusal.</td><td class="mono">on robinhood</td></tr>
       <tr><td><b>devbuy</b></td><td>Buys tokens in the same transaction as the launch, paid in ETH from your wallet. The only way to buy at launch without o1's anti-snipe surcharge. See <a href="#/dev-buy">Dev buy</a>.</td><td class="mono">devbuy 0.05</td></tr>
       <tr><td><b>fees to</b></td><td>Sends the creator fee stream to another X account. You still pay for the launch. See <a href="#/fees-to">Fees to another account</a>.</td><td class="mono">fees to @alice</td></tr>
+      <tr><td><b>desc</b></td><td>Token description stored in the metadata (also <span class="mono">description:</span> or <span class="mono">about:</span>). Shown on o1 and on the o1bot token page. Never invented by the bot.</td><td class="mono">desc "The cat that pays you back."</td></tr>
+      <tr><td><b>site</b></td><td>Project website, saved as the metadata's website link.</td><td class="mono">site cashcat.xyz</td></tr>
+      <tr><td><b>tg</b></td><td>Telegram group or channel, as a link or a handle.</td><td class="mono">tg @cashcat_chat</td></tr>
+      <tr><td><b>x</b></td><td>Project X account for the token's profile. Defaults to the account that posted the launch.</td><td class="mono">x @CashCatToken</td></tr>
       <tr><td><b>An image</b></td><td>Attach a picture to the post and it becomes the token logo. See <a href="#/images">Token image and metadata</a>.</td><td class="mono">—</td></tr>
     </table></div>
     <h2 id="examples">Examples that work</h2>

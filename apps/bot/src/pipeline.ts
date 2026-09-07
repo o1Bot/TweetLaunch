@@ -322,10 +322,14 @@ async function handleLaunch(cmd: LaunchCommand, ctx: LaunchContext): Promise<Pip
     metadata = await deps.prepareMetadata({
       name: cmd.name,
       symbol: cmd.ticker,
-      description: `${cmd.name} ($${cmd.ticker}) was launched on o1 Launchpad from a post by @${authorHandle}.`,
+      description: cmd.description ?? `${cmd.name} ($${cmd.ticker}) was launched on o1 Launchpad from a post by @${authorHandle}.`,
       externalLink: config.siteUrl,
       launchedBy: { xHandle: authorHandle, xUserId: mention.authorId, tweetId: mention.id, tweetUrl: `https://x.com/${authorHandle}/status/${mention.id}` },
       imageUrl: cmd.imageFromTweet ? mention.imageUrl : null,
+      website: cmd.website,
+      // The project's X profile: the handle the user named, else the poster's own account.
+      x: `https://x.com/${cmd.xHandle ?? authorHandle}`,
+      telegram: cmd.telegram,
     });
   } catch (err) {
     return failed(`metadata: ${errMessage(err)}`, replies.launchFailed("the image or metadata upload failed"));

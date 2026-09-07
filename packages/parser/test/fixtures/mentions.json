@@ -359,5 +359,46 @@
     "expect": {
       "kind": "help"
     }
+  },
+  {
+    "id": "extras-desc-site-tg",
+    "text": "@o1bot_exchange launch $CAT \"Cash Cat\" pair ETH desc \"The cat that pays you back.\" site cashcat.xyz tg @cashcat_chat",
+    "hasImage": true,
+    "expect": {
+      "kind": "launch",
+      "ticker": "CAT",
+      "name": "Cash Cat",
+      "pair": "ETH",
+      "description": "The cat that pays you back.",
+      "website": "https://cashcat.xyz",
+      "telegram": "https://t.me/cashcat_chat",
+      "xHandle": null
+    }
+  },
+  {
+    "id": "extras-x-override",
+    "text": "@o1bot_exchange launch $CAT \"Cash Cat\" pair USDG, official account x @CashCatToken, website https://cashcat.xyz",
+    "hasImage": false,
+    "expect": {
+      "kind": "launch",
+      "ticker": "CAT",
+      "pair": "USDG",
+      "xHandle": "cashcattoken",
+      "website": "https://cashcat.xyz",
+      "description": null,
+      "telegram": null
+    }
+  },
+  {
+    "id": "extras-none-invented",
+    "text": "@o1bot_exchange launch $CAT \"Cash Cat\" pair ETH",
+    "hasImage": false,
+    "expect": {
+      "kind": "launch",
+      "description": null,
+      "website": null,
+      "telegram": null,
+      "xHandle": null
+    }
   }
 ]

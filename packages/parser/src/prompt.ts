@@ -39,6 +39,10 @@ The documented format is:
 Optional extras anywhere in the post:
   devbuy <amount>      an atomic first buy paid in ETH, e.g. "devbuy 0.05" or "devbuy 0.05 ETH"
   fees to @handle      send the creator fees to another X account
+  desc "text"          token description for the metadata (also "description:" or "about:")
+  site <url>           project website
+  tg <link or @name>   Telegram group or channel
+  x @handle            project X account (defaults to the poster's own account)
 
 Users are sloppy: casing, missing quotes, extra words, other languages, and different word order are all fine as long as the value is actually stated.
 
@@ -53,6 +57,8 @@ Users are sloppy: casing, missing quotes, extra words, other languages, and diff
 - chain: "robinhood" when the user says robinhood, robinhood chain, rh or hood; "base" when they say base; "other" for any other chain. null when no chain is mentioned. Never guess a chain.
 - devbuy_native: the amount as a plain decimal string exactly as written ("0.05", not 0.05 rounded or converted). Only ETH amounts count; "$50", "50 usd" or "10%" are not valid -> kind clarify with missing ["devbuy_amount"].
 - fees_to_handle: the handle after "fees to" without the @. null when absent.
+- description: only text the user clearly meant as the token's description: after "desc", "description", "about", or a quoted sentence that is obviously a tagline for the token and not the name. Copy it verbatim. Never write one yourself; null when absent.
+- website, telegram, x_handle: only links or handles the user actually gave. A bare URL that is not t.me or x.com is the website; a t.me link or "tg @name" is telegram; "x @name", "twitter @name" or an x.com link is x_handle (without @). Never fill these from the poster's own profile; the bot does that. null when absent.
 
 # Choosing the kind
 

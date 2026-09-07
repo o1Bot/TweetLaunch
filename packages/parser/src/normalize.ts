@@ -19,9 +19,57 @@ export type LaunchCommand = {
   devBuyNative: string | null;
   feesToHandle: string | null;
   imageFromTweet: boolean;
+  /** Metadata extras the user stated; the bot never invents them. */
+  description: string | null;
+  website: string | null;
+  telegram: string | null;
+  /** Project X handle (lowercase, no @) when the user named one; null = the poster's own account. */
+  xHandle: string | null;
   language: string;
   reason: string;
 };
+
+/** o1 caps descriptions at 2000 UTF-8 bytes; a post cannot exceed that, but the model output could. */
+export const DESCRIPTION_MAX_BYTES = 2000;
+
+export function cleanDescription(raw: string | null | undefined): string | null {
+  const d = (raw ?? "").trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, "").trim();
+  if (!d) return null;
+  const bytes = Buffer.from(d, "utf8");
+  return bytes.length <= DESCRIPTION_MAX_BYTES ? d : bytes.subarray(0, DESCRIPTION_MAX_BYTES).toString("utf8").replace(/�+$/, "");
+}
+
+/** Accept http(s) URLs only; anything else is dropped rather than guessed. */
+export function cleanWebsite(raw: string | null | undefined): string | null {
+  const w = (raw ?? "").trim();
+  if (!w) return null;
+  const withScheme = /^https?:\/\//i.test(w) ? w : `https://${w}`;
+  try {
+    const url = new URL(withScheme);
+    if (!/^https?:$/.test(url.protocol) || !url.hostname.includes(".")) return null;
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
+/** t.me links stay as given; "@name" or "name" becomes https://t.me/name. */
+export function cleanTelegram(raw: string | null | undefined): string | null {
+  const t = (raw ?? "").trim();
+  if (!t) return null;
+  const m = t.match(/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/(\+?[A-Za-z0-9_]{3,64})\/?$/i);
+  if (m) return `https://t.me/${m[1]}`;
+  const handle = t.replace(/^@/, "");
+  return /^[A-Za-z0-9_]{5,32}$/.test(handle) ? `https://t.me/${handle}` : null;
+}
+
+/** Handle from "@name", "name" or an x.com / twitter.com profile URL. */
+export function cleanXHandle(raw: string | null | undefined): string | null {
+  const x = (raw ?? "").trim();
+  if (!x) return null;
+  const m = x.match(/^(?:https?:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\/@?([A-Za-z0-9_]{1,15})\/?$/i);
+  return normalizeHandle(m ? m[1]! : x);
+}
 
 export type ParseResult =
   | LaunchCommand
@@ -112,6 +160,10 @@ export function normalizeParseOutput(raw: ParseOutput, input: { hasImage: boolea
     devBuyNative: amount.ok ? amount.value : null,
     feesToHandle: feesTo,
     imageFromTweet: input.hasImage,
+    description: cleanDescription(raw.description),
+    website: cleanWebsite(raw.website),
+    telegram: cleanTelegram(raw.telegram),
+    xHandle: cleanXHandle(raw.x_handle),
     language,
     reason,
   };
