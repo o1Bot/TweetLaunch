@@ -858,3 +858,68 @@ svg {
   font-size: 10px;
   flex: none;
 }
+
+/* Header account control. */
+.acct-slot {
+  display: inline-block;
+  width: 120px;
+  height: 36px;
+}
+.acct-connect {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+}
+.acct {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 12px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.acct:hover {
+  border-color: var(--accent);
+  background: var(--panel-2);
+}
+.acct-av {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  flex: none;
+}
+.acct-av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.acct-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acct-x {
+  color: var(--ink-3);
+  display: inline-flex;
+}
+@media (max-width: 560px) {
+  .acct-name {
+    display: none;
+  }
+  .acct {
+    padding-right: 8px;
+  }
+}

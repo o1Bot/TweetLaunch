@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeaderAccount } from "./HeaderAccount";
 import { DOCS_URL, SITE_NAME } from "./links";
 
 export function SiteHeader() {
@@ -10,16 +11,14 @@ export function SiteHeader() {
       </Link>
       <nav className="nav" aria-label="Main">
         <Link href="/">Board</Link>
+        <Link href="/launch">Launch</Link>
         <Link href="/how-it-works">How it works</Link>
         <a href={DOCS_URL} target="_blank" rel="noreferrer">
           Docs
         </a>
-        <Link href="/me">Profile</Link>
       </nav>
       <div className="grow" />
-      <Link className="btn-p" href="/launch" style={{ padding: "8px 14px" }}>
-        Launch a token
-      </Link>
+      <HeaderAccount />
     </header>
   );
 }
