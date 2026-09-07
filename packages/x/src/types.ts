@@ -45,3 +45,14 @@ export class XPostError extends Error {
     return /crypto addresses are prohibited/i.test(this.body);
   }
 }
+
+/** X answered 429; `resetAt` (epoch ms) is when the 15-minute window opens again. */
+export class XRateLimitError extends Error {
+  constructor(
+    public readonly endpoint: "mentions" | "post" | "users",
+    public readonly resetAt: number,
+  ) {
+    super(`X rate limit hit on ${endpoint}; resets at ${new Date(resetAt).toISOString()}`);
+    this.name = "XRateLimitError";
+  }
+}

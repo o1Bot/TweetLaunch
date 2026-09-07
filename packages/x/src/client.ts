@@ -1,8 +1,16 @@
 import { logger, normalizeHandle, requireEnv } from "@o1bot/shared";
 import { oauthAuthorizationHeader, type OAuthCredentials } from "./oauth";
-import { XPostError, type UserLookup, type XClient, type XMention, type XReference, type XUser } from "./types";
+import { XPostError, XRateLimitError, type UserLookup, type XClient, type XMention, type XReference, type XUser } from "./types";
 
 const API = "https://api.x.com";
+/** Pages of 100 mentions followed per poll; more than this in one interval is not a real-world case. */
+const MAX_MENTION_PAGES = 5;
+
+/** `x-rate-limit-reset` is epoch seconds; fall back to a short wait when the header is missing. */
+function resetAtFromHeaders(headers: Headers): number {
+  const raw = Number(headers.get("x-rate-limit-reset"));
+  return Number.isFinite(raw) && raw > 0 ? raw * 1000 : Date.now() + 60_000;
+}
 
 type TweetJson = {
   id: string;
@@ -18,7 +26,7 @@ type MediaJson = { media_key: string; type: string; url?: string; preview_image_
 type MentionsJson = {
   data?: TweetJson[];
   includes?: { users?: UserJson[]; media?: MediaJson[]; tweets?: TweetJson[] };
-  meta?: { newest_id?: string; result_count?: number };
+  meta?: { newest_id?: string; result_count?: number; next_token?: string };
 };
 
 /** Real X API v2 client. Reads with the app Bearer token, writes with OAuth 1.0a user context. */
@@ -44,25 +52,48 @@ export class HttpXClient implements XClient {
     return this.creds;
   }
 
+  /**
+   * Mentions newer than `sinceId`. X returns newest first, 100 per page; every
+   * page is followed (bounded) so a burst larger than one page is never
+   * skipped when the cursor advances to the newest id.
+   */
   async fetchMentions(sinceId?: string): Promise<XMention[]> {
+    const out: XMention[] = [];
+    let paginationToken: string | undefined;
+    for (let page = 0; page < MAX_MENTION_PAGES; page++) {
+      const json = await this.mentionsPage(sinceId, paginationToken);
+      out.push(...this.toMentions(json));
+      paginationToken = json.meta?.next_token;
+      if (!paginationToken || (json.data?.length ?? 0) === 0) break;
+    }
+    // Oldest first so the cursor only ever moves forward.
+    return out.sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
+  }
+
+  private async mentionsPage(sinceId: string | undefined, paginationToken: string | undefined): Promise<MentionsJson> {
     const params = new URLSearchParams({
-      max_results: "20",
+      max_results: "100",
       "tweet.fields": "author_id,created_at,entities,attachments,referenced_tweets,lang",
       expansions: "author_id,attachments.media_keys,referenced_tweets.id",
       "user.fields": "username,name,profile_image_url",
       "media.fields": "url,preview_image_url,type",
     });
     if (sinceId) params.set("since_id", sinceId);
+    if (paginationToken) params.set("pagination_token", paginationToken);
     const res = await fetch(`${API}/2/users/${this.botUserId}/mentions?${params}`, {
       headers: { Authorization: `Bearer ${this.bearer}` },
       signal: AbortSignal.timeout(20_000),
     });
+    if (res.status === 429) throw new XRateLimitError("mentions", resetAtFromHeaders(res.headers));
     if (!res.ok) throw new Error(`mentions HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
-    const json = (await res.json()) as MentionsJson;
+    return (await res.json()) as MentionsJson;
+  }
+
+  private toMentions(json: MentionsJson): XMention[] {
     const users = new Map((json.includes?.users ?? []).map((u) => [u.id, u]));
     const media = new Map((json.includes?.media ?? []).map((m) => [m.media_key, m]));
     const tweets = new Map((json.includes?.tweets ?? []).map((t) => [t.id, t]));
-    const out = (json.data ?? []).map((t): XMention => {
+    return (json.data ?? []).map((t): XMention => {
       let imageUrl: string | null = null;
       for (const key of t.attachments?.media_keys ?? []) {
         const m = media.get(key);
@@ -87,8 +118,6 @@ export class HttpXClient implements XClient {
         referenced,
       };
     });
-    // Oldest first so the cursor only ever moves forward.
-    return out.sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
   }
 
   async lookupUser(handle: string): Promise<UserLookup> {
@@ -125,6 +154,7 @@ export class HttpXClient implements XClient {
       signal: AbortSignal.timeout(20_000),
     });
     const body = await res.text().catch(() => "");
+    if (res.status === 429) throw new XRateLimitError("post", resetAtFromHeaders(res.headers));
     if (!res.ok) throw new XPostError(`post reply HTTP ${res.status}`, res.status, body.slice(0, 500));
     const json = JSON.parse(body) as { data?: { id: string } };
     return json.data?.id ?? "";

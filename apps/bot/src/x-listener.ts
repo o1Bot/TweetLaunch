@@ -1,5 +1,5 @@
 import { logger } from "@o1bot/shared";
-import { filterMention, type XClient } from "@o1bot/x";
+import { filterMention, XRateLimitError, type XClient } from "@o1bot/x";
 import type { JobQueue } from "./queue";
 import type { BotStore } from "./store";
 
@@ -46,7 +46,17 @@ export async function pollOnce(deps: ListenerDeps): Promise<PollStats> {
 
 export type Poller = { stop(): Promise<void> };
 
-/** Poll forever on a fixed interval. Errors are logged and the next tick still runs. */
+/**
+ * Delay before the next poll. A 429 from X carries the time its 15-minute
+ * window resets, so the poller sleeps until then instead of hammering the
+ * endpoint; any other error just waits the normal interval.
+ */
+export function nextDelayMs(err: unknown, pollMs: number, now = Date.now()): number {
+  if (err instanceof XRateLimitError) return Math.max(pollMs, err.resetAt - now + 1_000);
+  return pollMs;
+}
+
+/** Poll forever. Errors are logged and the next tick still runs; rate limits are honoured. */
 export function startPolling(deps: ListenerDeps, pollMs: number): Poller {
   let stopped = false;
   let timer: NodeJS.Timeout | null = null;
@@ -54,17 +64,20 @@ export function startPolling(deps: ListenerDeps, pollMs: number): Poller {
 
   const tick = async () => {
     if (stopped) return;
+    let delay = pollMs;
     try {
       const stats = await pollOnce(deps);
       if (stats.fetched > 0) logger.info(stats, "polled mentions");
       else logger.debug(stats, "polled mentions");
     } catch (err) {
-      logger.warn({ err: err instanceof Error ? err.message : String(err) }, "mention poll failed; retrying next tick");
+      delay = nextDelayMs(err, pollMs);
+      if (err instanceof XRateLimitError) logger.warn({ resetAt: new Date(err.resetAt).toISOString(), waitMs: delay }, "X rate limit on mentions; waiting for the window to reset");
+      else logger.warn({ err: err instanceof Error ? err.message : String(err) }, "mention poll failed; retrying next tick");
     }
     if (!stopped) {
       timer = setTimeout(() => {
         inFlight = tick();
-      }, pollMs);
+      }, delay);
     }
   };
 
