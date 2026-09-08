@@ -35,6 +35,8 @@ const schema = z.object({
   PRIVY_AUTHORIZATION_PRIVATE_KEY: z.string().optional(),
   /** Key quorum id of that key; users add it as a signer on their wallet, the bot checks for it. */
   PRIVY_SIGNER_ID: z.string().optional(),
+  /** Policy users attach to the signer; the enclave enforces it, signer.ts is the second layer. */
+  PRIVY_POLICY_ID: z.string().optional(),
   NEXT_PUBLIC_PRIVY_APP_ID: z.string().optional(),
 
   ANTHROPIC_API_KEY: z.string().optional(),

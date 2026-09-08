@@ -22,6 +22,7 @@
     "survey:routes": "pnpm --filter @o1bot/executor exec tsx scripts/survey-dev-buy-routes.ts",
     "env:split": "tsx scripts/env-split.ts",
     "doctor": "pnpm --filter @o1bot/bot exec tsx scripts/doctor.ts",
+    "privy:policy": "pnpm --filter @o1bot/bot exec tsx scripts/privy-policy.ts",
     "privy:signer": "pnpm --filter @o1bot/bot exec tsx scripts/privy-signer.ts",
     "repin": "pnpm --filter @o1bot/bot exec tsx scripts/repin.ts"
   },

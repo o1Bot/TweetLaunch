@@ -1,7 +1,7 @@
 import type { User } from "@privy-io/server-auth";
 import { getAddress } from "viem";
 import { logger, normalizeHandle } from "@o1bot/shared";
-import { privy, privySignerId } from "./privy";
+import { privy, privyPolicyId, privySignerId } from "./privy";
 import { PREGEN_METADATA_KEY, PREGEN_METADATA_VALUE, type EmbeddedWallet, type LinkStatus, type LinkedUser } from "./types";
 
 /**
@@ -42,18 +42,37 @@ export function toLinkedUser(user: User): LinkedUser | null {
   };
 }
 
+export type SignerState = { granted: boolean; stale: boolean };
+type WalletSigners = { ownerId?: string | null; additionalSigners?: Array<{ signerId: string; overridePolicyIds?: string[] | null }> | null };
+
+/**
+ * Whether o1bot's signer on a wallet counts. With a policy configured, a
+ * signer added before the policy existed is "stale": it must not be used
+ * (the enclave would sign without the policy's limits) and the user is
+ * asked to grant again.
+ */
+export function signerState(wallet: WalletSigners, signerId: string, policyId: string | null): SignerState {
+  if (wallet.ownerId === signerId) return { granted: true, stale: false };
+  const signer = (wallet.additionalSigners ?? []).find((s) => s.signerId === signerId);
+  if (!signer) return { granted: false, stale: false };
+  if (!policyId) return { granted: true, stale: false };
+  const hasPolicy = (signer.overridePolicyIds ?? []).includes(policyId);
+  return { granted: hasPolicy, stale: !hasPolicy };
+}
+
 /**
  * "Delegated" for TEE wallets means o1bot's key quorum is a signer on the
- * wallet. The user object does not say so; the wallet API does. The legacy
- * on-device `delegated` flag is kept as a fallback for apps still on it.
+ * wallet, carrying the policy when one is configured. The user object does
+ * not say so; the wallet API does. The legacy on-device `delegated` flag
+ * is kept as a fallback for apps still on it, never for a stale signer.
  */
 export async function withSignerStatus(user: LinkedUser | null): Promise<LinkedUser | null> {
   const signerId = privySignerId();
   if (!user?.wallet?.walletId || !signerId) return user;
   try {
     const w = await privy().walletApi.getWallet({ id: user.wallet.walletId });
-    const granted = w.ownerId === signerId || (w.additionalSigners ?? []).some((s) => s.signerId === signerId);
-    return { ...user, wallet: { ...user.wallet, delegated: granted || user.wallet.delegated } };
+    const state = signerState(w as WalletSigners, signerId, privyPolicyId());
+    return { ...user, wallet: { ...user.wallet, delegated: state.granted || (!state.stale && user.wallet.delegated), signerStale: state.stale } };
   } catch (err) {
     logger.warn({ walletId: user.wallet.walletId, err: err instanceof Error ? err.message : String(err) }, "could not read wallet signers");
     return user;

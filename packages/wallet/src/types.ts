@@ -6,6 +6,8 @@ export type EmbeddedWallet = {
   walletId: string | null;
   /** User granted delegated signing to o1bot. */
   delegated: boolean;
+  /** The signer is on the wallet without the policy this deployment requires; the user must grant again. */
+  signerStale?: boolean;
 };
 
 export type LinkedUser = {

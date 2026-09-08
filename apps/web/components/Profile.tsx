@@ -16,7 +16,7 @@ import { useGrantSigner, useLinkedRefresh } from "@/lib/use-grant-signer";
 
 type Me = {
   xHandle: string | null;
-  wallet: { address: string; delegated: boolean } | null;
+  wallet: { address: string; delegated: boolean; signerStale?: boolean } | null;
   linked: boolean;
   reason: string | null;
   balances: Array<{ chain: string; eth: string | null }>;
@@ -165,16 +165,29 @@ export function Profile() {
             <div className="k">Bot signing</div>
             <div className="v">
               {me?.linked ? (
-                <span className="ok">allowed</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                  <span className="ok">allowed</span>
+                  <button
+                    className="btn-s"
+                    disabled={signer.busy || !signer.embedded}
+                    title="Remove o1bot's signer from your wallet. Launches from posts stop until you allow it again."
+                    onClick={async () => {
+                      if (await signer.revoke()) await load();
+                    }}
+                  >
+                    {signer.busy ? "Waiting for Privy…" : "Revoke"}
+                  </button>
+                </span>
               ) : (
                 <button
                   className="btn-s"
                   disabled={signer.busy || !signer.embedded}
+                  title={me?.wallet?.signerStale ? "Your earlier permission predates the signing policy. Grant it again so Privy enforces the limits." : undefined}
                   onClick={async () => {
-                    if (await signer.grant()) await load();
+                    if (await signer.grant({ replace: Boolean(me?.wallet?.signerStale) })) await load();
                   }}
                 >
-                  {signer.busy ? "Waiting for Privy…" : "Allow"}
+                  {signer.busy ? "Waiting for Privy…" : me?.wallet?.signerStale ? "Update permission" : "Allow"}
                 </button>
               )}
             </div>

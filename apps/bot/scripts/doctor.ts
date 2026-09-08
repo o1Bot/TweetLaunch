@@ -151,6 +151,22 @@ async function checkPrivy() {
   } else {
     ok("privy signer", `key quorum ${signerId} with a matching authorization key`);
   }
+  const policyId = e.PRIVY_POLICY_ID;
+  if (!policyId) {
+    (e.DRY_RUN ? skip : fail)("privy policy", "PRIVY_POLICY_ID not set: the allow-list is enforced in code only; run pnpm privy:policy");
+    return;
+  }
+  try {
+    const res = await fetch(`https://api.privy.io/v1/policies/${policyId}`, {
+      headers: { "privy-app-id": e.PRIVY_APP_ID, Authorization: `Basic ${Buffer.from(`${e.PRIVY_APP_ID}:${e.PRIVY_APP_SECRET}`).toString("base64")}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const policy = (await res.json()) as { name?: string; rules?: unknown[]; owner_id?: string | null };
+    (policy.owner_id ? ok : fail)("privy policy", `${policy.name ?? policyId}: ${policy.rules?.length ?? 0} rules, owner ${policy.owner_id ?? "none, so the app secret alone can edit it"}`);
+  } catch (err) {
+    fail("privy policy", `policy ${policyId} not readable: ${errMsg(err)}`);
+  }
 }
 
 async function checkO1Api() {

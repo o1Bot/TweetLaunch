@@ -27,6 +27,11 @@ export function privySignerId(): string | null {
   return process.env.PRIVY_SIGNER_ID?.trim() || null;
 }
 
+/** Policy the signer must carry on a wallet before the bot treats the grant as valid; null = not enforced yet. */
+export function privyPolicyId(): string | null {
+  return process.env.PRIVY_POLICY_ID?.trim() || null;
+}
+
 /** True when the server holds the key that matches the signer users grant. */
 export function privySigningConfigured(): boolean {
   return Boolean(privySignerId() && process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY?.trim());

@@ -33,14 +33,15 @@ export function AutoSigner() {
         if (!token) return;
         const res = await fetch("/api/me", { headers: { authorization: `Bearer ${token}` } });
         if (!res.ok) return;
-        const me = (await res.json()) as { linked: boolean };
+        const me = (await res.json()) as { linked: boolean; wallet: { signerStale?: boolean } | null };
         if (me.linked) return;
         try {
           sessionStorage.setItem(key, "1");
         } catch {
           // Storage can be unavailable; asking again later is harmless.
         }
-        if (await grant()) window.dispatchEvent(new Event(LINKED_EVENT));
+        // A signer granted before the policy existed is replaced, not added to.
+        if (await grant({ replace: Boolean(me.wallet?.signerStale) })) window.dispatchEvent(new Event(LINKED_EVENT));
       } finally {
         running.current = false;
       }
