@@ -2,7 +2,7 @@ import { formatEther, formatUnits, getAddress, parseEther, zeroAddress, type Add
 import type { TradeCommand } from "@o1bot/parser";
 import { antiSnipeFeeBps, applySlippage, encodeHookData, launchPoolKey, type PoolKey } from "@o1bot/swap";
 import type { BotConfig } from "./config";
-import type { AuditSink, WalletRef } from "./execute";
+import { ExecutionError, type AuditSink, type WalletRef } from "./execute";
 import { formatEthCeil, replies, tokenPageUrl } from "./replies";
 import type { BotStore, TradableToken } from "./store";
 import { checkRate, startOfUtcDay } from "./validator";
@@ -264,11 +264,19 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
     log.info({ tradeId, txHash: done.txHash, amountOut: done.amountOut.toString() }, "trade confirmed");
     return { ok: true, dryRun: false, tradeId, txHash: done.txHash, userText };
   } catch (err) {
-    const error = `execute: ${errMessage(err)}`;
-    const detail = /insufficient funds/i.test(errMessage(err)) ? "the wallet ran short of ETH for gas" : /slippage|TooLittleReceived|V4TooLittleReceived/i.test(errMessage(err)) ? "the price moved past your slippage" : "the transaction could not be sent";
+    const message = errMessage(err);
+    const txHash = err instanceof ExecutionError ? err.txHash : null;
+    const error = `execute: ${message}${txHash ? ` (${txHash})` : ""}`;
+    const detail = txHash
+      ? "the swap reverted on chain"
+      : /insufficient funds/i.test(message)
+        ? "the wallet ran short of ETH for gas"
+        : /slippage|TooLittleReceived|V4TooLittleReceived/i.test(message)
+          ? "the price moved past your slippage"
+          : "the transaction could not be sent";
     const userText = replies.tradeFailed(detail);
-    await store.updateTrade(tradeId, { status: "FAILED", error, userMessage: userText });
-    log.error({ tradeId, error }, "trade failed");
+    await store.updateTrade(tradeId, { status: "FAILED", error, txHash, userMessage: userText });
+    log.error({ tradeId, error, txHash }, "trade failed");
     return { ok: false, outcome: "failed", error, userText, tradeId };
   }
 }
