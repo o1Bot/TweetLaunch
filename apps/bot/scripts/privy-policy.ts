@@ -27,6 +27,7 @@
  *
  *   pnpm privy:policy                     # create owner key, aggregation and policy; write the ids to .env
  *   pnpm privy:policy --owner <quorumId>  # reuse an existing owner key quorum instead of creating one
+ *   pnpm privy:policy --aggregation <id>  # reuse the existing 24h aggregation (apps get at most 10)
  *   pnpm privy:policy --daily-cap 25      # rolling 24h cap on signed value across all wallets, in ETH (default 25)
  *   pnpm privy:policy --force             # replace PRIVY_POLICY_ID (users must grant the signer again)
  */
@@ -119,16 +120,19 @@ async function main() {
   const tx = (field: "chain_id" | "to" | "value", operator: "eq" | "lte", value: string) => ({ field_source: "ethereum_transaction", field, operator, value });
 
   // 2. Aggregation: value signed by the signer over a rolling day, across all wallets.
-  const aggregation = await privyPost("aggregations", {
-    name: "o1bot signer: value signed per rolling 24h",
-    method: "eth_signTransaction",
-    metric: { field_source: "ethereum_transaction", field: "value", function: "sum" },
-    window: { type: "rolling", seconds: 86_400 },
-    conditions: [tx("chain_id", "eq", chainId)],
-    owner_id: ownerId,
-  });
-  const aggregationId = String(aggregation.id ?? "");
-  if (!aggregationId) throw new Error("Privy returned no aggregation id");
+  let aggregationId = argValue("--aggregation");
+  if (!aggregationId) {
+    const aggregation = await privyPost("aggregations", {
+      name: "o1bot signer: value signed per rolling 24h",
+      method: "eth_signTransaction",
+      metric: { field_source: "ethereum_transaction", field: "value", function: "sum" },
+      window: { type: "rolling", seconds: 86_400 },
+      conditions: [tx("chain_id", "eq", chainId)],
+      owner_id: ownerId,
+    });
+    aggregationId = String(aggregation.id ?? "");
+    if (!aggregationId) throw new Error("Privy returned no aggregation id");
+  }
 
   // 3. The policy itself.
   const policyBody = {
@@ -161,7 +165,7 @@ async function main() {
         ],
       },
       {
-        name: "Swap through the Universal Router (trade from a post)",
+        name: "Router swap (trade from a post)",
         method: "eth_signTransaction",
         action: "ALLOW",
         conditions: [
@@ -173,7 +177,7 @@ async function main() {
         ],
       },
       {
-        name: "ERC-20 approval to Permit2 (selling from a post)",
+        name: "Token approval to Permit2 (sell)",
         method: "eth_signTransaction",
         action: "ALLOW",
         conditions: [
@@ -183,7 +187,7 @@ async function main() {
         ],
       },
       {
-        name: "Permit2 approval to the router (selling from a post)",
+        name: "Permit2 approval to router (sell)",
         method: "eth_signTransaction",
         action: "ALLOW",
         conditions: [
