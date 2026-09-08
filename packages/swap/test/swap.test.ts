@@ -9,6 +9,25 @@ const REFERRER: Address = getAddress("0x2222222222222222222222222222222222222222
 
 const poolKey = launchPoolKey(TOKEN, zeroAddress, 200, HOOK);
 
+describe("hook data", () => {
+  it("is ABI-encoded (address, bytes32): 64 bytes with the address left-padded, as the hook decodes it", () => {
+    const data = encodeHookData(REFERRER);
+    expect(data.length).toBe(2 + 128);
+    expect(data.slice(2, 26)).toBe("0".repeat(24));
+    expect(data.slice(26, 66).toLowerCase()).toBe(REFERRER.slice(2).toLowerCase());
+    expect(decodeHookData(data)).toEqual({ referrer: REFERRER, comment: "o1bot.exchange" });
+    expect(encodeHookData(null)).toBe("0x");
+    expect(decodeHookData("0x")).toEqual({ referrer: null, comment: "" });
+  });
+
+  it("refuses the packed 52-byte form and anything else", () => {
+    const packed = concatHex([REFERRER, `0x${"00".repeat(32)}`]);
+    expect(decodeHookData(packed)).toBeNull();
+    expect(decodeHookData(REFERRER)).toBeNull();
+    expect(decodeHookData(`0x${"ff".repeat(64)}`)).toBeNull();
+  });
+});
+
 describe("encode / decode exact-input swap", () => {
   it("round-trips a buy paid in ETH", () => {
     const hookData = encodeHookData(REFERRER);

@@ -6,6 +6,7 @@ import {
   encodeFunctionData,
   getAddress,
   hexToString,
+  isAddress,
   parseAbi,
   stringToHex,
   zeroAddress,
@@ -19,7 +20,9 @@ import {
  * TAKE_ALL. Exact input only: o1's hook rejects exact output during the
  * anti-snipe window, and exact input is what a buy/sell box wants anyway.
  * Hook data carries o1bot's referrer address plus a 32-byte comment, which
- * is how the referral share is attributed.
+ * is how the referral share is attributed. The hook ABI-decodes it as
+ * `(address, bytes32)`, 64 bytes with the address left-padded; the packed
+ * 52-byte form the docs' wording suggests makes the whole swap revert.
  *
  * Pure encoding and decoding, shared by the web app (quote API and swap
  * panel), the bot (trades from a post) and the signer allow-list, which
@@ -83,19 +86,27 @@ export function launchPoolKey(token: Address, quote: Address, tickSpacing: numbe
   return { currency0, currency1, fee: 0, tickSpacing, hooks: getAddress(hook) };
 }
 
-/** `referrer ++ bytes32(comment)`; empty when there is no referrer. */
+const HOOK_DATA_PARAMS = [{ type: "address" }, { type: "bytes32" }] as const;
+
+/** `abi.encode(referrer, bytes32(comment))`, as o1's hook decodes it; empty when there is no referrer. */
 export function encodeHookData(referrer: Address | null, comment = SWAP_COMMENT): Hex {
   if (!referrer) return "0x";
-  return concatHex([getAddress(referrer), stringToHex(comment.slice(0, 32), { size: 32 })]);
+  return encodeAbiParameters(HOOK_DATA_PARAMS, [getAddress(referrer), stringToHex(comment.slice(0, 32), { size: 32 })]);
 }
 
-/** Inverse of `encodeHookData`; null when the bytes are not referrer ++ bytes32. */
+/** Inverse of `encodeHookData`; null when the bytes are not exactly one ABI-encoded (address, bytes32). */
 export function decodeHookData(hookData: Hex): { referrer: Address | null; comment: string } | null {
   if (hookData === "0x") return { referrer: null, comment: "" };
-  if (hookData.length !== 2 + 40 + 64) return null;
-  const referrer = getAddress(`0x${hookData.slice(2, 42)}`);
-  const comment = hexToString(`0x${hookData.slice(42)}`, { size: 32 });
-  return { referrer, comment };
+  if (hookData.length !== 2 + 128) return null;
+  // The address word must be left-padded with zeros; viem would silently take the low 20 bytes otherwise.
+  if (hookData.slice(2, 26) !== "0".repeat(24)) return null;
+  try {
+    const [referrer, comment] = decodeAbiParameters(HOOK_DATA_PARAMS, hookData);
+    if (!isAddress(referrer)) return null;
+    return { referrer: getAddress(referrer), comment: hexToString(comment, { size: 32 }) };
+  } catch {
+    return null;
+  }
 }
 
 export type SwapEncoding = { to: Address; data: Hex; value: bigint };
