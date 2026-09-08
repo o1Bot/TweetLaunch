@@ -225,7 +225,8 @@ a.row:hover {
 }
 .tp {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  /* minmax(0, …) so a wide trades table cannot stretch the page sideways. */
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 18px;
   align-items: start;
 }
@@ -673,7 +674,7 @@ a.row:hover {
     display: none;
   }
   .tp {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .swap {
     position: static;
@@ -743,9 +744,6 @@ a.row:hover {
    Grid tracks default to min-content, so a wide trades table or a long
    address used to stretch the page sideways; minmax(0, 1fr) and min-width: 0
    keep every column inside the viewport, and wide tables scroll in .pane. */
-.tp {
-  grid-template-columns: minmax(0, 1fr) 340px;
-}
 .tp > * {
   min-width: 0;
 }
