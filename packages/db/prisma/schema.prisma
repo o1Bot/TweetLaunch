@@ -30,11 +30,16 @@ model User {
   delegated     Boolean   @default(false)
   /// First successful X login on o1bot.exchange.
   linkedAt      DateTime?
+  /// Opt-in for buy/sell commands from posts; off until the user enables it on the profile.
+  tradingEnabled Boolean  @default(false)
+  /// The user's own per-trade cap in wei (decimal string); null = the deployment default.
+  maxTradeWei   String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   launches       Launch[] @relation("LaunchCreator")
   feeRecipientOf Launch[] @relation("LaunchFeeRecipient")
+  trades         Trade[]
 
   @@index([xHandle])
 }
@@ -68,6 +73,8 @@ model Mention {
   replyTweetId  String?
 
   launch Launch?
+
+  trade Trade?
 
   @@index([authorXUserId, receivedAt])
   @@index([status])
@@ -146,6 +153,45 @@ enum SignedTxKind {
   ERC20_APPROVE
   SET_CREATOR_FEE_RECIPIENT
   FEE_CLAIM
+  PERMIT2_APPROVE
+  ROUTER_EXECUTE
+}
+
+enum TradeStatus {
+  DRY_RUN
+  QUEUED
+  SIGNING
+  CONFIRMED
+  REPLIED
+  FAILED
+}
+
+/// A buy or sell asked for in a post and executed from the poster's wallet
+/// through the Universal Router into an o1 launch pool. The indexer records
+/// the resulting swap separately (Swap); this row is the request and its outcome.
+model Trade {
+  id            String      @id @default(cuid())
+  mentionId     String?     @unique
+  mention       Mention?    @relation(fields: [mentionId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  chainId       Int
+  token         String
+  side          SwapSide
+  /// Raw units of the input currency (wei for buys, token units for sells).
+  amountInWei   String
+  minAmountOut  String?
+  amountOut     String?
+  slippageBps   Int
+  status        TradeStatus @default(QUEUED)
+  txHash        String?
+  error         String?
+  userMessage   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([token, createdAt])
 }
 
 /// Append-only audit of everything the bot signed with a user wallet.

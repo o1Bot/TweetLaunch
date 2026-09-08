@@ -129,4 +129,35 @@ export const replies = {
   launchFailed: (detail: string) => `The launch did not go through (${detail}). Nothing was spent except gas, if any. Post the full launch command again to retry.`,
 
   success: successReply,
+
+  // Trades from a post. Never a contract address (X blocks them for young accounts); token pages carry it.
+  tradeDisabled: (siteUrl: string) => `Trading from posts is off for your account. Turn it on and set your per-trade cap at ${siteUrl}/me, then post again.`,
+
+  tradeUnknownToken: (ticker: string, siteUrl: string) => `I only trade tokens launched through o1bot, and $${ticker} is not one of them. The board at ${siteUrl} lists what I can trade.`,
+
+  tradeAmbiguous: (ticker: string, pages: string[]) => `More than one $${ticker} was launched here. Post again with the address of the one you mean: ${pages.join(" or ")}`,
+
+  tradeNotEthPool: (ticker: string, siteUrl: string) => `$${ticker} trades against a stock token, and trading from posts covers ETH pools only for now. Use the swap on its page at ${siteUrl}.`,
+
+  tradeAntiSnipe: (ticker: string, secondsLeft: number) => `$${ticker} launched moments ago and o1's anti-snipe fee is still above 1%. Post again in ${Math.max(1, secondsLeft)} seconds and you pay the normal fee.`,
+
+  tradeTooLarge: (capEth: string, siteUrl: string) => `That is above your per-trade cap of ${capEth} ETH. Lower the amount, or raise the cap at ${siteUrl}/me.`,
+
+  tradeInsufficient: (shortfallEth: string, siteUrl: string) => `Your wallet is ${shortfallEth} ETH short for this trade, amount plus gas. Top up the wallet shown at ${siteUrl}/me and post again.`,
+
+  tradeNothingToSell: (ticker: string) => `Your wallet holds no $${ticker} to sell.`,
+
+  tradeNoQuote: (ticker: string) => `I could not get a price for $${ticker} right now. Post again in a minute.`,
+
+  tradeSlowDown: (retryAfterSeconds: number) => `One trade every few seconds per account. Try again in ${Math.max(1, retryAfterSeconds)} seconds.`,
+
+  tradeDailyCap: () => `This account has reached today's trade limit. Try again tomorrow.`,
+
+  tradeFailed: (detail: string) => `The trade did not go through (${detail}). Nothing was spent except gas, if any. Post again to retry.`,
+
+  tradeSuccess: (p: { side: "buy" | "sell"; ticker: string; amountIn: string; amountOut: string; token: string; siteUrl: string }) => {
+    const link = tokenPageUrl(p.siteUrl, p.token);
+    const line = p.side === "buy" ? `Bought ${p.amountOut} $${p.ticker} for ${p.amountIn} ETH.` : `Sold ${p.amountIn} $${p.ticker} for ${p.amountOut} ETH.`;
+    return `${line}\n${link}`;
+  },
 };

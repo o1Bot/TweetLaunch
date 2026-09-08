@@ -1,6 +1,6 @@
 import { createWalletClient, fallback, getAddress, http, parseEventLogs, type Address, type Hex, type PublicClient } from "viem";
 import { launchFactoryAbi, type LaunchPlan } from "@o1bot/executor";
-import { activeFeeEscrow, buildAllowlist, chainByKey, logger, publicClient, rpcUrls } from "@o1bot/shared";
+import { activeFeeEscrow, buildAllowlist, chainByKey, logger, publicClient, rpcUrls, type TxAllowlist } from "@o1bot/shared";
 import { guardedAccount, type SignAudit } from "@o1bot/wallet";
 
 /**
@@ -36,10 +36,14 @@ export class ExecutionError extends Error {
 const KEY = "robinhood" as const;
 const RECEIPT_TIMEOUT_MS = 180_000;
 
-async function walletFor(wallet: WalletRef, factory: Address, chainId: number, audit: AuditSink) {
-  const allowlist = buildAllowlist({ chainId, factory, feeEscrow: activeFeeEscrow(KEY) });
+/** The user's wallet behind the allow-list guard; every signature goes through `audit` first. */
+export async function walletClientFor(wallet: WalletRef, allowlist: TxAllowlist, audit: AuditSink) {
   const account = await guardedAccount({ walletId: wallet.walletId, address: wallet.address, allowlist, audit });
   return createWalletClient({ account, chain: chainByKey(KEY), transport: fallback(rpcUrls(KEY).map((u) => http(u, { timeout: 20_000 })), { rank: false }) });
+}
+
+async function walletFor(wallet: WalletRef, factory: Address, chainId: number, audit: AuditSink) {
+  return walletClientFor(wallet, buildAllowlist({ chainId, factory, feeEscrow: activeFeeEscrow(KEY) }), audit);
 }
 
 export async function executeLaunchPlan(plan: LaunchPlan, wallet: WalletRef, audit: AuditSink, opts: { client?: PublicClient } = {}): Promise<ExecutionResult> {

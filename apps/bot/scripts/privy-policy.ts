@@ -12,6 +12,11 @@
  *     signed in the last 24 hours below --daily-cap (a stateful aggregation).
  *   - eth_signTransaction on Robinhood to the fee escrow, calldata decoded as
  *     claimFor or claimTo, value 0.
+ *   - Trades from a post: execute on the Universal Router with value at most
+ *     MAX_TRADE_ETH, an ERC-20 approve naming Permit2 as spender (value 0),
+ *     and a Permit2 approve naming the router as spender (value 0). The
+ *     signer allow-list still decodes the router call and pins the pool, the
+ *     referral and the recipient; the policy bounds the value.
  *   Message, typed-data, EIP-7702, raw and export requests fall through to
  *   the default DENY.
  *
@@ -33,6 +38,7 @@ import { formatEther, parseEther } from "viem";
 import { findRepoRoot } from "@o1bot/shared/load-env";
 import { activeFactory, activeFeeEscrow, chainByKey, env, o1Chain, requireEnv } from "@o1bot/shared";
 import { feeEscrowAbi, launchFactoryAbi } from "@o1bot/executor";
+import { permit2Abi, universalRouterAbi } from "@o1bot/swap";
 
 const VARS = ["PRIVY_POLICY_ID", "NEXT_PUBLIC_PRIVY_POLICY_ID"] as const;
 const LAUNCH_FUNCTIONS = ["createLaunch", "createLaunchAndBuy", "setCreatorFeeRecipient"];
@@ -89,7 +95,11 @@ async function main() {
   const escrow = activeFeeEscrow(key);
   const creationFeeWei = BigInt(o1Chain(key).snapshot.nativeLaunchFeeRaw);
   const perTxCapWei = creationFeeWei + parseEther(env().MAX_DEV_BUY_ETH);
+  const tradeCapWei = parseEther(env().MAX_TRADE_ETH);
   const dailyCapWei = parseEther(argValue("--daily-cap") ?? "25");
+  const router = o1Chain(key).uniswapV4.universalRouter;
+  const permit2 = o1Chain(key).uniswapV4.permit2;
+  const erc20ApproveAbi = [{ type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ name: "", type: "bool" }] }];
 
   // 1. Owner key quorum: the only party that can edit the policy afterwards.
   let ownerId = argValue("--owner");
@@ -150,6 +160,39 @@ async function main() {
           { field_source: "ethereum_calldata", field: "function_name", abi: abiFunctions(feeEscrowAbi, CLAIM_FUNCTIONS), operator: "in", value: CLAIM_FUNCTIONS },
         ],
       },
+      {
+        name: "Swap through the Universal Router (trade from a post)",
+        method: "eth_signTransaction",
+        action: "ALLOW",
+        conditions: [
+          tx("chain_id", "eq", chainId),
+          tx("to", "eq", router),
+          tx("value", "lte", tradeCapWei.toString()),
+          { field_source: "ethereum_calldata", field: "function_name", abi: universalRouterAbi, operator: "eq", value: "execute" },
+          { field_source: "reference", field: `aggregation.${aggregationId}`, operator: "lte", value: dailyCapWei.toString() },
+        ],
+      },
+      {
+        name: "ERC-20 approval to Permit2 (selling from a post)",
+        method: "eth_signTransaction",
+        action: "ALLOW",
+        conditions: [
+          tx("chain_id", "eq", chainId),
+          tx("value", "eq", "0"),
+          { field_source: "ethereum_calldata", field: "approve.spender", abi: erc20ApproveAbi, operator: "eq", value: permit2 },
+        ],
+      },
+      {
+        name: "Permit2 approval to the router (selling from a post)",
+        method: "eth_signTransaction",
+        action: "ALLOW",
+        conditions: [
+          tx("chain_id", "eq", chainId),
+          tx("to", "eq", permit2),
+          tx("value", "eq", "0"),
+          { field_source: "ethereum_calldata", field: "approve.spender", abi: abiFunctions(permit2Abi as unknown as readonly unknown[], ["approve"]), operator: "eq", value: router },
+        ],
+      },
     ],
   };
   const policy = await privyPost("policies", policyBody);
@@ -168,7 +211,7 @@ async function main() {
   writeFileSync(docPath, `${JSON.stringify({ policy_id: policyId, aggregation_id: aggregationId, owner_key_quorum_id: ownerId, request: policyBody }, null, 2)}\n`);
 
   console.log(`policy created: ${policyId} (owner key quorum ${ownerId}, aggregation ${aggregationId})`);
-  console.log(`per-transaction cap ${formatEther(perTxCapWei)} ETH, rolling 24h cap ${formatEther(dailyCapWei)} ETH across all wallets`);
+  console.log(`per-transaction cap ${formatEther(perTxCapWei)} ETH (launch), ${formatEther(tradeCapWei)} ETH (trade), rolling 24h cap ${formatEther(dailyCapWei)} ETH across all wallets`);
   console.log(`written to .env: ${VARS.join(", ")}; policy document in ${docPath}`);
   if (ownerKeyPath) console.log(`owner private key written to ${ownerKeyPath}: move it offline and delete the file`);
   console.log("next: pnpm env:split, update PRIVY_POLICY_ID on Railway and NEXT_PUBLIC_PRIVY_POLICY_ID on Vercel, redeploy both; existing users are asked to grant the signer again on their next visit");

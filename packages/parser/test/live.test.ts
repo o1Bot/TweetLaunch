@@ -24,6 +24,12 @@ type Expect = {
   website?: string | null;
   telegram?: string | null;
   xHandle?: string | null;
+  side?: "buy" | "sell";
+  tradeTicker?: string | null;
+  tradeAddress?: string | null;
+  amountEth?: string | null;
+  sellPortion?: { kind: "all" } | { kind: "percent"; value: number } | null;
+  slippageBps?: number | null;
 };
 
 const hasKey = Boolean(process.env.ANTHROPIC_API_KEY);
@@ -47,6 +53,14 @@ describe.skipIf(!hasKey)("parser against the live model", () => {
         if (e.website !== undefined) expect(result.website).toBe(e.website);
         if (e.telegram !== undefined) expect(result.telegram).toBe(e.telegram);
         if (e.xHandle !== undefined) expect(result.xHandle).toBe(e.xHandle);
+      }
+      if (result.kind === "trade") {
+        if (e.side !== undefined) expect(result.side).toBe(e.side);
+        if (e.tradeTicker !== undefined) expect(result.ticker).toBe(e.tradeTicker);
+        if (e.tradeAddress !== undefined) expect(result.tokenAddress?.toLowerCase() ?? null).toBe(e.tradeAddress?.toLowerCase() ?? null);
+        if (e.amountEth !== undefined) expect(result.amountEth).toBe(e.amountEth);
+        if (e.sellPortion !== undefined) expect(result.sellPortion).toEqual(e.sellPortion);
+        if (e.slippageBps !== undefined) expect(result.slippageBps).toBe(e.slippageBps);
       }
       if (result.kind === "clarify" && e.missingIncludes) {
         for (const m of e.missingIncludes) expect(result.missing).toContain(m);

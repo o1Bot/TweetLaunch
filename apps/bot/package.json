@@ -16,6 +16,7 @@
     "@o1bot/market": "workspace:*",
     "@o1bot/parser": "workspace:*",
     "@o1bot/shared": "workspace:*",
+    "@o1bot/swap": "workspace:*",
     "@o1bot/wallet": "workspace:*",
     "@o1bot/x": "workspace:*",
     "bullmq": "^6.3.4",
