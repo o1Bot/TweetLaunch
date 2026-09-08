@@ -5,9 +5,12 @@ import { privy } from "./privy";
 
 /**
  * A viem account backed by the user's Privy embedded wallet, wrapped so it
- * can only sign transactions that pass the o1 allow-list. Message and typed
- * data signing are disabled: the bot has no reason to sign anything but a
- * launch, an approval, a fee-recipient update, or a claim.
+ * can only sign transactions that pass the o1 allow-list. The wrapper
+ * exposes exactly the `LocalAccount` surface and nothing from the inner
+ * account leaks through: raw hash, message, typed-data and EIP-7702
+ * signing all refuse, whatever Privy's account happens to implement. The
+ * bot has no reason to sign anything but a launch, an approval, a
+ * fee-recipient update, or a claim.
  */
 
 export class TxNotAllowedError extends Error {
@@ -49,7 +52,11 @@ export async function guardedAccount(input: GuardedAccountInput): Promise<LocalA
   };
 
   const guarded: LocalAccount = {
-    ...inner,
+    address: inner.address,
+    publicKey: inner.publicKey,
+    source: inner.source,
+    type: "local",
+    sign: refuse("raw hash"),
     signMessage: refuse("message"),
     signTypedData: refuse("typed data"),
     signAuthorization: refuse("EIP-7702 authorization"),

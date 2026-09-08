@@ -190,7 +190,7 @@ Web routes: `/` board, `/token/[address]`, `/api/tokens`, `/api/token/[address]`
 
 ## Signing rules
 
-The bot never signs arbitrary calldata. `packages/wallet/src/signer.ts` wraps the Privy viem account so it refuses anything that is not one of: `createLaunch`, `createLaunchAndBuy`, an ERC-20 `approve` to a registered quote token, `setCreatorFeeRecipient`, or a fee-escrow claim, and only to the active o1 contracts for that chain. Every signed transaction is recorded in `SignedTransaction` with tweet ID, X user ID, wallet, and calldata hash.
+The bot never signs arbitrary calldata. `packages/wallet/src/signer.ts` builds a fresh `LocalAccount` around the Privy viem account instead of spreading it, so only `signTransaction` reaches Privy; raw hash, message, typed-data and EIP-7702 signing refuse whatever the inner account implements. `signTransaction` accepts only `createLaunch`, `createLaunchAndBuy`, an ERC-20 `approve` to a registered quote token, `setCreatorFeeRecipient`, or a fee-escrow claim, and only to the active o1 contracts for that chain. The calldata must decode as that function (a matching selector with garbage after it is refused), an approval must name the factory as spender, and contract creation, plain value sends and other chains are rejected. Every signed transaction is recorded in `SignedTransaction` with tweet ID, X user ID, wallet, and calldata hash.
 
 ## RPC
 

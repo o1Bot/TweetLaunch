@@ -1,4 +1,4 @@
-import { getAddress, isAddress, toFunctionSelector, type Address, type Hex } from "viem";
+import { decodeFunctionData, getAddress, isAddress, parseAbi, toFunctionSelector, type Address, type Hex } from "viem";
 
 /**
  * The bot signs ONLY these transaction kinds, and only to known o1 contracts
@@ -38,7 +38,15 @@ export const TX_SELECTORS: Record<AllowedTxKind, Hex> = Object.fromEntries(
   ALLOWED_TX_KINDS.map((kind) => [kind, toFunctionSelector(TX_SIGNATURES[kind])]),
 ) as Record<AllowedTxKind, Hex>;
 
-export type AllowlistEntry = { kind: AllowedTxKind; to: Address };
+/** Full ABI of the allowed surface, so calldata is decoded, not just selector-matched. */
+const TX_ABI = parseAbi(ALLOWED_TX_KINDS.map((kind) => `function ${TX_SIGNATURES[kind]}`));
+
+export type AllowlistEntry = {
+  kind: AllowedTxKind;
+  to: Address;
+  /** For `erc20Approve`: the only spenders an approval may name. */
+  spenders?: Address[];
+};
 export type TxAllowlist = { chainId: number; entries: AllowlistEntry[] };
 
 export function buildAllowlist(input: {
@@ -47,6 +55,8 @@ export function buildAllowlist(input: {
   feeEscrow: Address;
   /** ERC-20 quote tokens an approval may target (never native). */
   approvalTargets?: Address[];
+  /** Contracts an approval may name as spender; the factory alone by default. */
+  approvalSpenders?: Address[];
 }): TxAllowlist {
   const entries: AllowlistEntry[] = [
     { kind: "createLaunch", to: getAddress(input.factory) },
@@ -55,8 +65,9 @@ export function buildAllowlist(input: {
     { kind: "feeClaimFor", to: getAddress(input.feeEscrow) },
     { kind: "feeClaimTo", to: getAddress(input.feeEscrow) },
   ];
+  const spenders = (input.approvalSpenders ?? [input.factory]).map((a) => getAddress(a));
   for (const token of input.approvalTargets ?? []) {
-    entries.push({ kind: "erc20Approve", to: getAddress(token) });
+    entries.push({ kind: "erc20Approve", to: getAddress(token), spenders });
   }
   return { chainId: input.chainId, entries };
 }
@@ -82,10 +93,26 @@ export function checkTransaction(allowlist: TxAllowlist, tx: TxLike): TxCheck {
     return { ok: false, reason: "plain value transfers and calls without a selector are not allowed" };
   }
   const selector = data.slice(0, 10).toLowerCase() as Hex;
-  for (const entry of allowlist.entries) {
-    if (entry.to === to && TX_SELECTORS[entry.kind] === selector) {
-      return { ok: true, kind: entry.kind, selector };
+  const entry = allowlist.entries.find((e) => e.to === to && TX_SELECTORS[e.kind] === selector);
+  if (!entry) return { ok: false, reason: `selector ${selector} to ${to} is not allow-listed` };
+
+  // The selector says which function; the arguments must decode as that
+  // function too, so truncated or padded calldata never gets a signature.
+  let args: readonly unknown[];
+  try {
+    const decoded = decodeFunctionData({ abi: TX_ABI, data: data as Hex });
+    args = decoded.args ?? [];
+  } catch {
+    return { ok: false, reason: `calldata does not decode as ${TX_SIGNATURES[entry.kind]}` };
+  }
+
+  // An approval is only ever for the contract that will pull the tokens.
+  if (entry.kind === "erc20Approve") {
+    const spender = args[0];
+    if (typeof spender !== "string" || !isAddress(spender)) return { ok: false, reason: "approve spender is not an address" };
+    if (!(entry.spenders ?? []).includes(getAddress(spender))) {
+      return { ok: false, reason: `approve spender ${getAddress(spender)} is not allow-listed` };
     }
   }
-  return { ok: false, reason: `selector ${selector} to ${to} is not allow-listed` };
+  return { ok: true, kind: entry.kind, selector };
 }

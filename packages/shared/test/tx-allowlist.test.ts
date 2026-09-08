@@ -37,6 +37,20 @@ describe("checkTransaction", () => {
     expect(checkTransaction(list, { chainId: 4663, to: SOMEONE, data }).ok).toBe(false);
   });
 
+  it("decodes the approval and refuses any spender but the factory", () => {
+    const data = encodeFunctionData({ abi, functionName: "approve", args: [SOMEONE, 2n ** 256n - 1n] });
+    expect(checkTransaction(list, { chainId: 4663, to: USDG, data })).toMatchObject({ ok: false, reason: expect.stringContaining("spender") });
+    const custom = buildAllowlist({ chainId: 4663, factory: FACTORY, feeEscrow: ESCROW, approvalTargets: [USDG], approvalSpenders: [SOMEONE] });
+    expect(checkTransaction(custom, { chainId: 4663, to: USDG, data }).ok).toBe(true);
+    expect(checkTransaction(custom, { chainId: 4663, to: USDG, data: encodeFunctionData({ abi, functionName: "approve", args: [FACTORY, 1n] }) }).ok).toBe(false);
+  });
+
+  it("refuses calldata that carries an allowed selector but does not decode as that function", () => {
+    const truncated = TX_SELECTORS.setCreatorFeeRecipient + "00".repeat(20);
+    expect(checkTransaction(list, { chainId: 4663, to: FACTORY, data: truncated })).toMatchObject({ ok: false, reason: expect.stringContaining("decode") });
+    expect(checkTransaction(list, { chainId: 4663, to: FACTORY, data: TX_SELECTORS.createLaunch }).ok).toBe(false);
+  });
+
   it("rejects an allow-listed selector sent to the wrong contract", () => {
     const data = encodeFunctionData({ abi, functionName: "setCreatorFeeRecipient", args: [SOMEONE, SOMEONE] });
     expect(checkTransaction(list, { chainId: 4663, to: ESCROW, data }).ok).toBe(false);
@@ -52,7 +66,7 @@ describe("checkTransaction", () => {
   });
 
   it("matches the address case-insensitively", () => {
-    const data = TX_SELECTORS.createLaunch;
+    const data = encodeFunctionData({ abi, functionName: "setCreatorFeeRecipient", args: [SOMEONE, SOMEONE] });
     expect(checkTransaction(list, { chainId: 4663, to: FACTORY.toLowerCase(), data }).ok).toBe(true);
   });
 });
