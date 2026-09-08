@@ -1,0 +1,35 @@
+# Claude security review on every pull request. The bot signs from user
+# wallets, so every change to the signer, the allow-list, the executor or
+# the env handling gets an adversarial read before it can reach main.
+# Needs the ANTHROPIC_API_KEY repository secret; findings land as PR
+# comments and as a downloadable results artifact.
+name: security-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: security-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Claude security review
+        uses: anthropics/claude-code-security-review@main
+        with:
+          claude-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          comment-pr: true
+          upload-results: true
+          exclude-directories: "docs,abis,notes,deploy"
+          custom-security-scan-instructions: ".github/security-scan.md"
