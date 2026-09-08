@@ -988,3 +988,18 @@ svg {
     display: block;
   }
 }
+
+/* Never let anything push the page sideways on small screens. */
+html,
+body {
+  overflow-x: hidden;
+}
+@media (max-width: 560px) {
+  .footer-in {
+    grid-template-columns: 1fr;
+  }
+  .top {
+    padding: 0 14px;
+    gap: 14px;
+  }
+}

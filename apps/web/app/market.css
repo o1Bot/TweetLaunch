@@ -738,3 +738,151 @@ a.row:hover {
   color: inherit;
   text-decoration: underline;
 }
+
+/* ---------- responsive fixes ----------
+   Grid tracks default to min-content, so a wide trades table or a long
+   address used to stretch the page sideways; minmax(0, 1fr) and min-width: 0
+   keep every column inside the viewport, and wide tables scroll in .pane. */
+.tp {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+.tp > * {
+  min-width: 0;
+}
+.thead .t {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+.thead .t .l1 {
+  flex-wrap: wrap;
+}
+.thead .t .l2,
+.thead .t .about .links {
+  overflow-wrap: anywhere;
+}
+.genesis > * {
+  min-width: 0;
+}
+.genesis .body {
+  overflow-wrap: anywhere;
+}
+.card2 .kv {
+  gap: 12px;
+}
+.card2 .kv b {
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.swap .in input {
+  min-width: 0;
+  width: 100%;
+}
+.toolbar {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1000px) {
+  /* Seven cells, four columns: the trailing arrow used to wrap into a second line. */
+  .row .arrow {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    padding: 16px 14px 48px;
+  }
+  .hero h1 {
+    font-size: 32px;
+  }
+  .hero p {
+    font-size: 15px;
+  }
+  .hero-cta {
+    flex-wrap: wrap;
+  }
+  .hero-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 18px;
+  }
+  .hero-stats b {
+    font-size: 18px;
+  }
+  .row {
+    grid-template-columns: 36px minmax(0, 1fr) 82px 58px;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .row.head {
+    padding: 8px 12px;
+  }
+  .row .logo {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
+  }
+  .tok .nm {
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 14px;
+  }
+  .tok .post {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  .row .num {
+    font-size: 13px;
+  }
+  .thead {
+    padding: 14px;
+    gap: 12px;
+  }
+  .thead .t h1 {
+    font-size: 22px;
+  }
+  .genesis {
+    grid-template-columns: 40px minmax(0, 1fr);
+    padding: 12px 14px;
+  }
+  .genesis .av {
+    width: 40px;
+    height: 40px;
+  }
+  .genesis .side {
+    grid-column: 1 / -1;
+    text-align: left;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .genesis .side b {
+    display: inline;
+  }
+  .genesis .side .ok {
+    margin-top: 0;
+  }
+  .genesis .body {
+    font-size: 15px;
+  }
+  .genesis .meta {
+    flex-wrap: wrap;
+    gap: 8px 14px;
+  }
+  .chartbox {
+    padding: 12px;
+  }
+  .chartbox .ch {
+    flex-wrap: wrap;
+  }
+  .tabs {
+    overflow-x: auto;
+  }
+  .swap {
+    padding: 14px;
+  }
+}
