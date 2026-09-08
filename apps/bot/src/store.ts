@@ -1,3 +1,4 @@
+import { getAddress } from "viem";
 import { db, Prisma } from "@o1bot/db";
 
 /**
@@ -9,7 +10,10 @@ import { db, Prisma } from "@o1bot/db";
 
 export type MentionStatusValue = "RECEIVED" | "PARSED" | "CLARIFY" | "NOT_REGISTERED" | "REJECTED" | "QUEUED" | "DONE" | "FAILED";
 export type LaunchStatusValue = "DRY_RUN" | "QUEUED" | "SIMULATING" | "SIGNING" | "BROADCAST" | "CONFIRMED" | "FEE_RECIPIENT_PENDING" | "REPLIED" | "FAILED";
-export type SignedTxKindValue = "CREATE_LAUNCH" | "CREATE_LAUNCH_AND_BUY" | "ERC20_APPROVE" | "SET_CREATOR_FEE_RECIPIENT" | "FEE_CLAIM";
+export type SignedTxKindValue = "CREATE_LAUNCH" | "CREATE_LAUNCH_AND_BUY" | "ERC20_APPROVE" | "SET_CREATOR_FEE_RECIPIENT" | "FEE_CLAIM" | "PERMIT2_APPROVE" | "ROUTER_EXECUTE";
+export type TradeStatusValue = "DRY_RUN" | "QUEUED" | "SIGNING" | "CONFIRMED" | "REPLIED" | "FAILED";
+/** Trade statuses that count against a user's rate limits. */
+export const COUNTED_TRADE_STATUSES: TradeStatusValue[] = ["DRY_RUN", "SIGNING", "CONFIRMED", "REPLIED"];
 
 /** Launch statuses that count against a user's rate limits. */
 export const COUNTED_LAUNCH_STATUSES: LaunchStatusValue[] = ["DRY_RUN", "SIGNING", "BROADCAST", "CONFIRMED", "FEE_RECIPIENT_PENDING", "REPLIED"];
@@ -100,6 +104,42 @@ export type WebLaunchJob = {
   imageData: Uint8Array | null;
 };
 
+/** A pool the bot launched, as much of it as a trade needs. */
+export type TradableToken = {
+  token: string;
+  symbol: string;
+  name: string;
+  quoteAddress: string;
+  quoteSymbol: string;
+  tickSpacing: number;
+  hook: string;
+  poolId: string;
+  launchedAt: Date;
+};
+
+export type TradingSettings = { enabled: boolean; maxTradeWei: bigint | null };
+
+export type NewTrade = {
+  mentionId: string | null;
+  userId: string;
+  chainId: number;
+  token: string;
+  side: "BUY" | "SELL";
+  amountInWei: bigint;
+  minAmountOut: bigint | null;
+  slippageBps: number;
+  status: TradeStatusValue;
+};
+
+export type TradePatch = {
+  status?: TradeStatusValue;
+  amountOut?: bigint | null;
+  minAmountOut?: bigint | null;
+  txHash?: string | null;
+  error?: string | null;
+  userMessage?: string | null;
+};
+
 export type SignedTxRecord = {
   launchId: string | null;
   tweetId: string;
@@ -132,6 +172,14 @@ export interface BotStore {
   resetMentionForRerun(tweetId: string): Promise<{ reset: boolean; reason: string }>;
   /** Oldest queued web launch, atomically moved to SIMULATING so no other worker takes it. Null when none. */
   claimQueuedWebLaunch(): Promise<WebLaunchJob | null>;
+  /** Bot-launched pools matching a ticker (case-insensitive, oldest first) or exactly one address. */
+  findTradableTokens(query: { ticker?: string | null; address?: string | null }): Promise<TradableToken[]>;
+  /** The user's trading opt-in and cap; null when the user is unknown. */
+  tradingSettings(xUserId: string): Promise<TradingSettings | null>;
+  tradeCountSince(xUserId: string, since: Date): Promise<number>;
+  lastTradeAt(xUserId: string): Promise<Date | null>;
+  createTrade(t: NewTrade): Promise<{ id: string }>;
+  updateTrade(id: string, patch: TradePatch): Promise<void>;
 }
 
 export class PrismaBotStore implements BotStore {
@@ -235,6 +283,56 @@ export class PrismaBotStore implements BotStore {
   async recordSignedTx(rec: SignedTxRecord) {
     await db().signedTransaction.create({ data: { ...rec, txHash: rec.txHash ?? null } });
   }
+  async findTradableTokens(query: { ticker?: string | null; address?: string | null }) {
+    const where = query.address ? { token: getAddress(query.address) } : query.ticker ? { symbol: { equals: query.ticker, mode: "insensitive" as const } } : null;
+    if (!where) return [];
+    const rows = await db().pool.findMany({
+      where: { source: "BOT", ...where },
+      orderBy: { launchedAt: "asc" },
+      select: { token: true, symbol: true, name: true, quoteAddress: true, quoteSymbol: true, tickSpacing: true, hook: true, poolId: true, launchedAt: true },
+    });
+    return rows;
+  }
+  async tradingSettings(xUserId: string) {
+    const row = await db().user.findUnique({ where: { xUserId }, select: { tradingEnabled: true, maxTradeWei: true } });
+    if (!row) return null;
+    return { enabled: row.tradingEnabled, maxTradeWei: row.maxTradeWei ? BigInt(row.maxTradeWei) : null };
+  }
+  async tradeCountSince(xUserId: string, since: Date) {
+    return db().trade.count({ where: { user: { xUserId }, status: { in: COUNTED_TRADE_STATUSES }, createdAt: { gte: since } } });
+  }
+  async lastTradeAt(xUserId: string) {
+    const row = await db().trade.findFirst({ where: { user: { xUserId }, status: { in: COUNTED_TRADE_STATUSES } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
+    return row?.createdAt ?? null;
+  }
+  async createTrade(t: NewTrade) {
+    const row = await db().trade.create({
+      data: {
+        mentionId: t.mentionId,
+        userId: t.userId,
+        chainId: t.chainId,
+        token: t.token,
+        side: t.side,
+        amountInWei: t.amountInWei.toString(),
+        minAmountOut: t.minAmountOut === null ? null : t.minAmountOut.toString(),
+        slippageBps: t.slippageBps,
+        status: t.status,
+      },
+      select: { id: true },
+    });
+    return { id: row.id };
+  }
+  async updateTrade(id: string, patch: TradePatch) {
+    const { amountOut, minAmountOut, ...rest } = patch;
+    await db().trade.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(amountOut !== undefined ? { amountOut: amountOut === null ? null : amountOut.toString() } : {}),
+        ...(minAmountOut !== undefined ? { minAmountOut: minAmountOut === null ? null : minAmountOut.toString() } : {}),
+      },
+    });
+  }
   async resetMentionForRerun(tweetId: string) {
     const mention = await db().mention.findUnique({ where: { tweetId }, include: { launch: { include: { signedTxs: true, pool: true } } } });
     if (!mention) return { reset: false, reason: "never processed" };
@@ -254,6 +352,10 @@ export class MemoryBotStore implements BotStore {
   users: Array<UserUpsert & { id: string }> = [];
   launches: Array<NewLaunch & { id: string; createdAt: Date } & LaunchPatch> = [];
   signedTxs: SignedTxRecord[] = [];
+  /** Seeded by tests: pools the bot launched. */
+  pools: TradableToken[] = [];
+  trading = new Map<string, TradingSettings>();
+  trades: Array<NewTrade & { id: string; createdAt: Date } & TradePatch> = [];
   private seq = 0;
   now: () => Date = () => new Date();
 
@@ -325,6 +427,30 @@ export class MemoryBotStore implements BotStore {
   }
   async recordSignedTx(rec: SignedTxRecord) {
     this.signedTxs.push(rec);
+  }
+  async findTradableTokens(query: { ticker?: string | null; address?: string | null }) {
+    if (query.address) return this.pools.filter((p) => p.token.toLowerCase() === query.address!.toLowerCase());
+    if (query.ticker) return this.pools.filter((p) => p.symbol.toLowerCase() === query.ticker!.toLowerCase()).sort((a, b) => a.launchedAt.getTime() - b.launchedAt.getTime());
+    return [];
+  }
+  async tradingSettings(xUserId: string) {
+    return this.trading.get(xUserId) ?? (this.users.some((u) => u.xUserId === xUserId) ? { enabled: false, maxTradeWei: null } : null);
+  }
+  async tradeCountSince(xUserId: string, since: Date) {
+    return this.trades.filter((t) => this.userXId(t.userId) === xUserId && COUNTED_TRADE_STATUSES.includes(t.status) && t.createdAt >= since).length;
+  }
+  async lastTradeAt(xUserId: string) {
+    const rows = this.trades.filter((t) => this.userXId(t.userId) === xUserId && COUNTED_TRADE_STATUSES.includes(t.status));
+    return rows.length ? rows[rows.length - 1]!.createdAt : null;
+  }
+  async createTrade(t: NewTrade) {
+    const id = `t${++this.seq}`;
+    this.trades.push({ ...t, id, createdAt: this.now() });
+    return { id };
+  }
+  async updateTrade(id: string, patch: TradePatch) {
+    const row = this.trades.find((x) => x.id === id);
+    if (row) Object.assign(row, patch);
   }
   async resetMentionForRerun(tweetId: string) {
     const mention = this.mentions.find((m) => m.tweetId === tweetId);

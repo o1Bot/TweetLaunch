@@ -57,13 +57,15 @@ export type LaunchCoreResult =
 
 export type LaunchCoreDeps = Pick<PipelineDeps, "store" | "config" | "prepareMetadata" | "plan" | "execute" | "setFeeRecipient">;
 
-const SIGNED_KIND: Record<AllowedTxKind, SignedTxKindValue> = {
+export const SIGNED_KIND: Record<AllowedTxKind, SignedTxKindValue> = {
   createLaunch: "CREATE_LAUNCH",
   createLaunchAndBuy: "CREATE_LAUNCH_AND_BUY",
   erc20Approve: "ERC20_APPROVE",
   setCreatorFeeRecipient: "SET_CREATOR_FEE_RECIPIENT",
   feeClaimFor: "FEE_CLAIM",
   feeClaimTo: "FEE_CLAIM",
+  permit2Approve: "PERMIT2_APPROVE",
+  routerExecute: "ROUTER_EXECUTE",
 };
 
 /** Short, user-facing phrasing for plan / execution failures that are not the user's fault. */

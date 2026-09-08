@@ -9,6 +9,7 @@ import type { BotConfig } from "../src/config";
 import type { WalletRef } from "../src/execute";
 import { processMention, type PipelineDeps } from "../src/pipeline";
 import { MemoryBotStore } from "../src/store";
+import { dryRunTradeChain } from "../src/trade-chain";
 
 /**
  * The whole pipeline with fakes: no X, no Anthropic, no Privy, no chain.
@@ -63,6 +64,11 @@ function config(over: Partial<BotConfig> = {}): BotConfig {
     maxLaunchesPerDay: 5,
     maxRepliesPerDay: 8,
     maxDevBuyWei: parseEther("1"),
+    maxTradeWei: parseEther("0.5"),
+    defaultUserTradeCapWei: parseEther("0.1"),
+    tradeCooldownSeconds: 30,
+    maxTradesPerDay: 20,
+    tradeSlippageBps: 300,
     siteUrl: "https://o1bot.exchange",
     botHandle: "o1bot_exchange",
     botUserId: "999",
@@ -157,6 +163,7 @@ function harness(over: Partial<BotConfig> = {}): Harness {
       await audit({ kind: "setCreatorFeeRecipient", chainId: 4663, wallet: wallet.address, to: input.factory, calldataHash: `0x${"01".repeat(32)}`, valueWei: "0" });
       return FEE_TX;
     },
+    trade: dryRunTradeChain(),
     now: () => new Date("2026-09-07T10:00:00Z"),
   };
   return h;

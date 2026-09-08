@@ -22,6 +22,8 @@ type Me = {
   balances: Array<{ chain: string; eth: string | null }>;
 };
 
+type Trading = { enabled: boolean; maxTradeEth: string | null; defaultCapEth: string; maxCapEth: string };
+
 type Overview = {
   wallet: string | null;
   assets: Array<{ address: string; symbol: string; name: string; imageUrl: string | null; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null }>;
@@ -58,16 +60,46 @@ export function Profile() {
   const [claiming, setClaiming] = useState<string | null>(null);
   const [claimTx, setClaimTx] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [trading, setTrading] = useState<Trading | null>(null);
+  const [capDraft, setCapDraft] = useState<string>("");
+  const [savingTrading, setSavingTrading] = useState(false);
 
   const load = useCallback(async () => {
     const token = await getAccessToken();
     if (!token) return;
     const headers = { authorization: `Bearer ${token}` };
-    const [meRes, ovRes] = await Promise.all([fetch("/api/me", { headers }), fetch("/api/me/overview", { headers })]);
+    const [meRes, ovRes, trRes] = await Promise.all([fetch("/api/me", { headers }), fetch("/api/me/overview", { headers }), fetch("/api/me/trading", { headers })]);
     if (meRes.ok) setMe((await meRes.json()) as Me);
     if (ovRes.ok) setOverview((await ovRes.json()) as Overview);
     else setError(`Could not load your profile (HTTP ${ovRes.status}).`);
+    if (trRes.ok) {
+      const t = (await trRes.json()) as Trading;
+      setTrading(t);
+      setCapDraft(t.maxTradeEth ?? "");
+    }
   }, [getAccessToken]);
+
+  const saveTrading = useCallback(
+    async (patch: { enabled?: boolean; maxTradeEth?: string | null }) => {
+      const token = await getAccessToken();
+      if (!token) return;
+      setSavingTrading(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/me/trading", { method: "PATCH", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(patch) });
+        const json = (await res.json()) as Trading & { error?: string };
+        if (!res.ok) {
+          setError(json.error ?? `Could not save (HTTP ${res.status}).`);
+          return;
+        }
+        setTrading(json);
+        setCapDraft(json.maxTradeEth ?? "");
+      } finally {
+        setSavingTrading(false);
+      }
+    },
+    [getAccessToken],
+  );
 
   useEffect(() => {
     if (ready && authenticated) void load();
@@ -313,6 +345,41 @@ export function Profile() {
               ))}
             </tbody>
           </table>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Trading from posts</h2>
+        <p className="sub">
+          Off by default. When on, a post like <b>@o1bot_exchange buy 0.05 ETH of $CAT</b> or <b>sell half of $CAT</b> trades from this wallet, on ETH pools of tokens launched here, up to
+          your cap per trade. The output always lands in this wallet; the bot cannot send funds anywhere.
+        </p>
+        {trading === null ? (
+          <div className="hint">Loading…</div>
+        ) : (
+          <div className="trade-set">
+            <label className="switch">
+              <input type="checkbox" checked={trading.enabled} disabled={savingTrading || !me?.linked} onChange={(e) => void saveTrading({ enabled: e.target.checked })} />
+              <span>{trading.enabled ? "On" : "Off"}</span>
+              {!me?.linked && <span className="hint">Allow bot signing above first.</span>}
+            </label>
+            <div className="cap">
+              <span>Per-trade cap</span>
+              <input
+                inputMode="decimal"
+                placeholder={trading.defaultCapEth}
+                value={capDraft}
+                disabled={savingTrading}
+                onChange={(e) => setCapDraft(e.target.value)}
+                aria-label="Per-trade cap in ETH"
+              />
+              <span>ETH</span>
+              <button className="btn-s" disabled={savingTrading || capDraft === (trading.maxTradeEth ?? "")} onClick={() => void saveTrading({ maxTradeEth: capDraft.trim() === "" ? null : capDraft.trim() })}>
+                {savingTrading ? "Saving…" : "Save"}
+              </button>
+              <span className="hint">Empty = {trading.defaultCapEth} ETH. Ceiling {trading.maxCapEth} ETH.</span>
+            </div>
+          </div>
         )}
       </section>
     </>

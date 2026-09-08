@@ -8,6 +8,7 @@ import type { BotConfig } from "../src/config";
 import type { PipelineDeps } from "../src/pipeline";
 import { MemoryBotStore, type NewLaunch } from "../src/store";
 import { drainWebLaunches, processWebLaunch } from "../src/web-launches";
+import { dryRunTradeChain } from "../src/trade-chain";
 
 const ALICE_WALLET: Address = getAddress("0x1111111111111111111111111111111111111111");
 const TOKEN: Address = getAddress("0x0ab6bf0ffa6d5c5aaa8fc94a8fb2f4ea2f4f5c01");
@@ -24,6 +25,11 @@ function config(over: Partial<BotConfig> = {}): BotConfig {
     maxLaunchesPerDay: 5,
     maxRepliesPerDay: 8,
     maxDevBuyWei: parseEther("1"),
+    maxTradeWei: parseEther("0.5"),
+    defaultUserTradeCapWei: parseEther("0.1"),
+    tradeCooldownSeconds: 30,
+    maxTradesPerDay: 20,
+    tradeSlippageBps: 300,
     siteUrl: "https://o1bot.exchange",
     botHandle: "o1bot_exchange",
     botUserId: "999",
@@ -90,6 +96,7 @@ function harness(over: Partial<BotConfig> = {}) {
       return { txHash: TX, token: plan.salt.token, poolId: POOL_ID, blockNumber: 2n, gasUsed: 1n };
     },
     setFeeRecipient: async () => TX,
+    trade: dryRunTradeChain(),
     now: () => new Date("2026-09-08T10:00:00Z"),
   };
   return { store, x, deps, state };

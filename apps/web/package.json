@@ -15,6 +15,7 @@
     "@o1bot/market": "workspace:*",
     "@o1bot/parser": "workspace:*",
     "@o1bot/shared": "workspace:*",
+    "@o1bot/swap": "workspace:*",
     "@o1bot/wallet": "workspace:*",
     "@privy-io/react-auth": "^3.40.0",
     "next": "^16.3.4",

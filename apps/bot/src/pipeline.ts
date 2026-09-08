@@ -9,6 +9,8 @@ import type { AuditSink, ExecutionResult, WalletRef } from "./execute";
 import { runLaunch } from "./launch-core";
 import { clampReply, formatEthCeil, replies } from "./replies";
 import type { BotStore, MentionStatusValue } from "./store";
+import type { TradeChain } from "./trade-core";
+import { handleTrade } from "./trade-handler";
 import { checkDevBuy, checkFeesToHandle, checkRate, startOfUtcDay } from "./validator";
 
 /**
@@ -37,6 +39,8 @@ export type PipelineDeps = {
   plan: (req: LaunchRequest) => Promise<PlanResult>;
   execute: (plan: LaunchPlan, wallet: WalletRef, audit: AuditSink) => Promise<ExecutionResult>;
   setFeeRecipient: (input: { factory: Address; chainId: number; token: Address; recipient: Address }, wallet: WalletRef, audit: AuditSink) => Promise<Hex>;
+  /** Chain reads and the signing of a trade from a post. */
+  trade: TradeChain;
   now?: () => Date;
 };
 
@@ -46,6 +50,8 @@ export type PipelineOutcome =
   | { outcome: "replied"; kind: "help" | "clarify" | "unsupported_chain" | "not_registered" | "rejected"; reply: string | null }
   | { outcome: "dry_run"; launchId: string; token: Address; reply: string }
   | { outcome: "launched"; launchId: string; token: Address; txHash: Hex; feeRecipientTxHash: Hex | null; reply: string | null }
+  | { outcome: "trade_dry_run"; tradeId: string; reply: string }
+  | { outcome: "traded"; tradeId: string; txHash: Hex; reply: string | null }
   | { outcome: "failed"; error: string; reply: string | null; launchId: string | null };
 
 type ReplyResult = { text: string; tweetId: string | null; posted: boolean; error: string | null };
@@ -168,10 +174,12 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
     }
     case "launch":
       return handleLaunch(result, { mention, mentionId, deps, now, log, reply, setMention });
+    case "trade":
+      return handleTrade(result, { mention, mentionId, deps, now, log, reply, setMention });
   }
 }
 
-type LaunchContext = {
+export type MentionContext = {
   mention: XMention;
   mentionId: string;
   deps: PipelineDeps;
@@ -181,7 +189,7 @@ type LaunchContext = {
   setMention: (status: MentionStatusValue, extra?: { error?: string | null }) => Promise<void>;
 };
 
-async function handleLaunch(cmd: LaunchCommand, ctx: LaunchContext): Promise<PipelineOutcome> {
+async function handleLaunch(cmd: LaunchCommand, ctx: MentionContext): Promise<PipelineOutcome> {
   const { mention, mentionId, deps, now, log, reply, setMention } = ctx;
   const { store, config } = deps;
 

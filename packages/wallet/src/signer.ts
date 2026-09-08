@@ -61,7 +61,7 @@ export async function guardedAccount(input: GuardedAccountInput): Promise<LocalA
     signTypedData: refuse("typed data"),
     signAuthorization: refuse("EIP-7702 authorization"),
     async signTransaction(tx, options) {
-      const check = checkTransaction(input.allowlist, { chainId: tx.chainId, to: tx.to, data: tx.data });
+      const check = checkTransaction(input.allowlist, { chainId: tx.chainId, to: tx.to, data: tx.data, value: tx.value });
       if (!check.ok) {
         logger.warn({ wallet: input.address, to: tx.to, reason: check.reason }, "refused to sign");
         throw new TxNotAllowedError(check.reason);

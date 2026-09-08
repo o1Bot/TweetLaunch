@@ -8,6 +8,7 @@ import { ensureWalletForXUser, findUserByXUserId, linkStatus, type EnsureWalletI
 import { FakeXClient, HttpXClient, type XClient, type XMention } from "@o1bot/x";
 import { botConfig, type BotConfig } from "./config";
 import { executeLaunchPlan, setCreatorFeeRecipient } from "./execute";
+import { dryRunTradeChain, liveTradeChain } from "./trade-chain";
 import { processMention, type PipelineDeps } from "./pipeline";
 import { BullQueue, MemoryQueue, type JobQueue } from "./queue";
 import { MemoryBotStore, PrismaBotStore, type BotStore } from "./store";
@@ -103,6 +104,8 @@ function buildDeps(cfg: BotConfig, args: CliArgs, store: BotStore, x: XClient): 
   const e = env();
   const privyConfigured = Boolean(e.PRIVY_APP_ID && e.PRIVY_APP_SECRET);
   const pinataConfigured = Boolean(e.PINATA_JWT);
+  // Trades need a chain to quote and sign against; without one (DB-less dry runs) a stand-in answers with fixed prices.
+  const rpcConfigured = Boolean(e.RPC_ROBINHOOD) || !cfg.dryRun;
 
   const need = (what: string, envVar: string) => {
     if (!cfg.dryRun) throw new Error(`${envVar} is required when DRY_RUN=false (${what})`);
@@ -155,6 +158,7 @@ function buildDeps(cfg: BotConfig, args: CliArgs, store: BotStore, x: XClient): 
     plan: (req: LaunchRequest) => planLaunch(req, { fundSimulation: true }),
     execute: (plan, wallet, audit) => executeLaunchPlan(plan, wallet, audit),
     setFeeRecipient: (input, wallet, audit) => setCreatorFeeRecipient(input, wallet, audit),
+    trade: rpcConfigured ? liveTradeChain() : dryRunTradeChain(),
   };
 }
 

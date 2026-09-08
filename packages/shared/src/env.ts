@@ -84,6 +84,15 @@ const schema = z.object({
 
   MAX_LAUNCHES_PER_USER_PER_DAY: z.coerce.number().int().positive().default(5),
   LAUNCH_COOLDOWN_SECONDS: z.coerce.number().int().nonnegative().default(600),
+
+  /** Trades from posts. The hard per-trade cap in ETH; a user's own cap can only be lower. */
+  MAX_TRADE_ETH: z.string().default("0.5"),
+  /** Per-trade cap applied when a user enables trading without setting one, in ETH. */
+  DEFAULT_USER_TRADE_CAP_ETH: z.string().default("0.1"),
+  TRADE_COOLDOWN_SECONDS: z.coerce.number().int().nonnegative().default(30),
+  MAX_TRADES_PER_USER_PER_DAY: z.coerce.number().int().positive().default(20),
+  /** Slippage applied to a trade from a post when the user names none, in basis points. */
+  TRADE_SLIPPAGE_BPS: z.coerce.number().int().min(10).max(1000).default(300),
 });
 
 export type Env = z.infer<typeof schema>;

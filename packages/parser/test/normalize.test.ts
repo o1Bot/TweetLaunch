@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeParseOutput, cleanDescription, cleanWebsite, cleanTelegram, cleanXHandle } from "../src/normalize";
+import { normalizeParseOutput, cleanDescription, cleanWebsite, cleanTelegram, cleanXHandle, oneLinkOnly } from "../src/normalize";
 import type { ParseOutput } from "../src/schema";
 
 const base: ParseOutput = {
@@ -15,6 +15,9 @@ const base: ParseOutput = {
   website: null,
   telegram: null,
   x_handle: null,
+  trade_side: null,
+  trade_amount: null,
+  trade_slippage_pct: null,
   missing: [],
   question: null,
   reply: null,
@@ -95,5 +98,15 @@ describe("metadata extras", () => {
     expect(cleanXHandle("https://x.com/CashCatToken")).toBe("cashcattoken");
     expect(cleanXHandle("https://twitter.com/CashCatToken/")).toBe("cashcattoken");
     expect(cleanXHandle("this is not a handle")).toBeNull();
+  });
+});
+
+describe("oneLinkOnly", () => {
+  it("keeps the first link and drops the rest", () => {
+    expect(oneLinkOnly("Sign in at https://o1bot.exchange then post. See https://o1bot.exchange/how-it-works")).toBe("Sign in at https://o1bot.exchange then post.");
+    expect(oneLinkOnly("Docs: https://docs.o1bot.exchange")).toBe("Docs: https://docs.o1bot.exchange");
+    expect(oneLinkOnly("no links here")).toBe("no links here");
+    const r = normalizeParseOutput({ ...base, kind: "help", reply: "One https://a.example/x and two https://b.example/y." }, { hasImage: false });
+    expect(r.kind === "help" && (r.reply.match(/https?:\/\//g) ?? []).length).toBe(1);
   });
 });
