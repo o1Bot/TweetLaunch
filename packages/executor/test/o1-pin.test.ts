@@ -69,7 +69,7 @@ describe("pinViaO1", () => {
     const fetchImpl = vi.fn(respond(200, okJson));
     const out = await pinViaO1(input, fetchImpl as unknown as typeof fetch);
     expect(out).toEqual({ metadataUri: "ipfs://bafkreimeta", imageUri: "ipfs://bafkreiimage", imageUrl: okJson.data.image_url });
-    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.example.test/v1/launches/prepare");
     const headers = init.headers as Record<string, string>;
     expect(headers["x-api-key"]).toBe("test-key");

@@ -122,6 +122,8 @@ export const replies = {
   insufficientSafe: (shortfallEth: string, siteUrl: string) =>
     `Your wallet is ${shortfallEth} ETH short for this launch. Sign in at ${siteUrl} to see your deposit address, top up, then post again.`,
 
+  insufficientSafeUnknown: (siteUrl: string) => `Your wallet does not hold enough ETH for this launch. Sign in at ${siteUrl} to see your deposit address, top up, then post again.`,
+
   devBuyNoRoute: (pair: string) => `There is no liquid route from ETH to ${pair} for a dev buy right now. Post again without "devbuy" to launch anyway.`,
 
   launchFailed: (detail: string) => `The launch did not go through (${detail}). Nothing was spent except gas, if any. Post the full launch command again to retry.`,

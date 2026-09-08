@@ -109,7 +109,9 @@ export type LaunchPlan = {
   };
   funding: {
     valueWei: bigint;
+    /** Fee cap the broadcast must reuse, so the node never asks for more than what was checked here. */
     maxFeePerGas: bigint;
+    maxPriorityFeePerGas: bigint;
     gasWei: bigint;
     requiredWei: bigint;
     balanceWei: bigint;
@@ -123,6 +125,14 @@ export type PlanResult = { ok: true; plan: LaunchPlan } | PlanFailure;
 const ZERO_SALT = `0x${"0".repeat(64)}` as Hex;
 /** ~1.3× gas observed on live Robinhood launches (1.90M plain, 2.19M with dev buy). */
 const GAS_FALLBACK: Record<LaunchCall["functionName"], bigint> = { createLaunch: 2_500_000n, createLaunchAndBuy: 2_900_000n };
+/**
+ * Headroom on the fee estimate between planning and broadcast. Robinhood
+ * charges only the block base fee (Arbitrum Nitro refunds the rest of the
+ * cap), so a generous cap costs nothing when unused; it only raises the
+ * balance the funding check asks for. The base fee here moves by about 2%
+ * per block, so 1.5× over viem's own 1.2× estimate is ample.
+ */
+const FEE_CAP_PCT = 150n;
 /** Simulation failures that are about the launch itself, not the route: stop trying other routes. */
 const ROUTE_INDEPENDENT_KINDS: ReadonlySet<LaunchErrorKind> = new Set([
   "stale_config",
@@ -317,20 +327,26 @@ export async function planLaunch(req: LaunchRequest, opts: PlanOptions = {}): Pr
     simulation = { ...simulation, gas: GAS_FALLBACK[call.functionName], gasSource: "fallback" };
   }
 
-  // 9. Funding check against the real balance (never the virtual one).
+  // 9. Funding check against the real balance (never the virtual one). The
+  // fee cap is fixed here and the broadcast reuses it: a wallet client left
+  // to estimate on its own asked for 2.4× the base fee once and the node
+  // refused a launch the check had passed.
   let funding: LaunchPlan["funding"];
   try {
     let maxFeePerGas: bigint;
+    let maxPriorityFeePerGas = 0n;
     try {
       const fees = await client.estimateFeesPerGas();
+      maxPriorityFeePerGas = fees.maxPriorityFeePerGas ?? 0n;
       maxFeePerGas = fees.maxFeePerGas ?? (await client.getGasPrice());
     } catch {
       maxFeePerGas = await client.getGasPrice();
     }
+    maxFeePerGas = (maxFeePerGas * FEE_CAP_PCT) / 100n;
     const gasWei = simulation.gas * maxFeePerGas;
     const balanceWei = await client.getBalance({ address: creator });
     const requiredWei = call.value + gasWei;
-    funding = { valueWei: call.value, maxFeePerGas, gasWei, requiredWei, balanceWei, shortfallWei: requiredWei > balanceWei ? requiredWei - balanceWei : 0n };
+    funding = { valueWei: call.value, maxFeePerGas, maxPriorityFeePerGas, gasWei, requiredWei, balanceWei, shortfallWei: requiredWei > balanceWei ? requiredWei - balanceWei : 0n };
   } catch (err) {
     return failure("funding", "rpc_error", `funding check failed: ${msg(err)}`);
   }

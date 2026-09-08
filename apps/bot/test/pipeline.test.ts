@@ -83,7 +83,7 @@ function fakePlan(over: { shortfallWei?: bigint; devBuy?: bigint } = {}): PlanRe
     route: null,
     routeAttempts: [],
     simulation: { token: TOKEN, poolId: POOL_ID, amountOut: null, gas: 2_000_000n, gasSource: "fallback" },
-    funding: { valueWei: value, maxFeePerGas: 1n, gasWei: 2_000_000n, requiredWei: value + 2_000_000n, balanceWei: 0n, shortfallWei: over.shortfallWei ?? 0n },
+    funding: { valueWei: value, maxFeePerGas: 1n, maxPriorityFeePerGas: 0n, gasWei: 2_000_000n, requiredWei: value + 2_000_000n, balanceWei: 0n, shortfallWei: over.shortfallWei ?? 0n },
     quote: { symbol: "ETH", address: "0x0000000000000000000000000000000000000000", decimals: 18, kind: "crypto" },
   } as unknown as LaunchPlan;
   return { ok: true, plan };

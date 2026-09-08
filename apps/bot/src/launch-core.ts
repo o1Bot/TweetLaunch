@@ -149,7 +149,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
       case "bad_token_fields":
         return fail("REJECTED", error, replies.launchFailed(message));
       case "insufficient_balance":
-        return fail("REJECTED", error, replies.insufficientUnknown(wallet.address), { safeText: replies.insufficientSafe("some", siteUrl) });
+        return fail("REJECTED", error, replies.insufficientUnknown(wallet.address), { safeText: replies.insufficientSafeUnknown(siteUrl) });
       default:
         return fail("FAILED", error, replies.launchFailed(FAILURE_DETAIL[kind] ?? kind));
     }
@@ -219,7 +219,12 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
     executed = await deps.execute(plan, wallet, audit);
   } catch (err) {
     if (err instanceof ExecutionError) {
-      const detail = err.txHash ? "the transaction reverted on chain" : (FAILURE_DETAIL[classifyError(err.cause).kind] ?? "the transaction could not be sent");
+      const kind = err.txHash ? null : classifyError(err.cause).kind;
+      // The balance moved between the funding check and the broadcast.
+      if (kind === "insufficient_balance") {
+        return fail("REJECTED", `execute: ${err.message}`, replies.insufficientUnknown(wallet.address), { safeText: replies.insufficientSafeUnknown(siteUrl) });
+      }
+      const detail = err.txHash ? "the transaction reverted on chain" : ((kind && FAILURE_DETAIL[kind]) ?? "the transaction could not be sent");
       return fail("FAILED", `execute: ${err.message}`, replies.launchFailed(detail), { launchTxHash: err.txHash });
     }
     const classified = classifyError(err);

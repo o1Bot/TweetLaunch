@@ -85,6 +85,7 @@ describe("templates", () => {
       replies.insufficient("0.0123", TOKEN),
       replies.insufficientUnknown(TOKEN),
       replies.insufficientSafe("0.0123", SITE),
+      replies.insufficientSafeUnknown(SITE),
       replies.devBuyNoRoute("AAPL"),
       replies.launchFailed("the chain RPC did not respond"),
     ];

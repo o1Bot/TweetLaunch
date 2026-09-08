@@ -45,7 +45,16 @@ async function walletFor(wallet: WalletRef, factory: Address, chainId: number, a
 export async function executeLaunchPlan(plan: LaunchPlan, wallet: WalletRef, audit: AuditSink, opts: { client?: PublicClient } = {}): Promise<ExecutionResult> {
   const client = opts.client ?? publicClient(KEY);
   const walletClient = await walletFor(wallet, plan.factory, plan.chainId, audit);
-  const common = { address: plan.factory, abi: launchFactoryAbi, value: plan.call.value, gas: plan.simulation.gas } as const;
+  // Gas limit and fee cap come from the plan, so the transaction can never
+  // cost more than what the funding check verified against the balance.
+  const common = {
+    address: plan.factory,
+    abi: launchFactoryAbi,
+    value: plan.call.value,
+    gas: plan.simulation.gas,
+    maxFeePerGas: plan.funding.maxFeePerGas,
+    maxPriorityFeePerGas: plan.funding.maxPriorityFeePerGas,
+  } as const;
 
   let txHash: Hex;
   try {
