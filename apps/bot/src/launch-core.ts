@@ -1,6 +1,6 @@
 import type { Address, Hex } from "viem";
 import { classifyError, type LaunchErrorKind, type PreparedMetadata } from "@o1bot/executor";
-import type { O1Quote, AllowedTxKind } from "@o1bot/shared";
+import { chainByKey, type O1Quote, type AllowedTxKind } from "@o1bot/shared";
 import type { SignAudit } from "@o1bot/wallet";
 import type { BotConfig } from "./config";
 import { ExecutionError, type AuditSink, type ExecutionResult, type WalletRef } from "./execute";
@@ -119,6 +119,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
       website: input.website,
       x: `https://x.com/${input.xHandle ?? author.handle}`,
       telegram: input.telegram,
+      o1: { chainId: chainByKey("robinhood").id, creator: wallet.address, market: quote.kind === "stock" ? "rwa" : "standard", quoteAddress: quote.address },
     });
   } catch (err) {
     const detail = /plan usage limit|FORBIDDEN|429/i.test(errMessage(err)) ? "our IPFS pinning service is over its quota, the team has been alerted, try again later" : "the image or metadata upload failed";

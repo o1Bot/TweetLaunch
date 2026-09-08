@@ -78,7 +78,7 @@ const schema = z.object({
   INDEXER_POLL_MS: z.coerce.number().int().positive().default(3000),
   /** Show INDEXER_DEV_TOKENS pools in the web app (local previews only). */
   SHOW_DEV_TOKENS: bool,
-  IPFS_GATEWAY: z.string().default("https://ipfs.io/ipfs/"),
+  IPFS_GATEWAY: z.string().default("https://gateway.pinata.cloud/ipfs/"),
 
   MAX_LAUNCHES_PER_USER_PER_DAY: z.coerce.number().int().positive().default(5),
   LAUNCH_COOLDOWN_SECONDS: z.coerce.number().int().nonnegative().default(600),

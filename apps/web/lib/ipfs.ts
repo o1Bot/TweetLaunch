@@ -1,10 +1,30 @@
-const GATEWAY = (process.env.IPFS_GATEWAY ?? "https://ipfs.io/ipfs/").replace(/\/$/, "");
+/**
+ * Gateways tried in order for `ipfs://` content. The configured one comes
+ * first (o1bot's dedicated Pinata gateway in production, which only serves
+ * pins in o1bot's account), then o1's gateway for documents o1 pinned at
+ * launch, then Pinata's public gateway. ipfs.io and dweb.link stopped
+ * serving plain HTTP requests in 2026, so they are not on the list.
+ */
+export const PUBLIC_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
+export const O1_GATEWAY = "https://sapphire-negative-junglefowl-959.mypinata.cloud/ipfs/";
 
-/** ipfs://CID → gateway URL; anything else is returned unchanged. */
+const trim = (g: string) => g.replace(/\/$/, "");
+const GATEWAY = trim(process.env.IPFS_GATEWAY ?? PUBLIC_GATEWAY);
+const GATEWAYS = Array.from(new Set([GATEWAY, trim(O1_GATEWAY), trim(PUBLIC_GATEWAY)]));
+
+/** `ipfs://CID` → URL on the primary gateway; anything else is returned unchanged. */
 export function ipfsToHttp(uri: string | null | undefined): string | null {
   if (!uri) return null;
   if (uri.startsWith("ipfs://")) return `${GATEWAY}/${uri.slice("ipfs://".length)}`;
   return uri;
+}
+
+/** Every gateway URL worth trying for a URI, primary first; a plain URL is returned alone. */
+export function ipfsCandidates(uri: string | null | undefined): string[] {
+  if (!uri) return [];
+  const path = uri.startsWith("ipfs://") ? uri.slice("ipfs://".length) : uri.match(/\/ipfs\/(.+)$/)?.[1];
+  if (!path) return [uri];
+  return GATEWAYS.map((g) => `${g}/${path}`);
 }
 
 export function shortAddress(address: string): string {

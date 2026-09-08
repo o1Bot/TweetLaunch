@@ -1,5 +1,6 @@
 import { logger, requireEnv } from "@o1bot/shared";
 import { compressImage } from "./image";
+import { o1PinConfigured, pinViaO1, type O1Market } from "./o1-pin";
 import { placeholderPng } from "./png";
 
 /**
@@ -106,6 +107,20 @@ export async function pinJson(content: unknown, name: string): Promise<PinResult
   });
 }
 
+/** Pin content that already exists on IPFS (queued by Pinata), so o1bot's gateway can serve it too. */
+export async function pinByCid(cid: string, name: string): Promise<void> {
+  const jwt = requireEnv("PINATA_JWT");
+  const res = await fetch(`${PINATA}/pinByHash`, {
+    method: "POST",
+    headers: { "content-type": "application/json", Authorization: `Bearer ${jwt}` },
+    body: JSON.stringify({ hashToPin: cid, pinataMetadata: { name } }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new Error(`pinata pinByHash: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`);
+}
+
+const cidOf = (uri: string) => uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0] ?? "";
+
 export type TokenMetadataInput = {
   name: string;
   symbol: string;
@@ -122,6 +137,12 @@ export type TokenMetadataInput = {
   website?: string | null;
   x?: string | null;
   telegram?: string | null;
+  /**
+   * Launch details o1's Public API needs to pin the document in o1's own
+   * Pinata account, which is the only way o1's pages show the logo and
+   * description. Omitted (or no O1_API_KEY) = pin through o1bot's Pinata only.
+   */
+  o1?: { chainId: number; creator: string; market: O1Market; quoteAddress: string } | null;
 };
 
 export type PreparedMetadata = {
@@ -130,6 +151,8 @@ export type PreparedMetadata = {
   imageSource: "tweet" | "placeholder";
   imageRejectReason: ImageRejectReason | null;
   json: Record<string, unknown>;
+  /** Whose Pinata account holds the pins; o1's gateway serves only its own. */
+  pinnedBy: "o1" | "o1bot";
 };
 
 const EXT: Record<ImageMime, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
@@ -149,7 +172,39 @@ export async function prepareTokenMetadata(input: TokenMetadataInput): Promise<P
     image = { bytes: placeholderPng(input.symbol), mime: "image/png" };
   }
 
-  const imagePin = await pinImage(image, `${input.symbol.toLowerCase()}.${EXT[image.mime]}`);
+  const name = input.symbol.toLowerCase() || "token";
+
+  // Preferred path: o1 pins both objects in its own account, so its token
+  // page and API show the logo, description and links. The same CIDs are
+  // then pinned by CID into o1bot's account (queued, best effort) so the
+  // o1bot gateway serves them as well.
+  if (input.o1 && o1PinConfigured()) {
+    try {
+      const pinned = await pinViaO1({
+        ...input.o1,
+        name: input.name,
+        symbol: input.symbol,
+        description: input.description ?? "",
+        image,
+        website: input.website,
+        x: input.x,
+        telegram: input.telegram,
+      });
+      for (const [uri, label] of [
+        [pinned.metadataUri, `${name}.json`],
+        [pinned.imageUri, `${name}.${EXT[image.mime]}`],
+      ] as const) {
+        const cid = cidOf(uri);
+        if (cid) void pinByCid(cid, label).catch((err) => logger.warn({ cid, err: err instanceof Error ? err.message : String(err) }, "could not mirror an o1 pin"));
+      }
+      const json = { name: input.name, symbol: input.symbol, description: input.description ?? "", image: pinned.imageUri };
+      return { uri: pinned.metadataUri, imageUri: pinned.imageUri, imageSource, imageRejectReason, json, pinnedBy: "o1" };
+    } catch (err) {
+      logger.warn({ symbol: input.symbol, err: err instanceof Error ? err.message : String(err) }, "o1 did not pin the metadata, pinning through o1bot's Pinata");
+    }
+  }
+
+  const imagePin = await pinImage(image, `${name}.${EXT[image.mime]}`);
   // Same keys as the documents o1's UI writes, so o1's token pages show the
   // description and links; the o1bot-specific fields sit alongside them.
   const json: Record<string, unknown> = {
@@ -176,7 +231,7 @@ export async function prepareTokenMetadata(input: TokenMetadataInput): Promise<P
       : {}),
     generator: "o1bot.exchange",
   };
-  const jsonPin = await pinJson(json, `${input.symbol.toLowerCase()}.json`);
+  const jsonPin = await pinJson(json, `${name}.json`);
   logger.info({ symbol: input.symbol, image: imagePin.uri, metadata: jsonPin.uri, imageSource }, "pinned token metadata");
-  return { uri: jsonPin.uri, imageUri: imagePin.uri, imageSource, imageRejectReason, json };
+  return { uri: jsonPin.uri, imageUri: imagePin.uri, imageSource, imageRejectReason, json, pinnedBy: "o1bot" };
 }

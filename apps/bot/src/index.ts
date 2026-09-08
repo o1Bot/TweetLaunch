@@ -80,6 +80,7 @@ function dryRunMetadata(input: TokenMetadataInput): PreparedMetadata {
     imageSource: input.imageUrl ? "tweet" : "placeholder",
     imageRejectReason: null,
     json: { name: input.name, symbol: input.symbol, dryRun: true },
+    pinnedBy: "o1bot",
   };
 }
 

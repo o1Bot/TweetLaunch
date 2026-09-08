@@ -14,7 +14,7 @@ import "@o1bot/shared/load-env";
 import { db } from "@o1bot/db";
 import { requireEnv } from "@o1bot/shared";
 
-const PUBLIC_GATEWAYS = ["https://ipfs.io/ipfs", "https://gateway.pinata.cloud/ipfs", "https://dweb.link/ipfs"];
+const PUBLIC_GATEWAYS = ["https://gateway.pinata.cloud/ipfs", "https://4everland.io/ipfs", "https://ipfs.io/ipfs"];
 
 async function fetchFromNetwork(cid: string): Promise<{ bytes: Uint8Array; type: string } | null> {
   for (const gw of PUBLIC_GATEWAYS) {

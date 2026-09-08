@@ -81,7 +81,7 @@ function harness(over: Partial<BotConfig> = {}) {
     },
     prepareMetadata: async (input) => {
       state.metadataImageBytes = input.imageBytes ?? null;
-      return { uri: `ipfs://meta/${input.symbol}`, imageUri: `ipfs://img/${input.symbol}`, imageSource: input.imageBytes ? "tweet" : "placeholder", imageRejectReason: null, json: {} };
+      return { uri: `ipfs://meta/${input.symbol}`, imageUri: `ipfs://img/${input.symbol}`, imageSource: input.imageBytes ? "tweet" : "placeholder", imageRejectReason: null, json: {}, pinnedBy: "o1bot" };
     },
     plan: async () => state.plan,
     execute: async (plan, wallet, audit) => {

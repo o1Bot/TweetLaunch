@@ -145,7 +145,7 @@ function harness(over: Partial<BotConfig> = {}): Harness {
       hasLoggedIn: false,
       pregenerated: true,
     }),
-    prepareMetadata: async (input) => ({ uri: `ipfs://meta/${input.symbol}`, imageUri: `ipfs://img/${input.symbol}`, imageSource: "placeholder", imageRejectReason: null, json: {} }),
+    prepareMetadata: async (input) => ({ uri: `ipfs://meta/${input.symbol}`, imageUri: `ipfs://img/${input.symbol}`, imageSource: "placeholder", imageRejectReason: null, json: {}, pinnedBy: "o1bot" }),
     plan: async () => h.script.plan,
     execute: async (plan, wallet, audit) => {
       h.executeCalls.push({ wallet });

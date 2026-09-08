@@ -155,7 +155,7 @@ async function checkPrivy() {
 
 async function checkO1Api() {
   const e = env();
-  if (!e.O1_API_KEY) return skip("o1 api", "O1_API_KEY not set (holders tab will be empty)");
+  if (!e.O1_API_KEY) return skip("o1 api", "O1_API_KEY not set (holders tab empty; launches stay blank on o1's pages)");
   try {
     const res = await fetch(`${e.O1_API_URL.replace(/\/$/, "")}/health`, { headers: { "x-api-key": e.O1_API_KEY }, signal: AbortSignal.timeout(15_000) });
     (res.ok ? ok : fail)("o1 api", res.ok ? "reachable" : `HTTP ${res.status}`);
