@@ -41,7 +41,7 @@ async function statsFor(pool: Pool, burnedRaw = 0n): Promise<PoolExtra> {
     db().swap.aggregate({ where: { token, timestamp: { gte: since } }, _sum: { amountQuote: true } }),
     db().swap.findFirst({ where: { token, timestamp: { lt: since } }, orderBy: [{ timestamp: "desc" }, { logIndex: "desc" }], select: { priceQuote: true } }),
     db().swap.findFirst({ where: { token }, orderBy: [{ timestamp: "asc" }, { logIndex: "asc" }], select: { priceQuote: true } }),
-    db().swap.aggregate({ where: { token }, _sum: { feeQuote: true }, _count: { _all: true } }),
+    db().swap.aggregate({ where: { token }, _sum: { feeQuote: true, amountQuote: true }, _count: { _all: true } }),
   ]);
   const usd = await quoteUsd(pool.quoteAddress, pool.quoteDecimals);
   const supplyTokens = Number(pool.launchSupply.toString()) / 1e18;
@@ -51,6 +51,7 @@ async function statsFor(pool: Pool, burnedRaw = 0n): Promise<PoolExtra> {
     lastPrice: last ? toNum(last.priceQuote) : null,
     priceAt24hAgo: before24 ? toNum(before24.priceQuote) : null,
     volume24hQuote: toHuman(agg24._sum.amountQuote, pool.quoteDecimals),
+    volumeAllQuote: toHuman(all._sum.amountQuote, pool.quoteDecimals),
     supplyTokens: circulatingTokens,
     quoteUsd: usd,
     launchPrice: first ? toNum(first.priceQuote) : null,
@@ -155,7 +156,13 @@ export async function getCandles(address: string, tf: Timeframe): Promise<{ cand
   return { candles: buildCandles(points, interval, { fill: true, to: Math.floor(Date.now() / 1000) }), quoteSymbol: pool.quoteSymbol };
 }
 
-export async function boardTotals(rows: TokenRow[]): Promise<{ launches: number; volume24hUsd: number | null }> {
-  const known = rows.filter((r) => r.stats.volume24hUsd !== null);
-  return { launches: rows.length, volume24hUsd: known.length ? known.reduce((s, r) => s + (r.stats.volume24hUsd ?? 0), 0) : null };
+export async function boardTotals(rows: TokenRow[]): Promise<{ launches: number; volume24hUsd: number | null; volumeAllUsd: number | null; trades: number }> {
+  const known24 = rows.filter((r) => r.stats.volume24hUsd !== null);
+  const knownAll = rows.filter((r) => r.stats.volumeAllUsd !== null);
+  return {
+    launches: rows.length,
+    volume24hUsd: known24.length ? known24.reduce((s, r) => s + (r.stats.volume24hUsd ?? 0), 0) : null,
+    volumeAllUsd: knownAll.length ? knownAll.reduce((s, r) => s + (r.stats.volumeAllUsd ?? 0), 0) : null,
+    trades: rows.reduce((s, r) => s + r.tradeCount, 0),
+  };
 }
