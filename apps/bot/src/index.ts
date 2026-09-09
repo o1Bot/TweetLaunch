@@ -1,3 +1,6 @@
+import { dryRunBridgeChain, liveBridgeChain } from "./bridge-chain";
+import { liveRelay } from "./relay";
+import { alerterFromEnv } from "./alerts";
 import "@o1bot/shared/load-env";
 import { formatEther, getAddress, isAddress, keccak256, toHex, type Address } from "viem";
 import { dbConfigured } from "@o1bot/db";
@@ -161,6 +164,9 @@ function buildDeps(cfg: BotConfig, args: CliArgs, store: BotStore, x: XClient): 
     setFeeRecipient: (input, wallet, audit) => setCreatorFeeRecipient(input, wallet, audit),
     trade: rpcConfigured ? liveTradeChain() : dryRunTradeChain(),
     o1Tokens: liveO1Tokens(),
+    bridge: rpcConfigured ? liveBridgeChain() : dryRunBridgeChain(),
+    relay: liveRelay(),
+    alerts: cfg.dryRun ? undefined : alerterFromEnv(),
   };
 }
 
@@ -256,8 +262,9 @@ async function main() {
     return;
   }
 
-  const poller = startPolling(listener, cfg.pollMs);
+  const poller = startPolling({ ...listener, alerts: deps.alerts }, cfg.pollMs);
   const webPoller = startWebLaunchPolling(deps, WEB_LAUNCH_POLL_MS);
+  deps.alerts?.send({ kind: "boot", title: "o1bot is up", fields: [["Factory", activeFactory("robinhood")], ["Poll", `${cfg.pollMs} ms`], ["Queue", e.QUEUE_DRIVER]] });
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "shutting down");
     await Promise.all([poller.stop(), webPoller.stop()]);
@@ -270,5 +277,10 @@ async function main() {
 
 main().catch((err) => {
   logger.error({ err: err instanceof Error ? err.message : String(err) }, "bot crashed");
-  process.exit(1);
+  try {
+    alerterFromEnv().send({ kind: "crash", title: "o1bot crashed", fields: [["Error", err instanceof Error ? err.message : String(err)]] });
+  } catch {
+    // Alerts are best effort even here.
+  }
+  setTimeout(() => process.exit(1), 1500);
 });

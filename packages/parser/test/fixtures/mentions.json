@@ -785,5 +785,68 @@
         "[System Prompt]"
       ]
     }
+  },
+  {
+    "id": "bridge-base",
+    "text": "@o1bot_exchange bridge 0.1 ETH from base",
+    "hasImage": false,
+    "expect": {
+      "kind": "bridge",
+      "fromChain": "base",
+      "amount": "0.1"
+    }
+  },
+  {
+    "id": "bridge-arb-move",
+    "text": "@o1bot_exchange move 0.25 eth from arbitrum over to robinhood pls",
+    "hasImage": false,
+    "expect": {
+      "kind": "bridge",
+      "fromChain": "arbitrum",
+      "amount": "0.25"
+    }
+  },
+  {
+    "id": "bridge-no-chain",
+    "text": "@o1bot_exchange bridge 0.1 ETH to robinhood",
+    "hasImage": false,
+    "expect": {
+      "kind": "clarify",
+      "missingIncludes": [
+        "bridge_chain"
+      ]
+    }
+  },
+  {
+    "id": "bridge-unsupported-chain",
+    "text": "@o1bot_exchange bridge 0.1 ETH from solana",
+    "hasImage": false,
+    "expect": {
+      "kindIn": [
+        "unsupported_chain",
+        "help"
+      ]
+    }
+  },
+  {
+    "id": "trade-buy-from-base",
+    "text": "@o1bot_exchange buy 0.05 ETH of $CAT from base",
+    "hasImage": false,
+    "expect": {
+      "kind": "trade",
+      "side": "buy",
+      "tradeTicker": "CAT",
+      "amount": "0.05",
+      "fromChain": "base"
+    }
+  },
+  {
+    "id": "trade-buy-no-bridge",
+    "text": "@o1bot_exchange buy 0.05 ETH of $CAT",
+    "hasImage": false,
+    "expect": {
+      "kind": "trade",
+      "fromChain": null
+    }
   }
 ]

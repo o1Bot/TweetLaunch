@@ -19,6 +19,21 @@ export const dynamic = "force-dynamic";
 
 type Asset = { address: string; symbol: string; name: string; imageUrl: string | null; decimals: number; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null };
 type FeePosition = { currency: string; symbol: string; decimals: number; owed: string; usd: number | null };
+type TradeHistoryRow = {
+  id: string;
+  side: "BUY" | "SELL";
+  token: string;
+  tokenSymbol: string;
+  quoteSymbol: string;
+  /** Human units: quote for buys, tokens for sells. */
+  amountIn: string;
+  /** Human units of what came out; null until confirmed. */
+  amountOut: string | null;
+  status: string;
+  txHash: string | null;
+  userMessage: string | null;
+  createdAt: string;
+};
 type LaunchRow = {
   id: string;
   source: "X" | "WEB";
@@ -37,7 +52,7 @@ export async function GET(req: Request) {
   if (!dbConfigured()) return Response.json({ error: "database not configured" }, { status: 503 });
   const user = await userFromRequest(req);
   if (!user) return Response.json({ error: "unauthenticated" }, { status: 401 });
-  if (!user.wallet) return Response.json({ wallet: null, assets: [], launches: [], fees: { escrow: activeFeeEscrow("robinhood"), positions: [] } });
+  if (!user.wallet) return Response.json({ wallet: null, assets: [], launches: [], trades: [], fees: { escrow: activeFeeEscrow("robinhood"), positions: [] } });
   const wallet = getAddress(user.wallet.address);
   const client = publicClient("robinhood");
 
@@ -61,6 +76,27 @@ export async function GET(req: Request) {
     userMessage: l.userMessage,
     createdAt: l.createdAt.toISOString(),
   }));
+
+  // Trades asked for in posts, newest first; symbols were recorded at trade time.
+  const tradeRows = await db().trade.findMany({ where: { user: { xUserId: user.xUserId } }, orderBy: { createdAt: "desc" }, take: 100 });
+  const trades: TradeHistoryRow[] = tradeRows.map((t) => {
+    const quoteDecimals = t.quoteDecimals ?? 18;
+    const inDecimals = t.side === "BUY" ? quoteDecimals : 18;
+    const outDecimals = t.side === "BUY" ? 18 : quoteDecimals;
+    return {
+      id: t.id,
+      side: t.side,
+      token: t.token,
+      tokenSymbol: t.tokenSymbol ?? `${t.token.slice(0, 6)}…${t.token.slice(-4)}`,
+      quoteSymbol: t.quoteSymbol ?? "ETH",
+      amountIn: formatUnits(BigInt(t.amountInWei), inDecimals),
+      amountOut: t.amountOut ? formatUnits(BigInt(t.amountOut), outDecimals) : null,
+      status: t.status,
+      txHash: t.txHash,
+      userMessage: t.userMessage,
+      createdAt: t.createdAt.toISOString(),
+    };
+  });
 
   // Holdings: ETH, the quote assets this account has touched, and every o1bot token.
   const board = await listBoardTokens().catch(() => []);
@@ -128,6 +164,6 @@ export async function GET(req: Request) {
     positions.push({ currency, symbol: q.symbol, decimals: q.decimals, owed: human, usd: px === null ? null : Number(human) * px });
   }
 
-  logger.debug({ xUserId: user.xUserId, assets: assets.length, launches: launches.length, fees: positions.length }, "profile overview");
-  return Response.json({ wallet, assets, launches, fees: { escrow, positions } });
+  logger.debug({ xUserId: user.xUserId, assets: assets.length, launches: launches.length, trades: trades.length, fees: positions.length }, "profile overview");
+  return Response.json({ wallet, assets, launches, trades, fees: { escrow, positions } });
 }

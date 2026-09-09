@@ -62,6 +62,11 @@ const schema = z.object({
   QUEUE_DRIVER: z.enum(["memory", "redis"]).default("memory"),
 
   RPC_ROBINHOOD: z.string().optional(),
+  /** Origin chains for bridging from a post; public RPCs are used when unset. */
+  RPC_BASE: z.string().optional(),
+  RPC_ETHEREUM: z.string().optional(),
+  RPC_ARBITRUM: z.string().optional(),
+  RPC_OPTIMISM: z.string().optional(),
 
   TREASURY_ADDRESS: address.optional(),
   REFERRER_ADDRESS: address.optional(),
@@ -93,6 +98,16 @@ const schema = z.object({
   MAX_TRADES_PER_USER_PER_DAY: z.coerce.number().int().positive().default(20),
   /** Slippage applied to a trade from a post when the user names none, in basis points. */
   TRADE_SLIPPAGE_BPS: z.coerce.number().int().min(10).max(1000).default(300),
+
+  /** Bridging from a post through Relay: the largest deposit the bot signs on an origin chain, in ETH. */
+  MAX_BRIDGE_ETH: z.string().default("1"),
+  RELAY_API_URL: z.string().default("https://api.relay.link"),
+  /** Optional: Relay app key, attributes volume to o1bot for fee sharing. Quotes work without it. */
+  RELAY_API_KEY: z.string().optional(),
+
+  /** Operator alerts on Telegram (failed launches and trades, refused replies, the poller failing, crashes). */
+  ALERT_TELEGRAM_BOT_TOKEN: z.string().optional(),
+  ALERT_TELEGRAM_CHAT_ID: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;

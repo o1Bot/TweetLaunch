@@ -76,6 +76,21 @@ describe("normalizeParseOutput for trades", () => {
     expect(r).toMatchObject({ kind: "clarify", missing: ["trade_amount"], question: "How much ETH?" });
   });
 
+  it("carries an origin chain for a buy that bridges first, and refuses one it cannot bridge from", () => {
+    expect(normalizeParseOutput({ ...base, chain: "base" }, { hasImage: false })).toMatchObject({ kind: "trade", fromChain: "base" });
+    expect(normalizeParseOutput({ ...base, chain: "robinhood" }, { hasImage: false })).toMatchObject({ kind: "trade", fromChain: null });
+    expect(normalizeParseOutput({ ...base, chain: "other" }, { hasImage: false })).toMatchObject({ kind: "unsupported_chain" });
+  });
+
+  it("normalises a bridge and asks for what is missing", () => {
+    const bridge: ParseOutput = { ...base, kind: "bridge", trade_side: null, ticker: null, chain: "arbitrum", trade_amount: "0.1 ETH" };
+    expect(normalizeParseOutput(bridge, { hasImage: false })).toEqual({ kind: "bridge", fromChain: "arbitrum", amount: "0.1", language: "en", reason: "complete buy" });
+    expect(normalizeParseOutput({ ...bridge, chain: null }, { hasImage: false })).toMatchObject({ kind: "clarify", missing: ["bridge_chain"] });
+    expect(normalizeParseOutput({ ...bridge, trade_amount: "5 NVDA" }, { hasImage: false })).toMatchObject({ kind: "clarify", missing: ["trade_amount"] });
+    expect(normalizeParseOutput({ ...bridge, chain: "other" }, { hasImage: false })).toMatchObject({ kind: "unsupported_chain" });
+    expect(normalizeParseOutput({ ...bridge, kind: "clarify", trade_amount: null, missing: ["trade_amount", "bridge_chain"], chain: null, question: "How much, from where?" }, { hasImage: false })).toMatchObject({ kind: "clarify", question: "How much, from where?" });
+  });
+
   it("never produces a recipient or touches launch fields", () => {
     const r = normalizeParseOutput({ ...base, name: "x", pair: "ETH", devbuy_native: "1" }, { hasImage: false });
     expect(r.kind).toBe("trade");

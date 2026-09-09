@@ -922,3 +922,10 @@ a.row:hover {
     padding: 14px;
   }
 }
+
+/* Trades that came from a post on X. */
+.tag.post {
+  color: var(--blue);
+  background: var(--blue-soft);
+  border-color: transparent;
+}

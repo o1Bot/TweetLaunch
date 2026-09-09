@@ -1,4 +1,7 @@
+import { parseEther } from "viem";
 import type { TradeCommand } from "@o1bot/parser";
+import { bridgeChainDisplayName } from "@o1bot/shared";
+import { runBridge } from "./bridge-core";
 import type { WalletRef } from "./execute";
 import type { MentionContext, PipelineOutcome } from "./pipeline";
 import { replies } from "./replies";
@@ -35,7 +38,36 @@ export async function handleTrade(cmd: TradeCommand, ctx: MentionContext): Promi
   });
 
   await setMention("QUEUED");
-  const result = await runTrade({ mentionId, tweetId: mention.id, userId: user.id, xUserId: mention.authorId, handle, wallet, cmd }, { store, config, trade: deps.trade, o1Tokens: deps.o1Tokens, now }, log);
+
+  // "buy … from base": bring the ETH over first, then buy with exactly the amount asked for.
+  let bridgeLine: string | null = null;
+  if (cmd.fromChain && cmd.side === "buy" && cmd.amount) {
+    let amountWei: bigint;
+    try {
+      amountWei = parseEther(cmd.amount);
+    } catch {
+      amountWei = 0n;
+    }
+    const bridged = await runBridge(
+      { mentionId, tweetId: mention.id, userId: user.id, xUserId: mention.authorId, handle, wallet, originKey: cmd.fromChain, amountWei, forBuy: true },
+      { store, config, bridge: deps.bridge, relay: deps.relay, alerts: deps.alerts, now },
+      log,
+    );
+    if (!bridged.ok) {
+      const r = await reply(bridged.userText);
+      await setMention(bridged.outcome === "rejected" ? "REJECTED" : "FAILED", { error: bridged.error });
+      return bridged.outcome === "rejected" ? { outcome: "replied", kind: "rejected", reply: r.posted || config.dryRun ? r.text : null } : { outcome: "failed", error: bridged.error, reply: r.posted || config.dryRun ? r.text : null, launchId: null };
+    }
+    if (!bridged.dryRun && !bridged.filled) {
+      // The deposit is on its way but not landed; buying now would fail on funding. Tell the user and stop.
+      const r = await reply(bridged.userText);
+      await setMention("DONE");
+      return { outcome: "bridged", bridgeId: bridged.bridgeId, depositTxHash: bridged.depositTxHash, fillTxHash: null, reply: r.posted || config.dryRun ? r.text : null };
+    }
+    bridgeLine = `Bridged ${cmd.amount} ETH from ${bridgeChainDisplayName(cmd.fromChain)}.`;
+  }
+
+  const result = await runTrade({ mentionId, tweetId: mention.id, userId: user.id, xUserId: mention.authorId, handle, wallet, cmd }, { store, config, trade: deps.trade, o1Tokens: deps.o1Tokens, alerts: deps.alerts, now }, log);
 
   if (!result.ok) {
     const r = await reply(result.userText);
@@ -47,11 +79,11 @@ export async function handleTrade(cmd: TradeCommand, ctx: MentionContext): Promi
     return { outcome: "failed", error: result.error, reply: r.posted || config.dryRun ? r.text : null, launchId: null };
   }
   if (result.dryRun) {
-    const r = await reply(result.userText);
+    const r = await reply(bridgeLine ? replies.bridgedThen(bridgeLine, result.userText) : result.userText);
     await setMention("DONE");
     return { outcome: "trade_dry_run", tradeId: result.tradeId, reply: r.text };
   }
-  const r = await reply(result.userText, { safe: result.safeText });
+  const r = await reply(bridgeLine ? replies.bridgedThen(bridgeLine, result.userText) : result.userText, { safe: bridgeLine ? replies.bridgedThen(bridgeLine, result.safeText) : result.safeText });
   if (r.posted) {
     await store.updateTrade(result.tradeId, { status: "REPLIED" });
     await setMention("DONE");

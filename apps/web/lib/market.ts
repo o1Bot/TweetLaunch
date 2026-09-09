@@ -104,6 +104,7 @@ export async function getTrades(address: string, limit = 50): Promise<TradeRow[]
   const pool = await db().pool.findUnique({ where: { token: address }, select: { quoteDecimals: true } });
   if (!pool) return [];
   const swaps = await db().swap.findMany({ where: { token: address }, orderBy: [{ timestamp: "desc" }, { logIndex: "desc" }], take: Math.min(limit, 500) });
+  const posted = new Set((await db().trade.findMany({ where: { txHash: { in: swaps.map((s) => s.txHash) } }, select: { txHash: true } })).map((t) => t.txHash!.toLowerCase()));
   return swaps.map((s) => ({
     id: s.id,
     time: s.timestamp.toISOString(),
@@ -114,6 +115,7 @@ export async function getTrades(address: string, limit = 50): Promise<TradeRow[]
     trader: s.trader,
     txHash: s.txHash,
     comment: s.comment,
+    viaPost: posted.has(s.txHash.toLowerCase()),
   }));
 }
 

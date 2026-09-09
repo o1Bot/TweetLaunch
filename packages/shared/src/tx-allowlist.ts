@@ -19,6 +19,7 @@ export const ALLOWED_TX_KINDS = [
   "feeClaimTo",
   "permit2Approve",
   "routerExecute",
+  "relayDeposit",
 ] as const;
 export type AllowedTxKind = (typeof ALLOWED_TX_KINDS)[number];
 
@@ -42,6 +43,7 @@ export const TX_SIGNATURES: Record<AllowedTxKind, string> = {
   feeClaimTo: "claimTo(address,address)",
   permit2Approve: "approve(address,address,uint160,uint48)",
   routerExecute: "execute(bytes,bytes[],uint256)",
+  relayDeposit: "depositNative(address,bytes32)",
 };
 
 export const TX_SELECTORS: Record<AllowedTxKind, Hex> = Object.fromEntries(
@@ -72,6 +74,8 @@ export type AllowlistEntry = {
   tokens?: Address[];
   /** For `routerExecute`: what the swap must look like. */
   swap?: SwapRules;
+  /** For `relayDeposit`: the one deposit the quote described. */
+  bridge?: { wallet: Address; depositId: Hex; amountWei: bigint };
 };
 export type TxAllowlist = { chainId: number; entries: AllowlistEntry[] };
 
@@ -118,6 +122,20 @@ export function buildAllowlist(input: {
   return { chainId: input.chainId, entries };
 }
 
+/**
+ * The allow-list for one bridge deposit on an origin chain: Relay's pinned
+ * depository, `depositNative(0x0, depositId)` for this quote, carrying
+ * exactly the quoted value. The zero depositor makes the contract credit
+ * msg.sender, the signing wallet, so no calldata field can redirect the
+ * deposit; the enclave policy pins the same zero. Nothing else on that chain.
+ */
+export function buildBridgeAllowlist(input: { chainId: number; depository: Address; wallet: Address; depositId: Hex; amountWei: bigint }): TxAllowlist {
+  return {
+    chainId: input.chainId,
+    entries: [{ kind: "relayDeposit", to: getAddress(input.depository), bridge: { wallet: getAddress(input.wallet), depositId: input.depositId.toLowerCase() as Hex, amountWei: input.amountWei } }],
+  };
+}
+
 export type TxCheck = { ok: true; kind: AllowedTxKind; selector: Hex } | { ok: false; reason: string };
 
 export type TxLike = {
@@ -128,7 +146,7 @@ export type TxLike = {
 };
 
 /** Kinds whose native value the plan sets and verifies against the balance; every other call must carry none. */
-const VALUE_BEARING: ReadonlySet<AllowedTxKind> = new Set(["createLaunch", "createLaunchAndBuy", "routerExecute"]);
+const VALUE_BEARING: ReadonlySet<AllowedTxKind> = new Set(["createLaunch", "createLaunchAndBuy", "routerExecute", "relayDeposit"]);
 
 function checkSwap(entry: AllowlistEntry, data: Hex, value: bigint): TxCheck {
   const rules = entry.swap;
@@ -193,5 +211,13 @@ export function checkTransaction(allowlist: TxAllowlist, tx: TxLike): TxCheck {
     if (!(entry.spenders ?? []).includes(getAddress(spender))) return { ok: false, reason: `permit2 approve spender ${getAddress(spender)} is not allow-listed` };
   }
   if (entry.kind === "routerExecute") return checkSwap(entry, data as Hex, value);
+  if (entry.kind === "relayDeposit") {
+    const rules = entry.bridge;
+    if (!rules) return { ok: false, reason: "deposit entry without bridge rules" };
+    const [depositor, id] = args;
+    if (typeof depositor !== "string" || !isAddress(depositor) || getAddress(depositor) !== zeroAddress) return { ok: false, reason: "deposit must leave the depositor empty so the contract credits the signing wallet" };
+    if (typeof id !== "string" || id.toLowerCase() !== rules.depositId) return { ok: false, reason: "deposit id is not the quoted one" };
+    if (value !== rules.amountWei) return { ok: false, reason: `deposit value ${value} is not the quoted ${rules.amountWei}` };
+  }
   return { ok: true, kind: entry.kind, selector };
 }

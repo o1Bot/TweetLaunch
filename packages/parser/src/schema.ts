@@ -6,14 +6,14 @@ import { z } from "zod";
  * the discriminated `ParseResult` the rest of the bot consumes.
  */
 
-export const MISSING_FIELDS = ["ticker", "name", "pair", "devbuy_amount", "fees_to_handle", "trade_side", "trade_token", "trade_amount"] as const;
+export const MISSING_FIELDS = ["ticker", "name", "pair", "devbuy_amount", "fees_to_handle", "trade_side", "trade_token", "trade_amount", "bridge_chain"] as const;
 export type MissingField = (typeof MISSING_FIELDS)[number];
 
 export const ParseOutputSchema = z.object({
   kind: z
-    .enum(["launch", "trade", "clarify", "help", "ignore"])
+    .enum(["launch", "trade", "bridge", "clarify", "help", "ignore"])
     .describe(
-      "launch: a complete launch command. trade: a complete buy or sell command for the poster's own wallet. clarify: launch or trade intent but a required value is missing or ambiguous. help: a question about the bot, wallet, fees or pairs, or a request the bot cannot do. ignore: no actionable intent, spam or abuse.",
+      "launch: a complete launch command. trade: a complete buy or sell command for the poster's own wallet. bridge: a complete request to move ETH from another chain to the poster's own wallet on Robinhood. clarify: launch, trade or bridge intent but a required value is missing or ambiguous. help: a question about the bot, wallet, fees or pairs, or a request the bot cannot do. ignore: no actionable intent, spam or abuse.",
     ),
   language: z.string().describe("BCP-47 language tag of the post, e.g. en, id, es, ja."),
   ticker: z
@@ -29,9 +29,11 @@ export const ParseOutputSchema = z.object({
     .nullable()
     .describe("Launch only. Paired asset symbol from the pair list: ETH, USDG or a stock symbol. Map a company name only when it is unambiguous. If the user named an asset that is not in the list, return it uppercased as written. null when not stated."),
   chain: z
-    .enum(["robinhood", "base", "other"])
+    .enum(["robinhood", "base", "ethereum", "arbitrum", "optimism", "other"])
     .nullable()
-    .describe("Chain the user named. robinhood for Robinhood Chain (aliases: rh, hood). null when no chain was named. Never default."),
+    .describe(
+      "Chain the user named. For a launch, the chain to launch on. For a trade or a bridge, the chain the ETH comes from (\"from base\", \"from arbitrum\"). robinhood for Robinhood Chain (aliases: rh, hood); ethereum for Ethereum mainnet (aliases: eth mainnet, mainnet, L1); arbitrum (arb, arbitrum one); optimism (op, op mainnet); other for any other chain. null when no chain was named. Never default.",
+    ),
   devbuy_native: z
     .string()
     .nullable()
@@ -49,7 +51,7 @@ export const ParseOutputSchema = z.object({
     .string()
     .nullable()
     .describe(
-      'Trade only. For a buy: the amount to spend exactly as written, with the asset when the user named one ("0.05", "0.05 ETH", "5 NVDA", "20 USDG"); null when absent or given in USD, in tokens of the token being bought, or as a percentage. For a sell: how much of the holding, exactly as written: "all", "half", "quarter", or a percentage such as "25" or "25%"; null when absent or given in tokens or ETH.',
+      'Trade or bridge. For a bridge: the ETH to move exactly as written ("0.1", "0.1 ETH"). For a buy: the amount to spend exactly as written, with the asset when the user named one ("0.05", "0.05 ETH", "5 NVDA", "20 USDG"); null when absent or given in USD, in tokens of the token being bought, or as a percentage. For a sell: how much of the holding, exactly as written: "all", "half", "quarter", or a percentage such as "25" or "25%"; null when absent or given in tokens or ETH.',
     ),
   trade_slippage_pct: z.string().nullable().describe('Trade only. Slippage the user asked for as a plain number in percent ("5" for 5%). null when absent.'),
   missing: z.array(z.enum(MISSING_FIELDS)).describe("For kind=clarify: the required values that are missing or ambiguous. Empty otherwise."),

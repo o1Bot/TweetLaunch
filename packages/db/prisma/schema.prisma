@@ -40,6 +40,7 @@ model User {
   launches       Launch[] @relation("LaunchCreator")
   feeRecipientOf Launch[] @relation("LaunchFeeRecipient")
   trades         Trade[]
+  bridges        Bridge[]
 
   @@index([xHandle])
 }
@@ -75,6 +76,8 @@ model Mention {
   launch Launch?
 
   trade Trade?
+
+  bridge Bridge?
 
   @@index([authorXUserId, receivedAt])
   @@index([status])
@@ -155,6 +158,41 @@ enum SignedTxKind {
   FEE_CLAIM
   PERMIT2_APPROVE
   ROUTER_EXECUTE
+  RELAY_DEPOSIT
+}
+
+enum BridgeStatus {
+  DRY_RUN
+  QUEUED
+  SIGNING
+  DEPOSITED
+  FILLED
+  FAILED
+}
+
+/// ETH moved from the user's wallet on another chain to the same wallet on
+/// Robinhood through Relay, asked for in a post.
+model Bridge {
+  id            String       @id @default(cuid())
+  mentionId     String?      @unique
+  mention       Mention?     @relation(fields: [mentionId], references: [id])
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  originChainId Int
+  /// Wei deposited on the origin chain.
+  amountInWei   String
+  /// Wei Relay quoted for delivery on Robinhood.
+  amountOutWei  String?
+  requestId     String?
+  depositTxHash String?
+  fillTxHash    String?
+  status        BridgeStatus @default(QUEUED)
+  error         String?
+  userMessage   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([userId, createdAt])
 }
 
 enum TradeStatus {
@@ -177,8 +215,12 @@ model Trade {
   user          User        @relation(fields: [userId], references: [id])
   chainId       Int
   token         String
+  /// Symbols and quote decimals as known at trade time, so history renders without a Pool row (o1-directory tokens).
+  tokenSymbol   String?
+  quoteSymbol   String?
+  quoteDecimals Int?
   side          SwapSide
-  /// Raw units of the input currency (wei for buys, token units for sells).
+  /// Raw units of the input currency (quote units for buys, token units for sells).
   amountInWei   String
   minAmountOut  String?
   amountOut     String?

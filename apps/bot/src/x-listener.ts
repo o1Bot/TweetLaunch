@@ -1,3 +1,4 @@
+import { noAlerts, type Alerter } from "./alerts";
 import { logger } from "@o1bot/shared";
 import { filterMention, XRateLimitError, type XClient } from "@o1bot/x";
 import type { JobQueue } from "./queue";
@@ -13,6 +14,8 @@ import type { BotStore } from "./store";
 export const SINCE_ID_CURSOR = "x:since_id";
 
 export type ListenerDeps = {
+  /** Operator alerts; absent in tests. */
+  alerts?: Alerter;
   x: XClient;
   store: BotStore;
   queue: JobQueue;
@@ -56,11 +59,16 @@ export function nextDelayMs(err: unknown, pollMs: number, now = Date.now()): num
   return pollMs;
 }
 
+const POLL_FAILURES_BEFORE_ALERT = 5;
+
 /** Poll forever. Errors are logged and the next tick still runs; rate limits are honoured. */
 export function startPolling(deps: ListenerDeps, pollMs: number): Poller {
   let stopped = false;
   let timer: NodeJS.Timeout | null = null;
   let inFlight: Promise<void> = Promise.resolve();
+  // Consecutive failures that are not X rate limits; the operator hears about the fifth, once.
+  let failures = 0;
+  const alerts = deps.alerts ?? noAlerts;
 
   const tick = async () => {
     if (stopped) return;
@@ -69,10 +77,17 @@ export function startPolling(deps: ListenerDeps, pollMs: number): Poller {
       const stats = await pollOnce(deps);
       if (stats.fetched > 0) logger.info(stats, "polled mentions");
       else logger.debug(stats, "polled mentions");
+      failures = 0;
     } catch (err) {
       delay = nextDelayMs(err, pollMs);
       if (err instanceof XRateLimitError) logger.warn({ resetAt: new Date(err.resetAt).toISOString(), waitMs: delay }, "X rate limit on mentions; waiting for the window to reset");
-      else logger.warn({ err: err instanceof Error ? err.message : String(err) }, "mention poll failed; retrying next tick");
+      else {
+        logger.warn({ err: err instanceof Error ? err.message : String(err) }, "mention poll failed; retrying next tick");
+        failures++;
+        if (failures === POLL_FAILURES_BEFORE_ALERT) {
+          alerts.send({ kind: "poll_failing", title: "Mention polling keeps failing", key: "poll", fields: [["Failures in a row", String(failures)], ["Error", err instanceof Error ? err.message : String(err)]] });
+        }
+      }
     }
     if (!stopped) {
       timer = setTimeout(() => {

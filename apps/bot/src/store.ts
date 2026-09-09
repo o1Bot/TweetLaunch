@@ -10,7 +10,10 @@ import { db, Prisma } from "@o1bot/db";
 
 export type MentionStatusValue = "RECEIVED" | "PARSED" | "CLARIFY" | "NOT_REGISTERED" | "REJECTED" | "QUEUED" | "DONE" | "FAILED";
 export type LaunchStatusValue = "DRY_RUN" | "QUEUED" | "SIMULATING" | "SIGNING" | "BROADCAST" | "CONFIRMED" | "FEE_RECIPIENT_PENDING" | "REPLIED" | "FAILED";
-export type SignedTxKindValue = "CREATE_LAUNCH" | "CREATE_LAUNCH_AND_BUY" | "ERC20_APPROVE" | "SET_CREATOR_FEE_RECIPIENT" | "FEE_CLAIM" | "PERMIT2_APPROVE" | "ROUTER_EXECUTE";
+export type SignedTxKindValue = "CREATE_LAUNCH" | "CREATE_LAUNCH_AND_BUY" | "ERC20_APPROVE" | "SET_CREATOR_FEE_RECIPIENT" | "FEE_CLAIM" | "PERMIT2_APPROVE" | "ROUTER_EXECUTE" | "RELAY_DEPOSIT";
+export type BridgeStatusValue = "DRY_RUN" | "QUEUED" | "SIGNING" | "DEPOSITED" | "FILLED" | "FAILED";
+/** Bridge statuses that count against a user's rate limits. */
+export const COUNTED_BRIDGE_STATUSES: BridgeStatusValue[] = ["DRY_RUN", "SIGNING", "DEPOSITED", "FILLED"];
 export type TradeStatusValue = "DRY_RUN" | "QUEUED" | "SIGNING" | "CONFIRMED" | "REPLIED" | "FAILED";
 /** Trade statuses that count against a user's rate limits. */
 export const COUNTED_TRADE_STATUSES: TradeStatusValue[] = ["DRY_RUN", "SIGNING", "CONFIRMED", "REPLIED"];
@@ -128,6 +131,9 @@ export type NewTrade = {
   userId: string;
   chainId: number;
   token: string;
+  tokenSymbol: string;
+  quoteSymbol: string;
+  quoteDecimals: number;
   side: "BUY" | "SELL";
   amountInWei: bigint;
   minAmountOut: bigint | null;
@@ -140,6 +146,24 @@ export type TradePatch = {
   amountOut?: bigint | null;
   minAmountOut?: bigint | null;
   txHash?: string | null;
+  error?: string | null;
+  userMessage?: string | null;
+};
+
+export type NewBridge = {
+  mentionId: string | null;
+  userId: string;
+  originChainId: number;
+  amountInWei: bigint;
+  requestId: string | null;
+  status: BridgeStatusValue;
+};
+
+export type BridgePatch = {
+  status?: BridgeStatusValue;
+  amountOutWei?: bigint | null;
+  depositTxHash?: string | null;
+  fillTxHash?: string | null;
   error?: string | null;
   userMessage?: string | null;
 };
@@ -184,6 +208,10 @@ export interface BotStore {
   lastTradeAt(xUserId: string): Promise<Date | null>;
   createTrade(t: NewTrade): Promise<{ id: string }>;
   updateTrade(id: string, patch: TradePatch): Promise<void>;
+  bridgeCountSince(xUserId: string, since: Date): Promise<number>;
+  lastBridgeAt(xUserId: string): Promise<Date | null>;
+  createBridge(b: NewBridge): Promise<{ id: string }>;
+  updateBridge(id: string, patch: BridgePatch): Promise<void>;
 }
 
 export class PrismaBotStore implements BotStore {
@@ -316,6 +344,9 @@ export class PrismaBotStore implements BotStore {
         userId: t.userId,
         chainId: t.chainId,
         token: t.token,
+        tokenSymbol: t.tokenSymbol,
+        quoteSymbol: t.quoteSymbol,
+        quoteDecimals: t.quoteDecimals,
         side: t.side,
         amountInWei: t.amountInWei.toString(),
         minAmountOut: t.minAmountOut === null ? null : t.minAmountOut.toString(),
@@ -336,6 +367,24 @@ export class PrismaBotStore implements BotStore {
         ...(minAmountOut !== undefined ? { minAmountOut: minAmountOut === null ? null : minAmountOut.toString() } : {}),
       },
     });
+  }
+  async bridgeCountSince(xUserId: string, since: Date) {
+    return db().bridge.count({ where: { user: { xUserId }, status: { in: COUNTED_BRIDGE_STATUSES }, createdAt: { gte: since } } });
+  }
+  async lastBridgeAt(xUserId: string) {
+    const row = await db().bridge.findFirst({ where: { user: { xUserId }, status: { in: COUNTED_BRIDGE_STATUSES } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
+    return row?.createdAt ?? null;
+  }
+  async createBridge(b: NewBridge) {
+    const row = await db().bridge.create({
+      data: { mentionId: b.mentionId, userId: b.userId, originChainId: b.originChainId, amountInWei: b.amountInWei.toString(), requestId: b.requestId, status: b.status },
+      select: { id: true },
+    });
+    return { id: row.id };
+  }
+  async updateBridge(id: string, patch: BridgePatch) {
+    const { amountOutWei, ...rest } = patch;
+    await db().bridge.update({ where: { id }, data: { ...rest, ...(amountOutWei !== undefined ? { amountOutWei: amountOutWei === null ? null : amountOutWei.toString() } : {}) } });
   }
   async resetMentionForRerun(tweetId: string) {
     const mention = await db().mention.findUnique({ where: { tweetId }, include: { launch: { include: { signedTxs: true, pool: true } } } });
@@ -360,6 +409,7 @@ export class MemoryBotStore implements BotStore {
   pools: TradableToken[] = [];
   trading = new Map<string, TradingSettings>();
   trades: Array<NewTrade & { id: string; createdAt: Date } & TradePatch> = [];
+  bridges: Array<NewBridge & { id: string; createdAt: Date } & BridgePatch> = [];
   private seq = 0;
   now: () => Date = () => new Date();
 
@@ -454,6 +504,22 @@ export class MemoryBotStore implements BotStore {
   }
   async updateTrade(id: string, patch: TradePatch) {
     const row = this.trades.find((x) => x.id === id);
+    if (row) Object.assign(row, patch);
+  }
+  async bridgeCountSince(xUserId: string, since: Date) {
+    return this.bridges.filter((b) => this.userXId(b.userId) === xUserId && COUNTED_BRIDGE_STATUSES.includes(b.status) && b.createdAt >= since).length;
+  }
+  async lastBridgeAt(xUserId: string) {
+    const rows = this.bridges.filter((b) => this.userXId(b.userId) === xUserId && COUNTED_BRIDGE_STATUSES.includes(b.status));
+    return rows.length ? rows[rows.length - 1]!.createdAt : null;
+  }
+  async createBridge(b: NewBridge) {
+    const id = `b${++this.seq}`;
+    this.bridges.push({ ...b, id, createdAt: this.now() });
+    return { id };
+  }
+  async updateBridge(id: string, patch: BridgePatch) {
+    const row = this.bridges.find((x) => x.id === id);
     if (row) Object.assign(row, patch);
   }
   async resetMentionForRerun(tweetId: string) {

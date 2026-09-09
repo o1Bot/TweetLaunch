@@ -27,6 +27,7 @@ type Expect = {
   telegram?: string | null;
   xHandle?: string | null;
   side?: "buy" | "sell";
+  fromChain?: string | null;
   tradeTicker?: string | null;
   tradeAddress?: string | null;
   amount?: string | null;
@@ -65,6 +66,11 @@ describe.skipIf(!hasKey)("parser against the live model", () => {
         if (e.amountSymbol !== undefined) expect(result.amountSymbol).toBe(e.amountSymbol);
         if (e.sellPortion !== undefined) expect(result.sellPortion).toEqual(e.sellPortion);
         if (e.slippageBps !== undefined) expect(result.slippageBps).toBe(e.slippageBps);
+        if (e.fromChain !== undefined) expect(result.fromChain).toBe(e.fromChain);
+      }
+      if (result.kind === "bridge") {
+        if (e.fromChain !== undefined) expect(result.fromChain).toBe(e.fromChain);
+        if (e.amount !== undefined) expect(result.amount).toBe(e.amount);
       }
       if (result.kind === "clarify" && e.missingIncludes) {
         for (const m of e.missingIncludes) expect(result.missing).toContain(m);
