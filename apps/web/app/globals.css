@@ -937,29 +937,19 @@ svg {
 .me .net .ic {
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
   font-weight: 700;
   font-size: 11px;
   color: #fff;
   background: var(--panel-2);
+  overflow: hidden;
 }
-.me .net .ic.rh {
-  background: var(--rh);
-  color: var(--inv);
-}
-.me .net .ic.base {
-  background: var(--base);
-}
-.me .net .ic.eth {
-  background: #627eea;
-}
-.me .net .ic.arb {
-  background: #2d374b;
-}
-.me .net .ic.op {
-  background: #ff0420;
+.me .net .ic svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 .me .net .n {
   font-weight: 600;
@@ -1163,6 +1153,19 @@ svg {
 .me .lg.plain {
   background: #3a3b41;
 }
+.me .lg.mark,
+.me .lg.wrap {
+  background: none;
+}
+.me .lg.mark > svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.me .lg.wrap > .lg {
+  width: 100%;
+  height: 100%;
+}
 .me .lg.buy {
   background: var(--up-soft);
   color: var(--up);
@@ -1173,18 +1176,50 @@ svg {
 }
 .me .lg i {
   position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: 16px;
-  height: 16px;
+  right: -3px;
+  bottom: -3px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  border: 3px solid var(--paper);
+  border: 2px solid var(--paper);
+  background: var(--paper);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  z-index: 1;
+}
+.me .lg i svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 .me .lg i.rh {
   background: var(--rh);
 }
 .me .lg i.base {
   background: var(--base);
+}
+/* Chains that share the deposit address, under the address in the sheet. */
+.me-chains {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+.me-chains span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.me-chains svg {
+  display: block;
 }
 .me .row .n {
   min-width: 0;

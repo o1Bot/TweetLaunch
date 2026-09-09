@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { encodeFunctionData, erc20Abi, isAddress, parseAbi, parseUnits, type Address } from "viem";
+import { AssetIcon, CHAIN_NAMES, ChainIcon } from "@/components/ChainIcons";
 import { EXT_ICON, TokenLogo, X_ICON } from "@/components/TokenLogo";
 import { useGrantSigner, useLinkedRefresh } from "@/lib/use-grant-signer";
 
@@ -24,7 +25,7 @@ type Me = {
 };
 
 type Asset = { address: string; symbol: string; name: string; imageUrl: string | null; decimals: number; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null };
-type LaunchRow = { id: string; source: "X" | "WEB"; role: "creator" | "fee_recipient"; ticker: string; name: string; quoteSymbol: string; status: string; tokenAddress: string | null; launchTxHash: string | null; userMessage: string | null; createdAt: string; feesEarnedUsd: number | null; feesEarnedQuote: number | null };
+type LaunchRow = { id: string; source: "X" | "WEB"; role: "creator" | "fee_recipient"; ticker: string; name: string; quoteSymbol: string; imageUrl: string | null; status: string; tokenAddress: string | null; launchTxHash: string | null; userMessage: string | null; createdAt: string; feesEarnedUsd: number | null; feesEarnedQuote: number | null };
 type TradeRow = { id: string; side: "BUY" | "SELL"; token: string; tokenSymbol: string; quoteSymbol: string; amountIn: string; amountOut: string | null; status: string; txHash: string | null; userMessage: string | null; createdAt: string };
 type Overview = {
   wallet: string | null;
@@ -83,13 +84,12 @@ const ICON = {
   ),
 };
 
-const CHAIN_BADGE: Record<string, { label: string; cls: string }> = {
-  robinhood: { label: "RH", cls: "rh" },
-  base: { label: "B", cls: "base" },
-  ethereum: { label: "E", cls: "eth" },
-  arbitrum: { label: "A", cls: "arb" },
-  optimism: { label: "O", cls: "op" },
-};
+/** The Robinhood mark in the corner of an asset logo: everything on this page lives on that chain. */
+const RH_DOT = (
+  <i className="chain" aria-hidden="true">
+    <ChainIcon chain="robinhood" size={16} />
+  </i>
+);
 
 export function Profile() {
   const { ready, authenticated, user, login, logout, getAccessToken, exportWallet } = usePrivy();
@@ -266,11 +266,10 @@ export function Profile() {
             <div className="hint">Loading…</div>
           ) : (
             overview.gas.map((g) => {
-              const badge = CHAIN_BADGE[g.chain] ?? { label: g.name.slice(0, 1), cls: "" };
               const empty = Number(g.eth) === 0;
               return (
                 <div className="net" key={g.chain}>
-                  <div className={`ic ${badge.cls}`}>{badge.label}</div>
+                  <div className="ic">{ChainIcon({ chain: g.chain, size: 30 }) ?? g.name.slice(0, 1)}</div>
                   <div className="n">
                     {g.name}
                     {g.chain === "robinhood" ? <small className={empty ? "warn" : ""}>{empty ? "Fund it to launch or trade" : "Launches, trades and claims"}</small> : <small className={empty ? "" : "ok"}>{empty ? "Send ETH here to bridge from a post" : `Post "bridge ${Math.min(Number(g.eth), 1).toFixed(3)} ETH from ${g.chain}"`}</small>}
@@ -368,9 +367,9 @@ export function Profile() {
                 {a.kind === "token" ? (
                   <TokenLogo symbol={a.symbol} imageUrl={a.imageUrl} className="lg" />
                 ) : (
-                  <div className="lg plain">
-                    {a.kind === "native" ? "Ξ" : a.symbol.slice(0, 2)}
-                    <i className="rh" />
+                  <div className="lg mark" aria-hidden="true">
+                    <AssetIcon symbol={a.symbol} kind={a.kind} size={44} />
+                    {RH_DOT}
                   </div>
                 )}
                 <div className="n">
@@ -405,9 +404,9 @@ export function Profile() {
               const live = STATUS_LABEL[l.status] === "live" && l.tokenAddress;
               return (
                 <div className="row" key={l.id}>
-                  <div className="lg plain">
-                    {l.ticker.slice(0, 2).toUpperCase()}
-                    <i className="rh" />
+                  <div className="lg wrap">
+                    <TokenLogo symbol={l.ticker} imageUrl={l.imageUrl} className="lg" />
+                    {RH_DOT}
                   </div>
                   <div className="n">
                     {live ? (
@@ -559,6 +558,14 @@ function DepositSheet({ wallet, onClose }: { wallet: string; onClose: () => void
         <h3 className="sora">Deposit</h3>
         <p>Send ETH on Robinhood Chain to this address. It is your wallet, the same address on Base, Ethereum, Arbitrum and Optimism, so you can also send ETH there and post &quot;bridge 0.1 ETH from base&quot;.</p>
         <code className="full">{wallet}</code>
+        <div className="me-chains" aria-label="Chains that share this address">
+          {(["robinhood", "base", "ethereum", "arbitrum", "optimism"] as const).map((c) => (
+            <span key={c}>
+              <ChainIcon chain={c} size={18} />
+              {CHAIN_NAMES[c]}
+            </span>
+          ))}
+        </div>
         <div className="me-sheet-acts">
           <button
             className="btn-p"
