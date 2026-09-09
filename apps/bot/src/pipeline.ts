@@ -120,7 +120,10 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
       await store.updateMention(mentionId, { error: "reply cap reached" });
       return { text, tweetId: null, posted: false, error: "reply cap reached" };
     }
-    const localized = clampReply(opts.raw ? text : await deps.localize(text, language));
+    // A user who asked for English on the profile gets English, whatever language they posted in.
+    const prefs = await store.userPrefs(mention.authorId);
+    const replyLanguage = prefs.replyLanguage === "en" ? "en" : language;
+    const localized = clampReply(opts.raw ? text : await deps.localize(text, replyLanguage));
     try {
       const tweetId = await deps.x.postReply(localized, mention.id);
       await store.updateMention(mentionId, { replyTweetId: tweetId });
@@ -128,7 +131,7 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
     } catch (err) {
       if (err instanceof XPostError && err.cryptoAddressBlocked && opts.safe) {
         log.warn("X refused a crypto address in the reply; sending the address-free variant");
-        const safe = clampReply(await deps.localize(opts.safe, language));
+        const safe = clampReply(await deps.localize(opts.safe, replyLanguage));
         try {
           const tweetId = await deps.x.postReply(safe, mention.id);
           await store.updateMention(mentionId, { replyTweetId: tweetId });
@@ -281,6 +284,10 @@ async function handleLaunch(cmd: LaunchCommand, ctx: MentionContext): Promise<Pi
         await reply(replies.launchFailed("the fee recipient wallet could not be prepared"));
         await setMention("FAILED", { error });
         return { outcome: "failed", error, reply: null, launchId: null };
+      }
+      // The recipient may have switched fee redirects off on their profile.
+      if (!(await store.userPrefs(target.xUserId)).acceptFeeRedirects) {
+        return rejected(replies.feesToRejected(feesTo.handle, "declined"), `fees to declined by recipient: ${feesTo.handle}`);
       }
       if (!target.wallet) {
         const error = "fee recipient has no wallet";

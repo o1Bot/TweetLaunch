@@ -1,7 +1,7 @@
 import { erc20Abi, formatUnits, getAddress, zeroAddress, type Address } from "viem";
 import { db, dbConfigured } from "@o1bot/db";
 import { feeEscrowAbi } from "@o1bot/executor";
-import { activeFeeEscrow, findQuote, logger, publicClient } from "@o1bot/shared";
+import { activeFeeEscrow, BRIDGE_CHAIN_KEYS, bridgeChainDisplayName, bridgeClient, findQuote, logger, publicClient } from "@o1bot/shared";
 import { userFromRequest } from "@o1bot/wallet";
 import { ipfsToHttp } from "@/lib/ipfs";
 import { listBoardTokens } from "@/lib/market";
@@ -34,6 +34,7 @@ type TradeHistoryRow = {
   userMessage: string | null;
   createdAt: string;
 };
+type GasRow = { chain: string; name: string; eth: string; usd: number | null };
 type LaunchRow = {
   id: string;
   source: "X" | "WEB";
@@ -46,13 +47,16 @@ type LaunchRow = {
   launchTxHash: string | null;
   userMessage: string | null;
   createdAt: string;
+  /** The creator's half of the hook fees on the token so far, when it is live. */
+  feesEarnedQuote: number | null;
+  feesEarnedUsd: number | null;
 };
 
 export async function GET(req: Request) {
   if (!dbConfigured()) return Response.json({ error: "database not configured" }, { status: 503 });
   const user = await userFromRequest(req);
   if (!user) return Response.json({ error: "unauthenticated" }, { status: 401 });
-  if (!user.wallet) return Response.json({ wallet: null, assets: [], launches: [], trades: [], fees: { escrow: activeFeeEscrow("robinhood"), positions: [] } });
+  if (!user.wallet) return Response.json({ wallet: null, assets: [], launches: [], trades: [], gas: [], fees: { escrow: activeFeeEscrow("robinhood"), positions: [] } });
   const wallet = getAddress(user.wallet.address);
   const client = publicClient("robinhood");
 
@@ -63,19 +67,32 @@ export async function GET(req: Request) {
     take: 100,
     include: { creator: { select: { xUserId: true } } },
   });
-  const launches: LaunchRow[] = rows.map((l) => ({
-    id: l.id,
-    source: l.source,
-    role: l.creator.xUserId === user.xUserId ? "creator" : "fee_recipient",
-    ticker: l.ticker,
-    name: l.name,
-    quoteSymbol: l.quoteSymbol,
-    status: l.status,
-    tokenAddress: l.tokenAddress,
-    launchTxHash: l.launchTxHash,
-    userMessage: l.userMessage,
-    createdAt: l.createdAt.toISOString(),
-  }));
+  // Fees the creator's half has earned per live token: half of the hook fees on its swaps.
+  const liveTokens = rows.map((l) => l.tokenAddress).filter((t): t is string => Boolean(t));
+  const feeSums = liveTokens.length ? await db().swap.groupBy({ by: ["token"], where: { token: { in: liveTokens } }, _sum: { feeQuote: true } }) : [];
+  const feesByToken = new Map(feeSums.map((f) => [f.token.toLowerCase(), f._sum.feeQuote ? Number(f._sum.feeQuote.toString()) : 0]));
+  const launches: LaunchRow[] = [];
+  for (const l of rows) {
+    const q = findQuote("robinhood", l.quoteAddress) ?? (getAddress(l.quoteAddress) === zeroAddress ? { symbol: "ETH", decimals: 18, address: zeroAddress } : null);
+    const feeRaw = l.tokenAddress ? feesByToken.get(l.tokenAddress.toLowerCase()) : undefined;
+    const feesEarnedQuote = feeRaw !== undefined && q ? feeRaw / 2 / 10 ** q.decimals : null;
+    const px = feesEarnedQuote === null || !q ? null : q.symbol === "USDG" ? 1 : await quoteUsd(q.address, q.decimals).catch(() => null);
+    launches.push({
+      id: l.id,
+      source: l.source,
+      role: l.creator.xUserId === user.xUserId ? "creator" : "fee_recipient",
+      ticker: l.ticker,
+      name: l.name,
+      quoteSymbol: l.quoteSymbol,
+      status: l.status,
+      tokenAddress: l.tokenAddress,
+      launchTxHash: l.launchTxHash,
+      userMessage: l.userMessage,
+      createdAt: l.createdAt.toISOString(),
+      feesEarnedQuote,
+      feesEarnedUsd: feesEarnedQuote !== null && px !== null ? feesEarnedQuote * px : null,
+    });
+  }
 
   // Trades asked for in posts, newest first; symbols were recorded at trade time.
   const tradeRows = await db().trade.findMany({ where: { user: { xUserId: user.xUserId } }, orderBy: { createdAt: "desc" }, take: 100 });
@@ -114,6 +131,16 @@ export async function GET(req: Request) {
       : Promise.resolve([]),
   ]);
   const ethUsd = await quoteUsd(zeroAddress, 18).catch(() => null);
+
+  // ETH per chain: Robinhood (gas for everything here) and the chains a post can bridge from.
+  const originBalances = await Promise.all(BRIDGE_CHAIN_KEYS.map((key) => bridgeClient(key).getBalance({ address: wallet }).catch(() => null)));
+  const gas: GasRow[] = [
+    { chain: "robinhood", name: "Robinhood", eth: formatUnits(ethBalance, 18), usd: ethUsd === null ? null : Number(formatUnits(ethBalance, 18)) * ethUsd },
+    ...BRIDGE_CHAIN_KEYS.map((key, i) => {
+      const bal = originBalances[i] ?? null;
+      return { chain: key, name: bridgeChainDisplayName(key), eth: bal === null ? "0" : formatUnits(bal, 18), usd: bal === null || ethUsd === null ? null : Number(formatUnits(bal, 18)) * ethUsd };
+    }),
+  ];
   const assets: Asset[] = [
     { address: zeroAddress, symbol: "ETH", name: "Ether", imageUrl: null, decimals: 18, balance: formatUnits(ethBalance, 18), usd: ethUsd === null ? null : Number(formatUnits(ethBalance, 18)) * ethUsd, kind: "native", tokenPage: null },
   ];
@@ -165,5 +192,5 @@ export async function GET(req: Request) {
   }
 
   logger.debug({ xUserId: user.xUserId, assets: assets.length, launches: launches.length, trades: trades.length, fees: positions.length }, "profile overview");
-  return Response.json({ wallet, assets, launches, trades, fees: { escrow, positions } });
+  return Response.json({ wallet, assets, launches, trades, gas, fees: { escrow, positions } });
 }

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>o1bot — Profile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,100,300..700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#1E1F23;--panel:#26272C;--panel-2:#303136;--ink:#EAF0F8;--ink-2:#A6B3C4;--ink-3:#6E7C8F;--inv:#1E1F23;
+  --line:#34353B;--blue:#6FB6FF;--blue-deep:#2F7BFF;--up:#3ED082;--up-soft:#173526;--down:#FF6E5E;--amber:#F5B54A;--amber-soft:#3A2C12;
+  --base:#3B82FF;--rh:#3ED082;--hover:rgba(255,255,255,.04);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-optical-sizing:auto;font-size:15px;color:var(--ink);background:var(--paper)}
+body{font-variant-numeric:tabular-nums}
+a{color:inherit;text-decoration:none}button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}svg{display:block}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.grad{background:linear-gradient(100deg,#FFF 0%,#DDEBFF 45%,#7FBFFF 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sora{font-family:"Sora",sans-serif;letter-spacing:-.03em}
+
+.top{position:sticky;top:0;z-index:20;background:rgba(30,31,35,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);height:56px;display:flex;align-items:center;padding:0 28px;gap:28px}
+.brand{display:flex;align-items:center;gap:10px;font-family:"Sora",sans-serif;font-weight:700;font-size:17px;letter-spacing:-.03em}
+.brand .mark{height:26px;padding:0 7px;background:var(--ink);color:var(--inv);display:grid;place-items:center;border-radius:6px;font-size:13px}
+.nav{display:flex;gap:6px}.nav a{padding:6px 12px;border-radius:6px;color:var(--ink-2);font-weight:500}.nav a.on{background:var(--panel-2);color:var(--ink)}
+.top .grow{flex:1}
+.who{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2)}
+.who .av{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--inv);display:grid;place-items:center;font-family:"Sora",sans-serif;font-weight:800;font-size:10px}
+
+.wrap{max-width:1180px;margin:0 auto;padding:32px 28px 80px;display:grid;grid-template-columns:340px 1fr;gap:40px;align-items:start}
+
+/* ---- left: identity ---- */
+.side{position:sticky;top:80px;display:flex;flex-direction:column;gap:18px}
+.idcard{background:var(--panel);border-radius:18px;padding:22px}
+.idcard .h{display:flex;align-items:center;gap:12px}
+.idcard .av{width:48px;height:48px;border-radius:50%;background:var(--ink);color:var(--inv);display:grid;place-items:center;font-family:"Sora",sans-serif;font-weight:800;font-size:15px;letter-spacing:-.05em}
+.idcard .h b{display:block;font-weight:600;font-size:16px}
+.idcard .h span{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3)}
+.idcard .h span i{width:6px;height:6px;border-radius:50%;background:var(--up)}
+.bal{margin-top:22px}
+.bal .k{font-size:13px;color:var(--ink-3)}
+.bal .v{font-family:"Sora",sans-serif;font-weight:800;font-size:40px;letter-spacing:-.045em;line-height:1.05;margin-top:4px}
+.bal .c{font-size:13px;color:var(--ink-2);margin-top:6px}.bal .c b{color:var(--up);font-weight:600}
+.addr{display:flex;align-items:center;gap:8px;margin-top:16px;background:var(--panel-2);border-radius:10px;padding:9px 12px;font-size:13px;color:var(--ink-2)}
+.addr b{color:var(--ink);font-weight:600;flex:1}
+.addr button{color:var(--ink-3);padding:2px;border-radius:4px}.addr button:hover{color:var(--ink)}
+.acts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.act{display:flex;flex-direction:column;align-items:center;gap:7px;padding:10px 4px 8px;border-radius:12px;background:var(--panel-2);font-size:12.5px;color:var(--ink-2)}
+.act:hover{background:#3A3B41;color:var(--ink)}
+.act.p{background:var(--blue-deep);color:#fff}.act.p:hover{background:#4A8DFF}
+.act svg{width:18px;height:18px}
+
+.gas{background:var(--panel);border-radius:18px;padding:16px 18px}
+.gas h3{font-size:13px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.net{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:9px 0}
+.net .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:700;font-size:11px;color:#fff}
+.net .n{font-weight:600;font-size:14px}.net .n small{display:block;color:var(--ink-3);font-weight:400;font-size:12px;margin-top:1px}
+.net .n small.warn{color:var(--amber)}
+.net .b{text-align:right;font-weight:600;font-size:14px}.net .b small{display:block;color:var(--ink-3);font-weight:400;font-size:12px}
+
+.perm{background:var(--panel);border-radius:18px;padding:16px 18px}
+.perm h3{font-size:13px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.perm h3 span{text-transform:none;letter-spacing:0;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--up-soft);color:var(--up)}
+.perm p{font-size:13px;color:var(--ink-2);line-height:1.45}
+.perm p b{color:var(--ink);font-weight:600}
+.perm .links{display:flex;gap:14px;margin-top:12px;font-size:13px}
+.perm .links a{color:var(--ink-2)}.perm .links a:hover{color:var(--ink)}
+.perm .links a.d{color:var(--down)}
+
+/* ---- right: content ---- */
+.main{display:flex;flex-direction:column;gap:30px;min-width:0}
+.claim{display:flex;align-items:center;gap:14px;background:var(--up-soft);border-radius:14px;padding:14px 18px}
+.claim .t{flex:1}.claim .t b{display:block;font-weight:600;color:var(--up)}.claim .t span{font-size:13px;color:var(--ink-2)}
+.claim .btn{background:var(--up);color:var(--inv);font-weight:700;padding:9px 16px;border-radius:9px;font-size:14px}
+
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+.sec-h h2{font-family:"Sora",sans-serif;font-size:20px;font-weight:700;letter-spacing:-.03em}
+.sec-h a{font-size:13px;color:var(--ink-3)}.sec-h a:hover{color:var(--ink)}
+.row{display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;padding:12px 12px;border-radius:14px;margin:0 -12px}
+.row:hover{background:var(--hover)}
+.lg{position:relative;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff}
+.lg i{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;border:3px solid var(--paper)}
+.lg i.rh{background:var(--rh)}.lg i.base{background:var(--base)}
+.row .n b{display:block;font-weight:600}.row .n b em{font-style:normal;color:var(--ink-3);font-weight:400;margin-left:6px}
+.row .n span{font-size:13px;color:var(--ink-3)}
+.row .v{text-align:right}.row .v b{display:block;font-weight:600}.row .v span{font-size:13px;color:var(--ink-3)}
+.row .v span.up{color:var(--up)}.row .v span.warn{color:var(--amber)}
+
+.settings{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.set{background:var(--panel);border-radius:14px;padding:14px 16px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
+.set b{display:block;font-weight:600;font-size:14px}
+.set span{display:block;font-size:13px;color:var(--ink-3);margin-top:3px;line-height:1.4}
+.set .val{font-size:13px;color:var(--ink-2);background:var(--panel-2);padding:4px 9px;border-radius:7px;white-space:nowrap}
+.tg{position:relative;width:42px;height:24px;border-radius:12px;background:var(--panel-2);flex:none;transition:.15s;margin-top:2px}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--ink-3);transition:.15s}
+.tg.on{background:var(--up)}.tg.on::after{left:21px;background:var(--inv)}
+
+@media (max-width:900px){.wrap{grid-template-columns:1fr}.side{position:static}.settings{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#"><span class="mark">o1</span>o1bot</a>
+  <nav class="nav"><a href="#">Board</a><a href="#">Launch</a><a href="#" class="on">Profile</a><a href="#">Docs</a></nav>
+  <div class="grow"></div>
+  <span class="who"><span class="av">o1</span>@o1bot_exchange</span>
+</header>
+
+<div class="wrap">
+
+  <!-- LEFT -->
+  <aside class="side">
+    <div class="idcard">
+      <div class="h">
+        <div class="av">o1</div>
+        <div><b>@o1bot_exchange</b><span><i></i>Bot signing on</span></div>
+      </div>
+      <div class="bal">
+        <div class="k">Total balance</div>
+        <div class="v grad">$3,161.26</div>
+        <div class="c"><b>+$124.10</b> today · 4 assets</div>
+      </div>
+      <div class="addr">Wallet <b>0x830C…7dCa</b>
+        <button title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button>
+        <button title="Explorer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 13v6H5V6h6"/></svg></button>
+      </div>
+      <div class="acts">
+        <a class="act p" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Launch</a>
+        <a class="act" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>Deposit</a>
+        <a class="act" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V8M7 13l5-5 5 5M4 4h16"/></svg>Withdraw</a>
+        <a class="act" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M14 6l6 6-6 6"/></svg>Swap</a>
+      </div>
+    </div>
+
+    <div class="gas">
+      <h3>Gas by chain</h3>
+      <div class="net"><div class="ic" style="background:var(--rh);color:var(--inv)">RH</div><div class="n">Robinhood<small>5 launches covered</small></div><div class="b">0.0138 ETH<small>$34.59</small></div></div>
+      <div class="net"><div class="ic" style="background:var(--base)">B</div><div class="n">Base<small class="warn">Need 0.0015 ETH to launch</small></div><div class="b">0.0000 ETH<small>empty</small></div></div>
+    </div>
+
+    <div class="perm">
+      <h3>Bot signing <span>Allowed</span></h3>
+      <p>Signs <b>launches, dev buys, fee claims</b> and trades up to your cap. <b>Never a transfer out.</b></p>
+      <div class="links"><a href="#">Export key</a><a href="#" class="d">Revoke</a><a href="#">Sign out</a></div>
+    </div>
+  </aside>
+
+  <!-- RIGHT -->
+  <main class="main">
+
+    <div class="claim">
+      <div class="t"><b>$504.10 in creator fees ready to claim</b><span>0.2014 ETH from $o1Bot · held in o1's escrow until you claim</span></div>
+      <button class="btn">Claim</button>
+    </div>
+
+    <section>
+      <div class="sec-h"><h2>Assets</h2><a href="#">Hide small balances</a></div>
+      <div class="row"><div class="lg" style="background:#1F49E6">o1<i class="rh"></i></div><div class="n"><b>o1Bot</b><span>2,299,846.91 o1Bot</span></div><div class="v"><b>$3,126.67</b><span class="up">+4.3%</span></div></div>
+      <div class="row"><div class="lg" style="background:#3A3B41">Ξ<i class="rh"></i></div><div class="n"><b>Ether</b><span>0.01382 ETH · Robinhood</span></div><div class="v"><b>$34.59</b><span>gas</span></div></div>
+      <div class="row"><div class="lg" style="background:#3A3B41">Ξ<i class="base"></i></div><div class="n"><b>Ether</b><span>0.0000 ETH · Base</span></div><div class="v"><b>$0.00</b><span class="warn">fund to launch here</span></div></div>
+    </section>
+
+    <section>
+      <div class="sec-h"><h2>Launches</h2><a href="#">1 of 5 today</a></div>
+      <div class="row"><div class="lg" style="background:#7A3FD1">ND<i class="rh"></i></div><div class="n"><b>Nvidia Dog<em>$NVDOG</em></b><span>NVDA pool · from a post · Sep 9</span></div><div class="v"><b>$18.40</b><span>fees earned</span></div></div>
+      <div class="row"><div class="lg" style="background:#1F49E6">o1<i class="rh"></i></div><div class="n"><b>o1Bot<em>$o1Bot</em></b><span>ETH pool · from the web · Sep 8</span></div><div class="v"><b>$2,318.40</b><span>fees earned</span></div></div>
+    </section>
+
+    <section>
+      <div class="sec-h"><h2>From posts</h2></div>
+      <div class="settings">
+        <div class="set"><div><b>Trading from posts</b><span>buy 0.05 ETH of $CAT or sell half of $CAT, from this wallet. Output lands here.</span></div><button class="tg on" onclick="this.classList.toggle('on')"></button></div>
+        <div class="set"><div><b>Per-trade cap</b><span>Bot refuses posts above this.</span></div><span class="val">0.1 ETH</span></div>
+        <div class="set"><div><b>Accept fees sent to me</b><span>Others can launch with fees to @o1bot_exchange.</span></div><button class="tg on" onclick="this.classList.toggle('on')"></button></div>
+        <div class="set"><div><b>Reply in my language</b><span>Bot answers in the language of your post.</span></div><button class="tg on" onclick="this.classList.toggle('on')"></button></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

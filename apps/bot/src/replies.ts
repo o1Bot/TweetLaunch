@@ -103,9 +103,11 @@ export const replies = {
 
   devBuyTooLarge: (maxEth: string) => `The dev buy is capped at ${maxEth} ETH per launch. Lower it and post again.`,
 
-  feesToRejected: (handle: string, reason: "reserved" | "invalid" | "not_found" | "suspended" | "unavailable") =>
+  feesToRejected: (handle: string, reason: "reserved" | "invalid" | "not_found" | "suspended" | "unavailable" | "declined") =>
     reason === "reserved"
       ? `@${handle} cannot receive creator fees. Pick another account and post again.`
+      : reason === "declined"
+        ? `@${handle} has switched off receiving creator fees on o1bot. Pick another account or launch without "fees to".`
       : reason === "suspended"
         ? `@${handle} is suspended on X, so it cannot receive creator fees.`
         : reason === "unavailable"
