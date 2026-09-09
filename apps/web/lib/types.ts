@@ -47,6 +47,8 @@ export type TradeRow = {
   trader: string;
   txHash: string;
   comment: string | null;
+  /** The swap was asked for in a post and signed by the bot. */
+  viaPost: boolean;
 };
 
 export type TokenDetail = TokenRow & {

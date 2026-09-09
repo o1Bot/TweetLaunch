@@ -93,6 +93,10 @@ const schema = z.object({
   MAX_TRADES_PER_USER_PER_DAY: z.coerce.number().int().positive().default(20),
   /** Slippage applied to a trade from a post when the user names none, in basis points. */
   TRADE_SLIPPAGE_BPS: z.coerce.number().int().min(10).max(1000).default(300),
+
+  /** Operator alerts on Telegram (failed launches and trades, refused replies, the poller failing, crashes). */
+  ALERT_TELEGRAM_BOT_TOKEN: z.string().optional(),
+  ALERT_TELEGRAM_CHAT_ID: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;

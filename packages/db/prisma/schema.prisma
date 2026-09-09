@@ -177,8 +177,12 @@ model Trade {
   user          User        @relation(fields: [userId], references: [id])
   chainId       Int
   token         String
+  /// Symbols and quote decimals as known at trade time, so history renders without a Pool row (o1-directory tokens).
+  tokenSymbol   String?
+  quoteSymbol   String?
+  quoteDecimals Int?
   side          SwapSide
-  /// Raw units of the input currency (wei for buys, token units for sells).
+  /// Raw units of the input currency (quote units for buys, token units for sells).
   amountInWei   String
   minAmountOut  String?
   amountOut     String?

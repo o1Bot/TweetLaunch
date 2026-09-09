@@ -65,6 +65,11 @@ export function TokenTabs({ token, symbol, quoteSymbol, initialTrades, tradeCoun
               <a href={`${explorer}/tx/${t.txHash}`} target="_blank" rel="noreferrer" style={{ color: "var(--ink-2)" }}>
                 {shortAddress(t.trader)}
                 {t.trader.toLowerCase() === creatorWallet.toLowerCase() && <span className="tag dev">creator</span>}
+                {t.viaPost && (
+                  <span className="tag post" title="Asked for in a post on X and signed by o1bot">
+                    post
+                  </span>
+                )}
               </a>
               <span style={{ color: "var(--ink-3)" }}>{t.comment ?? ""}</span>
             </div>

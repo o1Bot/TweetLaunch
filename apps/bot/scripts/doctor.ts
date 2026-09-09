@@ -180,10 +180,23 @@ async function checkO1Api() {
   }
 }
 
+async function checkAlerts() {
+  const e = env();
+  if (!e.ALERT_TELEGRAM_BOT_TOKEN || !e.ALERT_TELEGRAM_CHAT_ID) return skip("alerts", "ALERT_TELEGRAM_BOT_TOKEN / ALERT_TELEGRAM_CHAT_ID not set (no operator alerts)");
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${e.ALERT_TELEGRAM_BOT_TOKEN}/getChat?chat_id=${encodeURIComponent(e.ALERT_TELEGRAM_CHAT_ID)}`, { signal: AbortSignal.timeout(15_000) });
+    const json = (await res.json()) as { ok?: boolean; result?: { title?: string; username?: string; first_name?: string }; description?: string };
+    if (!json.ok) return fail("alerts", `telegram: ${json.description ?? `HTTP ${res.status}`}`);
+    ok("alerts", `telegram chat reachable (${json.result?.title ?? json.result?.username ?? json.result?.first_name ?? e.ALERT_TELEGRAM_CHAT_ID})`);
+  } catch (err) {
+    fail("alerts", errMsg(err));
+  }
+}
+
 async function main() {
   const e = env();
   const present = Object.entries(process.env)
-    .filter(([k, v]) => /^(X_|PRIVY_|ANTHROPIC_|PINATA_|RPC_|INDEXER_|O1_|DATABASE_|REDIS_|QUEUE_|DRY_RUN|SITE_URL|NEXT_PUBLIC_|MAX_|LAUNCH_|DEV_BUY|PARSER_)/.test(k) && v)
+    .filter(([k, v]) => /^(X_|PRIVY_|ANTHROPIC_|PINATA_|RPC_|INDEXER_|O1_|DATABASE_|REDIS_|QUEUE_|DRY_RUN|SITE_URL|NEXT_PUBLIC_|MAX_|LAUNCH_|DEV_BUY|PARSER_|TRADE_|ALERT_)/.test(k) && v)
     .map(([k]) => k)
     .sort();
   console.log(`DRY_RUN=${e.DRY_RUN}  SITE_URL=${e.SITE_URL}`);
@@ -197,6 +210,7 @@ async function main() {
   await checkPinata();
   await checkPrivy();
   await checkO1Api();
+  await checkAlerts();
   for (const r of results) console.log(`${r.status.toUpperCase().padEnd(5)} ${r.service.padEnd(12)} ${r.detail}`);
   const failed = results.filter((r) => r.status === "fail").length;
   console.log(`\n${failed ? `${failed} check(s) failed` : "all configured services answered"}`);

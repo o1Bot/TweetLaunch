@@ -3,6 +3,7 @@ import { poolIdOf } from "@o1bot/executor";
 import type { TradeCommand } from "@o1bot/parser";
 import { knownHooks } from "@o1bot/shared";
 import { antiSnipeFeeBps, applySlippage, encodeHookData, launchPoolKey, type PoolKey } from "@o1bot/swap";
+import { noAlerts, postUrl, txUrl, type Alerter } from "./alerts";
 import type { BotConfig } from "./config";
 import { ExecutionError, type AuditSink, type WalletRef } from "./execute";
 import type { O1TokenSource } from "./o1-tokens";
@@ -94,7 +95,7 @@ export type TradeCoreInput = {
   cmd: TradeCommand;
 };
 
-export type TradeCoreDeps = { store: BotStore; config: BotConfig; trade: TradeChain; o1Tokens: O1TokenSource; now: () => Date };
+export type TradeCoreDeps = { store: BotStore; config: BotConfig; trade: TradeChain; o1Tokens: O1TokenSource; alerts?: Alerter; now: () => Date };
 
 export type TradeCoreResult =
   | { ok: false; outcome: "rejected"; error: string; userText: string }
@@ -280,6 +281,9 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
     userId: input.userId,
     chainId: CHAIN_ID,
     token,
+    tokenSymbol: ticker,
+    quoteSymbol,
+    quoteDecimals,
     side: cmd.side === "buy" ? "BUY" : "SELL",
     amountInWei: amountIn,
     minAmountOut,
@@ -340,6 +344,20 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
     const userText = replies.tradeFailed(detail);
     await store.updateTrade(tradeId, { status: "FAILED", error, txHash, userMessage: userText });
     log.error({ tradeId, error, txHash }, "trade failed");
+    (deps.alerts ?? noAlerts).send({
+      kind: "trade_failed",
+      title: `Trade failed: ${cmd.side} $${ticker}`,
+      key: `trade:${input.xUserId}:${detail}`,
+      fields: [
+        ["User", `@${input.handle}`],
+        ["Post", postUrl(input.handle, input.tweetId)],
+        ["Wallet", wallet.address],
+        ["Amount in", `${inHuman} ${cmd.side === "buy" ? quoteSymbol : ticker}`],
+        ["Tx", txHash ? txUrl(txHash) : null],
+        ["Error", message],
+        ["Told the user", userText],
+      ],
+    });
     return { ok: false, outcome: "failed", error, userText, tradeId };
   }
 }

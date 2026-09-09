@@ -128,6 +128,9 @@ export type NewTrade = {
   userId: string;
   chainId: number;
   token: string;
+  tokenSymbol: string;
+  quoteSymbol: string;
+  quoteDecimals: number;
   side: "BUY" | "SELL";
   amountInWei: bigint;
   minAmountOut: bigint | null;
@@ -316,6 +319,9 @@ export class PrismaBotStore implements BotStore {
         userId: t.userId,
         chainId: t.chainId,
         token: t.token,
+        tokenSymbol: t.tokenSymbol,
+        quoteSymbol: t.quoteSymbol,
+        quoteDecimals: t.quoteDecimals,
         side: t.side,
         amountInWei: t.amountInWei.toString(),
         minAmountOut: t.minAmountOut === null ? null : t.minAmountOut.toString(),

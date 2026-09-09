@@ -28,10 +28,12 @@ type Overview = {
   wallet: string | null;
   assets: Array<{ address: string; symbol: string; name: string; imageUrl: string | null; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null }>;
   launches: Array<{ id: string; source: "X" | "WEB"; role: "creator" | "fee_recipient"; ticker: string; name: string; quoteSymbol: string; status: string; tokenAddress: string | null; launchTxHash: string | null; userMessage: string | null; createdAt: string }>;
+  trades: Array<{ id: string; side: "BUY" | "SELL"; token: string; tokenSymbol: string; quoteSymbol: string; amountIn: string; amountOut: string | null; status: string; txHash: string | null; userMessage: string | null; createdAt: string }>;
   fees: { escrow: string; positions: Array<{ currency: string; symbol: string; owed: string; usd: number | null }> };
 };
 
 const EXPLORER = "https://robinhoodchain.blockscout.com";
+const TX_EXPLORER = "https://rh-scan.com/tx";
 const CHAIN_ID = 4663;
 const escrowAbi = parseAbi(["function claimFor(address recipient, address currency)"]);
 
@@ -49,6 +51,8 @@ const STATUS_LABEL: Record<string, string> = {
   DRY_RUN: "dry run",
   FAILED: "failed",
 };
+const TRADE_STATUS_LABEL: Record<string, string> = { QUEUED: "queued", SIGNING: "signing", CONFIRMED: "done", REPLIED: "done", DRY_RUN: "dry run", FAILED: "failed" };
+const TRADE_STATUS_CLASS = (status: string) => (status === "FAILED" ? "bad" : status === "CONFIRMED" || status === "REPLIED" ? "live" : "wait");
 
 const ICON = {
   copy: (
@@ -397,6 +401,64 @@ export function Profile() {
                 Empty = {trading.defaultCapEth} ETH. Ceiling {trading.maxCapEth} ETH.
               </span>
             </div>
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <div className="card-h">
+          <h2>Your trades</h2>
+          <span className="hint">{overview ? `${overview.trades.length} from posts` : ""}</span>
+        </div>
+        {overview === null ? (
+          <div className="empty">Loading…</div>
+        ) : overview.trades.length === 0 ? (
+          <div className="empty">
+            None yet. With trading on, post <b>@o1bot_exchange buy 0.05 ETH of $CAT</b> and it shows up here.
+          </div>
+        ) : (
+          <div className="tbl">
+            <table>
+              <thead>
+                <tr>
+                  <th>Side</th>
+                  <th>Token</th>
+                  <th className="r">In</th>
+                  <th className="r">Out</th>
+                  <th>Status</th>
+                  <th className="r">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overview.trades.map((t) => (
+                  <tr key={t.id}>
+                    <td>
+                      <span className={`badge ${t.side === "BUY" ? "live" : "off"}`}>{t.side === "BUY" ? "Buy" : "Sell"}</span>
+                    </td>
+                    <td>
+                      <Link href={`/token/${t.token}`}>${t.tokenSymbol}</Link>
+                    </td>
+                    <td className="r">
+                      {fmt(t.amountIn, t.side === "BUY" ? 5 : 2)} {t.side === "BUY" ? t.quoteSymbol : t.tokenSymbol}
+                    </td>
+                    <td className="r">{t.amountOut ? `${fmt(t.amountOut, t.side === "BUY" ? 2 : 5)} ${t.side === "BUY" ? t.tokenSymbol : t.quoteSymbol}` : "—"}</td>
+                    <td>
+                      <span className={`badge ${TRADE_STATUS_CLASS(t.status)}`}>{TRADE_STATUS_LABEL[t.status] ?? t.status.toLowerCase()}</span>
+                      {t.txHash ? (
+                        <>
+                          {" "}
+                          <a href={`${TX_EXPLORER}/${t.txHash}`} target="_blank" rel="noreferrer" className="hint">
+                            tx {EXT_ICON}
+                          </a>
+                        </>
+                      ) : null}
+                      {t.status === "FAILED" && t.userMessage ? <div className="hint">{t.userMessage}</div> : null}
+                    </td>
+                    <td className="r">{new Date(t.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>

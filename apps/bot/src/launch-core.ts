@@ -2,6 +2,7 @@ import type { Address, Hex } from "viem";
 import { classifyError, type LaunchErrorKind, type PreparedMetadata } from "@o1bot/executor";
 import { chainByKey, type O1Quote, type AllowedTxKind } from "@o1bot/shared";
 import type { SignAudit } from "@o1bot/wallet";
+import { noAlerts, postUrl, txUrl } from "./alerts";
 import type { BotConfig } from "./config";
 import { ExecutionError, type AuditSink, type ExecutionResult, type WalletRef } from "./execute";
 import type { PipelineDeps } from "./pipeline";
@@ -55,7 +56,7 @@ export type LaunchCoreResult =
   | { ok: true; dryRun: true; token: Address; userText: string }
   | { ok: true; dryRun: false; token: Address; txHash: Hex; feeRecipientTxHash: Hex | null; feesToFailed: string | null; userText: string };
 
-export type LaunchCoreDeps = Pick<PipelineDeps, "store" | "config" | "prepareMetadata" | "plan" | "execute" | "setFeeRecipient">;
+export type LaunchCoreDeps = Pick<PipelineDeps, "store" | "config" | "prepareMetadata" | "plan" | "execute" | "setFeeRecipient" | "alerts">;
 
 export const SIGNED_KIND: Record<AllowedTxKind, SignedTxKindValue> = {
   createLaunch: "CREATE_LAUNCH",
@@ -102,6 +103,19 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
    */
   const fail = async (terminal: "REJECTED" | "FAILED", error: string, userText: string, extra: { safeText?: string; launchTxHash?: Hex | null } = {}): Promise<LaunchCoreResult> => {
     log.error({ launchId, error }, "launch failed");
+    (deps.alerts ?? noAlerts).send({
+      kind: "launch_failed",
+      title: `Launch ${terminal === "REJECTED" ? "rejected" : "failed"}: $${input.ticker}`,
+      key: `launch:${author.xUserId}:${error.slice(0, 40)}`,
+      fields: [
+        ["User", `@${author.handle}`],
+        ["Source", origin.kind === "x" ? postUrl(author.handle, origin.tweetId) : `web launch ${launchId}`],
+        ["Wallet", wallet.address],
+        ["Tx", extra.launchTxHash ? txUrl(extra.launchTxHash) : null],
+        ["Error", error],
+        ["Told the user", userText],
+      ],
+    });
     await store.updateLaunch(launchId, { status: "FAILED", error, userMessage: userText, ...(extra.launchTxHash ? { launchTxHash: extra.launchTxHash } : {}) });
     return { ok: false, terminal, outcome: "failed", error, userText, ...(extra.safeText ? { safeText: extra.safeText } : {}) };
   };

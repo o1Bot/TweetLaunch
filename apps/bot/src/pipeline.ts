@@ -4,6 +4,7 @@ import { ParserError, type LaunchCommand, type MentionInput, type ParsedMention 
 import { activeFactory, findQuote, logger, tickerCollidesWithStock } from "@o1bot/shared";
 import type { EnsureWalletInput, LinkedUser, LinkStatus } from "@o1bot/wallet";
 import { stripLeadingMentions, XPostError, type XClient, type XMention } from "@o1bot/x";
+import { noAlerts, postUrl, type Alerter } from "./alerts";
 import type { BotConfig } from "./config";
 import type { AuditSink, ExecutionResult, WalletRef } from "./execute";
 import { runLaunch } from "./launch-core";
@@ -44,6 +45,8 @@ export type PipelineDeps = {
   trade: TradeChain;
   /** o1's token directory, for trading tokens the bot did not launch. */
   o1Tokens: O1TokenSource;
+  /** Operator alerts; absent in tests and dry runs. */
+  alerts?: Alerter;
   now?: () => Date;
 };
 
@@ -71,6 +74,7 @@ export function leadingHandles(text: string): string[] {
 export async function processMention(mention: XMention, deps: PipelineDeps): Promise<PipelineOutcome> {
   const { store, config } = deps;
   const now = deps.now ?? (() => new Date());
+  const alerts = deps.alerts ?? noAlerts;
   const log = logger.child({ tweetId: mention.id, author: mention.authorHandle });
 
   // 1. Dedupe on the tweet id. The unique constraint makes this safe across workers.
@@ -127,6 +131,7 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
       }
       const error = `reply failed: ${errMessage(err)}`;
       log.error({ err: errMessage(err) }, "could not post reply");
+      alerts.send({ kind: "reply_failed", title: "X refused a reply", key: `reply:${mention.authorId}`, fields: [["User", `@${mention.authorHandle}`], ["Post", postUrl(mention.authorHandle, mention.id)], ["Reply", localized], ["Error", errMessage(err)]] });
       await store.updateMention(mentionId, { error });
       return { text: localized, tweetId: null, posted: false, error };
     }
@@ -146,6 +151,7 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
   } catch (err) {
     const error = err instanceof ParserError ? `parser: ${err.message}` : `parser: ${errMessage(err)}`;
     log.error({ err: errMessage(err) }, "parse failed");
+    alerts.send({ kind: "parser_failed", title: "Parser failed", key: "parser", fields: [["User", `@${mention.authorHandle}`], ["Post", postUrl(mention.authorHandle, mention.id)], ["Error", errMessage(err)]] });
     await setMention("FAILED", { error });
     return { outcome: "failed", error, reply: null, launchId: null };
   }

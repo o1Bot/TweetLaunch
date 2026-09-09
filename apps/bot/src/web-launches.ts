@@ -1,3 +1,4 @@
+import { noAlerts } from "./alerts";
 import type { Address } from "viem";
 import { findQuote, logger, tickerCollidesWithStock } from "@o1bot/shared";
 import type { LinkedUser } from "@o1bot/wallet";
@@ -125,6 +126,7 @@ export async function drainWebLaunches(deps: PipelineDeps, max = 20): Promise<nu
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error({ launchId: job.id, err: message }, "web launch crashed");
+      (deps.alerts ?? noAlerts).send({ kind: "worker_crashed", title: "Web launch worker crashed", key: "web-worker", fields: [["Launch", job.id], ["User", `@${job.creator.xHandle}`], ["Error", message]] });
       await deps.store.updateLaunch(job.id, { status: "FAILED", error: `worker: ${message}`, userMessage: replies.launchFailed("an unexpected error, please try again") });
     }
   }

@@ -77,7 +77,7 @@ Each file is paste-ready for the host's raw environment editor and ends with the
 | Service | Host | Reads |
 | ------- | ---- | ----- |
 | web | Vercel, root directory `apps/web` | `DATABASE_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_AUTHORIZATION_PRIVATE_KEY`, `PRIVY_SIGNER_ID`, `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_PRIVY_SIGNER_ID`, `NEXT_PUBLIC_DOCS_URL`, `NEXT_PUBLIC_X_URL`, `NEXT_PUBLIC_GITHUB_URL`, `NEXT_PUBLIC_CONTACT_EMAIL`, `RPC_ROBINHOOD`, `O1_API_URL`, `O1_API_KEY`, `IPFS_GATEWAY`, `LOG_LEVEL`, `LOG_PRETTY` |
-| bot | Railway | `DRY_RUN`, `SITE_URL`, `DOCS_URL`, `DATABASE_URL`, `QUEUE_DRIVER`, `REDIS_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_AUTHORIZATION_PRIVATE_KEY`, `PRIVY_SIGNER_ID`, `PRIVY_POLICY_ID`, `REFERRER_ADDRESS`, `MAX_TRADE_ETH`, `DEFAULT_USER_TRADE_CAP_ETH`, `TRADE_COOLDOWN_SECONDS`, `MAX_TRADES_PER_USER_PER_DAY`, `TRADE_SLIPPAGE_BPS`, `X_BEARER_TOKEN`, `X_APP_KEY`, `X_APP_SECRET`, `X_APP_ACCESS_TOKEN`, `X_APP_ACCESS_TOKEN_SECRET`, `X_BOT_USER_ID`, `X_BOT_HANDLE`, `X_POLL_MS`, `ANTHROPIC_API_KEY`, `PARSER_MODEL`, `PINATA_JWT`, `O1_API_URL`, `O1_API_KEY`, `RPC_ROBINHOOD`, `MAX_LAUNCHES_PER_USER_PER_DAY`, `LAUNCH_COOLDOWN_SECONDS`, `MAX_DEV_BUY_ETH`, `DEV_BUY_SLIPPAGE_BPS`, `MAX_REPLIES_PER_USER_PER_DAY`, `LOG_LEVEL`, `LOG_PRETTY` |
+| bot | Railway | `DRY_RUN`, `SITE_URL`, `DOCS_URL`, `DATABASE_URL`, `QUEUE_DRIVER`, `REDIS_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_AUTHORIZATION_PRIVATE_KEY`, `PRIVY_SIGNER_ID`, `PRIVY_POLICY_ID`, `REFERRER_ADDRESS`, `MAX_TRADE_ETH`, `DEFAULT_USER_TRADE_CAP_ETH`, `TRADE_COOLDOWN_SECONDS`, `MAX_TRADES_PER_USER_PER_DAY`, `TRADE_SLIPPAGE_BPS`, `ALERT_TELEGRAM_BOT_TOKEN`, `ALERT_TELEGRAM_CHAT_ID`, `X_BEARER_TOKEN`, `X_APP_KEY`, `X_APP_SECRET`, `X_APP_ACCESS_TOKEN`, `X_APP_ACCESS_TOKEN_SECRET`, `X_BOT_USER_ID`, `X_BOT_HANDLE`, `X_POLL_MS`, `ANTHROPIC_API_KEY`, `PARSER_MODEL`, `PINATA_JWT`, `O1_API_URL`, `O1_API_KEY`, `RPC_ROBINHOOD`, `MAX_LAUNCHES_PER_USER_PER_DAY`, `LAUNCH_COOLDOWN_SECONDS`, `MAX_DEV_BUY_ETH`, `DEV_BUY_SLIPPAGE_BPS`, `MAX_REPLIES_PER_USER_PER_DAY`, `LOG_LEVEL`, `LOG_PRETTY` |
 | indexer | Railway | `DATABASE_URL`, `INDEXER_RPC`, `RPC_ROBINHOOD`, `INDEXER_POLL_MS`, `INDEXER_START_BLOCK`, `IPFS_GATEWAY`, `LOG_LEVEL`, `LOG_PRETTY` |
 | db | your machine | `DATABASE_URL` for `pnpm db:push` / `pnpm db:migrate` against the production database |
 
@@ -197,6 +197,10 @@ Web routes: `/` board, `/token/[address]`, `/api/tokens`, `/api/token/[address]`
 ## Review gate
 
 Nothing reaches `main` without a pull request. Two workflows run on every PR: `ci` (typecheck and unit tests across the workspace) and `security-review` (Anthropic's Claude security reviewer, with project context from `.github/security-scan.md`: the guarded signer, the allow-list, the Privy policy, untrusted post text, secrets and fund flows). The reviewer needs the `ANTHROPIC_API_KEY` repository secret. In the repository settings, protect `main`: require a pull request, require the `ci` and `security-review` checks, and disallow force pushes.
+
+## Operator alerts
+
+With `ALERT_TELEGRAM_BOT_TOKEN` and `ALERT_TELEGRAM_CHAT_ID` set, the bot sends a Telegram message when a launch or trade fails (user, post, wallet, transaction, error, and what the user was told), when X refuses a reply, when the parser fails, when mention polling fails five times in a row, when the web-launch worker crashes, and one line at boot and on a crash. Identical alerts collapse to one message per ten minutes. `pnpm doctor` checks the chat is reachable. Every trade from a post is listed on the user's profile, and swaps that came from a post carry a "post" tag on the token page.
 
 ## Signing rules
 
