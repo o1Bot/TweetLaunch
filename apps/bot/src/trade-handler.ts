@@ -35,7 +35,7 @@ export async function handleTrade(cmd: TradeCommand, ctx: MentionContext): Promi
   });
 
   await setMention("QUEUED");
-  const result = await runTrade({ mentionId, tweetId: mention.id, userId: user.id, xUserId: mention.authorId, handle, wallet, cmd }, { store, config, trade: deps.trade, now }, log);
+  const result = await runTrade({ mentionId, tweetId: mention.id, userId: user.id, xUserId: mention.authorId, handle, wallet, cmd }, { store, config, trade: deps.trade, o1Tokens: deps.o1Tokens, now }, log);
 
   if (!result.ok) {
     const r = await reply(result.userText);

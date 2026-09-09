@@ -49,7 +49,7 @@ export const ParseOutputSchema = z.object({
     .string()
     .nullable()
     .describe(
-      'Trade only. For a buy: the ETH to spend as a plain decimal string exactly as written ("0.05"); null when absent or in another unit (USD, tokens, %). For a sell: how much of the holding, exactly as written: "all", "half", "quarter", or a percentage such as "25" or "25%"; null when absent or given in tokens or ETH.',
+      'Trade only. For a buy: the amount to spend exactly as written, with the asset when the user named one ("0.05", "0.05 ETH", "5 NVDA", "20 USDG"); null when absent or given in USD, in tokens of the token being bought, or as a percentage. For a sell: how much of the holding, exactly as written: "all", "half", "quarter", or a percentage such as "25" or "25%"; null when absent or given in tokens or ETH.',
     ),
   trade_slippage_pct: z.string().nullable().describe('Trade only. Slippage the user asked for as a plain number in percent ("5" for 5%). null when absent.'),
   missing: z.array(z.enum(MISSING_FIELDS)).describe("For kind=clarify: the required values that are missing or ambiguous. Empty otherwise."),

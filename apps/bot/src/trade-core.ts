@@ -1,29 +1,38 @@
-import { formatEther, formatUnits, getAddress, parseEther, zeroAddress, type Address, type Hex } from "viem";
+import { formatEther, formatUnits, getAddress, parseUnits, zeroAddress, type Address, type Hex } from "viem";
+import { poolIdOf } from "@o1bot/executor";
 import type { TradeCommand } from "@o1bot/parser";
+import { knownHooks } from "@o1bot/shared";
 import { antiSnipeFeeBps, applySlippage, encodeHookData, launchPoolKey, type PoolKey } from "@o1bot/swap";
 import type { BotConfig } from "./config";
 import { ExecutionError, type AuditSink, type WalletRef } from "./execute";
-import { formatEthCeil, replies, tokenPageUrl } from "./replies";
+import type { O1TokenSource } from "./o1-tokens";
+import { formatEthCeil, replies } from "./replies";
 import type { BotStore, TradableToken } from "./store";
 import { checkRate, startOfUtcDay } from "./validator";
 
 /**
- * A buy or sell asked for in a post, from the poster's own wallet, on a pool
- * the bot launched. The command names a side, a token and an amount; nothing
- * else in the post can influence what is signed. The output of the swap
- * always goes to the signing wallet (TAKE_ALL pays msg.sender), the router
- * call is decoded and pinned by the signer allow-list, and Privy's policy
- * bounds the value. Everything chain-facing goes through `TradeChain`, so
- * the flow runs in tests with a fake.
+ * A buy or sell asked for in a post, from the poster's own wallet, on any
+ * o1 Launchpad pool. The command names a side, a token and an amount;
+ * nothing else in the post can influence what is signed. The pool comes
+ * from the bot's own launches first, then from o1's API, and is verified on
+ * chain (known o1 hook, pool id recomputed from the key, initialised)
+ * before the allow-list opens it. The output of the swap always goes to the
+ * signing wallet (TAKE_ALL pays msg.sender), the router call is decoded and
+ * pinned by the signer allow-list, and Privy's policy bounds the native
+ * value. Stock and USDG pools are paid in that asset; the user must hold
+ * it. Everything chain-facing goes through `TradeChain`, so the flow runs
+ * in tests with a fake.
  */
 
 export const CHAIN_ID = 4663;
-/** Gas limits for the swap and for each approval a sell may need; generous, only the base fee is charged. */
+/** Gas limits for the swap and for each approval; generous, only the base fee is charged. */
 export const SWAP_GAS = 450_000n;
 export const APPROVAL_GAS = 80_000n;
 const DEADLINE_SECONDS = 180;
+const MAX_CANDIDATES_IN_REPLY = 3;
 
 export type PoolConfig = {
+  initialized: boolean;
   currentCreator: Address;
   creatorFeeRecipient: Address;
   baseFeeBps: number;
@@ -40,6 +49,8 @@ export type TradePlan = {
   /** Referrer carried in the hook data; null when the hook would reject it (creator or fee recipient). */
   referrer: Address | null;
   pool: { token: Address; quote: Address; tickSpacing: number; poolId: Hex };
+  quoteSymbol: string;
+  quoteDecimals: number;
   side: "buy" | "sell";
   poolKey: PoolKey;
   zeroForOne: boolean;
@@ -48,23 +59,27 @@ export type TradePlan = {
   minAmountOut: bigint;
   hookData: Hex;
   deadline: bigint;
-  /** Native value the router call carries (a buy's ETH) and the cap the allow-list enforces on it. */
+  /** Native value the router call carries (an ETH buy) and the cap the allow-list enforces on it. */
   value: bigint;
   maxValueWei: bigint;
   gas: bigint;
   maxFeePerGas: bigint;
   maxPriorityFeePerGas: bigint;
-  /** Approvals a sell still needs before the swap. */
+  /** ERC-20 the router pulls (the token for a sell, the quote for a stock or USDG buy); null when paying ETH. */
+  approvalAsset: Address | null;
   approvals: { erc20: boolean; permit2: boolean };
 };
 
 export type TradeChain = {
   addresses(): { router: Address; permit2: Address; referrer: Address | null };
   poolConfig(pool: { poolId: Hex; hook: Address }): Promise<PoolConfig>;
-  balances(wallet: Address, token: Address): Promise<{ eth: bigint; token: bigint }>;
-  /** Which approvals a sell of `token` from `wallet` still needs. */
-  approvals(wallet: Address, token: Address): Promise<{ erc20: boolean; permit2: boolean }>;
+  /** ETH, the token and the quote asset (equal to `eth` when the quote is native). */
+  balances(wallet: Address, token: Address, quote: Address): Promise<{ eth: bigint; token: bigint; quote: bigint }>;
+  /** Which approvals the router still needs to pull `asset` from `wallet`. */
+  approvals(wallet: Address, asset: Address): Promise<{ erc20: boolean; permit2: boolean }>;
   quote(input: { poolKey: PoolKey; zeroForOne: boolean; amountIn: bigint; hookData: Hex }): Promise<bigint>;
+  /** USD per unit of an asset (ETH when `asset` is the zero address); null when unknown. */
+  usdPrice(asset: Address, decimals: number): Promise<number | null>;
   fees(): Promise<{ maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }>;
   execute(plan: TradePlan, wallet: WalletRef, audit: AuditSink): Promise<{ txHash: Hex; amountOut: bigint }>;
 };
@@ -79,7 +94,7 @@ export type TradeCoreInput = {
   cmd: TradeCommand;
 };
 
-export type TradeCoreDeps = { store: BotStore; config: BotConfig; trade: TradeChain; now: () => Date };
+export type TradeCoreDeps = { store: BotStore; config: BotConfig; trade: TradeChain; o1Tokens: O1TokenSource; now: () => Date };
 
 export type TradeCoreResult =
   | { ok: false; outcome: "rejected"; error: string; userText: string }
@@ -91,11 +106,11 @@ type Logger = { info: (obj: object, msg: string) => void; warn: (obj: object, ms
 
 const errMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-/** Human amount for a reply: whole tokens with separators above 1000, else up to 4 decimals; ETH up to 5 decimals. */
-export function humanAmount(raw: bigint, decimals: number, kind: "eth" | "token"): string {
+/** Human amount for a reply: whole tokens with separators above 1000, else a few decimals. */
+export function humanAmount(raw: bigint, decimals: number, kind: "quote" | "token"): string {
   const n = Number(formatUnits(raw, decimals));
   if (kind === "token" && n >= 1000) return Math.round(n).toLocaleString("en-US");
-  const max = kind === "eth" ? 5 : 4;
+  const max = kind === "quote" ? 5 : 4;
   const s = n.toLocaleString("en-US", { maximumFractionDigits: max });
   return s === "0" && raw > 0n ? `<0.${"0".repeat(max - 1)}1` : s;
 }
@@ -108,8 +123,15 @@ export function sellAmount(balance: bigint, portion: TradeCommand["sellPortion"]
   return (balance * bps) / 10_000n;
 }
 
+/** The user's per-trade cap in ETH terms: their own setting under the deployment ceiling, else the default. */
+export function effectiveCapWei(userCap: bigint | null, config: BotConfig): bigint {
+  const ceiling = config.maxTradeWei;
+  if (userCap !== null && userCap > 0n) return userCap < ceiling ? userCap : ceiling;
+  return config.defaultUserTradeCapWei < ceiling ? config.defaultUserTradeCapWei : ceiling;
+}
+
 export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: Logger): Promise<TradeCoreResult> {
-  const { store, config, trade } = deps;
+  const { store, config, trade, o1Tokens } = deps;
   const { cmd, wallet } = input;
   const siteUrl = config.siteUrl;
   const rejected = (error: string, userText: string): TradeCoreResult => ({ ok: false, outcome: "rejected", error, userText });
@@ -118,18 +140,29 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
   // 1. Opt-in and the user's own cap.
   const settings = await store.tradingSettings(input.xUserId);
   if (!settings?.enabled) return rejected("trading not enabled", replies.tradeDisabled(siteUrl));
-  const capWei = settings.maxTradeWei !== null && settings.maxTradeWei > 0n ? (settings.maxTradeWei < config.maxTradeWei ? settings.maxTradeWei : config.maxTradeWei) : config.defaultUserTradeCapWei < config.maxTradeWei ? config.defaultUserTradeCapWei : config.maxTradeWei;
+  const capWei = effectiveCapWei(settings.maxTradeWei, config);
 
-  // 2. The token: only pools the bot launched, one match, ETH-paired.
-  const matches = await store.findTradableTokens(cmd.tokenAddress ? { address: cmd.tokenAddress } : { ticker: cmd.ticker });
+  // 2. The token: the bot's own launches first, then any o1 launch; one match or a question.
+  let matches = await store.findTradableTokens(cmd.tokenAddress ? { address: cmd.tokenAddress } : { ticker: cmd.ticker });
+  if (matches.length === 0) {
+    if (cmd.tokenAddress) {
+      const found = await o1Tokens.byAddress(cmd.tokenAddress);
+      matches = found ? [found] : [];
+    } else if (cmd.ticker) matches = await o1Tokens.search(cmd.ticker);
+  }
   if (matches.length === 0) return rejected(`unknown token ${label}`, replies.tradeUnknownToken(label, siteUrl));
   if (matches.length > 1) {
-    return rejected(`ambiguous ticker ${label} (${matches.length} pools)`, replies.tradeAmbiguous(label, matches.slice(0, 2).map((m) => tokenPageUrl(siteUrl, m.token))));
+    const ranked = [...matches].sort((a, b) => (b.liquidityUsd ?? -1) - (a.liquidityUsd ?? -1)).slice(0, MAX_CANDIDATES_IN_REPLY);
+    return rejected(`ambiguous ticker ${label} (${matches.length} pools)`, replies.tradeAmbiguous(label, ranked));
   }
   const pool: TradableToken = matches[0]!;
   const ticker = pool.symbol.toUpperCase();
-  if (getAddress(pool.quoteAddress) !== zeroAddress) return rejected(`not an ETH pool: ${ticker}`, replies.tradeNotEthPool(ticker, siteUrl));
   const token = getAddress(pool.token);
+  const hook = getAddress(pool.hook);
+  const quoteAddress = getAddress(pool.quoteAddress);
+  const nativeQuote = quoteAddress === zeroAddress;
+  const quoteSymbol = nativeQuote ? "ETH" : pool.quoteSymbol.toUpperCase();
+  const quoteDecimals = nativeQuote ? 18 : pool.quoteDecimals;
 
   // 3. Rate limits, before anything touches the chain.
   const now = deps.now();
@@ -142,38 +175,56 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
   });
   if (!rate.ok) return rejected(`rate limit: ${rate.reason}`, rate.reason === "cooldown" ? replies.tradeSlowDown(rate.retryAfterSeconds) : replies.tradeDailyCap());
 
-  // 4. Pool state: anti-snipe window (buys) and whether the hook accepts our referrer.
+  // 4. The pool must be a real o1 launch pool: a hook from o1's registry, the id recomputed from the key, initialised on chain.
+  const poolKey = launchPoolKey(token, quoteAddress, pool.tickSpacing, hook);
+  if (!knownHooks("robinhood").includes(hook)) return rejected(`unknown hook ${hook} for ${ticker}`, replies.tradeNotO1Pool(ticker, siteUrl));
+  if (poolIdOf(poolKey).toLowerCase() !== pool.poolId.toLowerCase()) return rejected(`pool id mismatch for ${ticker}`, replies.tradeNotO1Pool(ticker, siteUrl));
   const addresses = trade.addresses();
   let poolConfig: PoolConfig;
   try {
-    poolConfig = await trade.poolConfig({ poolId: pool.poolId as Hex, hook: getAddress(pool.hook) });
+    poolConfig = await trade.poolConfig({ poolId: pool.poolId as Hex, hook });
   } catch (err) {
     return { ok: false, outcome: "failed", error: `pool config: ${errMessage(err)}`, userText: replies.tradeFailed("the chain RPC did not respond"), tradeId: null };
   }
+  if (!poolConfig.initialized) return rejected(`pool not initialised for ${ticker}`, replies.tradeNotO1Pool(ticker, siteUrl));
   const antiSnipe = antiSnipeFeeBps(Math.floor(now.getTime() / 1000), poolConfig.launchTime, poolConfig.antiSnipeWindowSeconds, poolConfig.antiSnipeStartTotalBps, poolConfig.baseFeeBps);
   if (cmd.side === "buy" && antiSnipe.active) return rejected(`anti-snipe active (${antiSnipe.secondsLeft}s)`, replies.tradeAntiSnipe(ticker, antiSnipe.secondsLeft));
   const referrer = addresses.referrer && addresses.referrer !== getAddress(poolConfig.currentCreator) && addresses.referrer !== getAddress(poolConfig.creatorFeeRecipient) ? addresses.referrer : null;
   const hookData = encodeHookData(referrer);
 
-  // 5. Amounts from the wallet's real balances.
-  const balances = await trade.balances(wallet.address, token);
+  // 5. Amounts from the wallet's real balances, in the pool's own quote asset.
+  const balances = await trade.balances(wallet.address, token, quoteAddress);
   let amountIn: bigint;
   if (cmd.side === "buy") {
+    const unit = (cmd.amountSymbol ?? "ETH").toUpperCase();
+    if (unit !== quoteSymbol) return rejected(`amount in ${unit} for a ${quoteSymbol} pool`, replies.tradeWrongUnit(ticker, quoteSymbol));
     try {
-      amountIn = parseEther(cmd.amountEth ?? "0");
+      amountIn = parseUnits(cmd.amount ?? "0", quoteDecimals);
     } catch {
-      return rejected(`bad amount ${cmd.amountEth}`, replies.tradeFailed("the ETH amount could not be read"));
+      return rejected(`bad amount ${cmd.amount}`, replies.tradeFailed("the amount could not be read"));
     }
-    if (amountIn <= 0n) return rejected("zero amount", replies.tradeFailed("the ETH amount is zero"));
-    if (amountIn > capWei) return rejected(`above cap: ${amountIn} > ${capWei}`, replies.tradeTooLarge(formatEther(capWei), siteUrl));
+    if (amountIn <= 0n) return rejected("zero amount", replies.tradeFailed("the amount is zero"));
+    // The cap is set in ETH; a stock or USDG amount is compared through USD.
+    if (nativeQuote) {
+      if (amountIn > capWei) return rejected(`above cap: ${amountIn} > ${capWei}`, replies.tradeTooLarge(formatEther(capWei), siteUrl));
+    } else {
+      const [ethUsd, quoteUsd] = await Promise.all([trade.usdPrice(zeroAddress, 18), trade.usdPrice(quoteAddress, quoteDecimals)]);
+      if (ethUsd === null || quoteUsd === null) return rejected(`no usd price for ${quoteSymbol}`, replies.tradeNoQuote(ticker));
+      const amountUsd = Number(formatUnits(amountIn, quoteDecimals)) * quoteUsd;
+      const capUsd = Number(formatEther(capWei)) * ethUsd;
+      if (amountUsd > capUsd) return rejected(`above cap: $${amountUsd.toFixed(2)} > $${capUsd.toFixed(2)}`, replies.tradeTooLarge(formatEther(capWei), siteUrl));
+    }
+    if (!nativeQuote && balances.quote < amountIn) {
+      return rejected(`insufficient ${quoteSymbol}: have ${balances.quote}, need ${amountIn}`, replies.tradeInsufficientAsset(quoteSymbol, humanAmount(amountIn - balances.quote, quoteDecimals, "quote"), siteUrl));
+    }
   } else {
     amountIn = sellAmount(balances.token, cmd.sellPortion);
     if (amountIn <= 0n) return rejected("nothing to sell", replies.tradeNothingToSell(ticker));
   }
-  const approvals = cmd.side === "sell" ? await trade.approvals(wallet.address, token) : { erc20: false, permit2: false };
+  const approvalAsset: Address | null = cmd.side === "sell" ? token : nativeQuote ? null : quoteAddress;
+  const approvals = approvalAsset ? await trade.approvals(wallet.address, approvalAsset) : { erc20: false, permit2: false };
 
   // 6. Quote and the swap itself.
-  const poolKey = launchPoolKey(token, zeroAddress, pool.tickSpacing, getAddress(pool.hook));
   const tokenIsCurrency0 = poolKey.currency0 === token;
   const zeroForOne = cmd.side === "buy" ? !tokenIsCurrency0 : tokenIsCurrency0;
   let expectedOut: bigint;
@@ -187,11 +238,11 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
   const slippageBps = cmd.slippageBps ?? config.tradeSlippageBps;
   const minAmountOut = applySlippage(expectedOut, slippageBps);
 
-  // 7. Funding: the swap value (buys) plus gas for the swap and any approvals, at the pinned fee cap.
+  // 7. Funding in ETH: the swap value (ETH buys) plus gas for the swap and any approvals, at the pinned fee cap.
   const fees = await trade.fees();
   const gas = SWAP_GAS;
   const approvalCount = BigInt((approvals.erc20 ? 1 : 0) + (approvals.permit2 ? 1 : 0));
-  const value = cmd.side === "buy" ? amountIn : 0n;
+  const value = cmd.side === "buy" && nativeQuote ? amountIn : 0n;
   const requiredWei = value + (gas + approvalCount * APPROVAL_GAS) * fees.maxFeePerGas;
   if (balances.eth < requiredWei) {
     return rejected(`insufficient: have ${balances.eth}, need ${requiredWei}`, replies.tradeInsufficient(formatEthCeil(requiredWei - balances.eth), siteUrl));
@@ -201,9 +252,11 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
     chainId: CHAIN_ID,
     router: addresses.router,
     permit2: addresses.permit2,
-    hook: getAddress(pool.hook),
+    hook,
     referrer,
-    pool: { token, quote: zeroAddress, tickSpacing: pool.tickSpacing, poolId: pool.poolId as Hex },
+    pool: { token, quote: quoteAddress, tickSpacing: pool.tickSpacing, poolId: pool.poolId as Hex },
+    quoteSymbol,
+    quoteDecimals,
     side: cmd.side,
     poolKey,
     zeroForOne,
@@ -217,6 +270,7 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
     gas,
     maxFeePerGas: fees.maxFeePerGas,
     maxPriorityFeePerGas: fees.maxPriorityFeePerGas,
+    approvalAsset,
     approvals,
   };
 
@@ -233,14 +287,23 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
     status: "QUEUED",
   });
   const tradeId = created.id;
-  const inHuman = cmd.side === "buy" ? humanAmount(amountIn, 18, "eth") : humanAmount(amountIn, 18, "token");
+  const inHuman = cmd.side === "buy" ? humanAmount(amountIn, quoteDecimals, "quote") : humanAmount(amountIn, 18, "token");
   const successText = (out: bigint, txHash: Hex | null) =>
-    replies.tradeSuccess({ side: cmd.side, ticker, amountIn: inHuman, amountOut: cmd.side === "buy" ? humanAmount(out, 18, "token") : humanAmount(out, 18, "eth"), token, siteUrl, txHash });
+    replies.tradeSuccess({
+      side: cmd.side,
+      ticker,
+      quoteSymbol,
+      amountIn: inHuman,
+      amountOut: cmd.side === "buy" ? humanAmount(out, 18, "token") : humanAmount(out, quoteDecimals, "quote"),
+      token,
+      siteUrl,
+      txHash,
+    });
 
   if (config.dryRun) {
     const userText = successText(expectedOut, null).text;
     await store.updateTrade(tradeId, { status: "DRY_RUN", userMessage: userText });
-    log.info({ tradeId, side: cmd.side, token, amountIn: amountIn.toString(), expectedOut: expectedOut.toString(), minAmountOut: minAmountOut.toString(), approvals }, "dry run: would sign the swap");
+    log.info({ tradeId, side: cmd.side, token, source: pool.source, amountIn: amountIn.toString(), expectedOut: expectedOut.toString(), minAmountOut: minAmountOut.toString(), approvals }, "dry run: would sign the swap");
     return { ok: true, dryRun: true, tradeId, userText };
   }
 

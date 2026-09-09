@@ -104,17 +104,21 @@ export type WebLaunchJob = {
   imageData: Uint8Array | null;
 };
 
-/** A pool the bot launched, as much of it as a trade needs. */
+/** An o1 launch pool, as much of it as a trade needs: the bot's own launches or a token from o1's directory. */
 export type TradableToken = {
   token: string;
   symbol: string;
   name: string;
   quoteAddress: string;
   quoteSymbol: string;
+  quoteDecimals: number;
   tickSpacing: number;
   hook: string;
   poolId: string;
   launchedAt: Date;
+  source: "bot" | "o1";
+  /** From o1's market data, for ranking candidates that share a ticker; null when unknown. */
+  liquidityUsd: number | null;
 };
 
 export type TradingSettings = { enabled: boolean; maxTradeWei: bigint | null };
@@ -289,9 +293,9 @@ export class PrismaBotStore implements BotStore {
     const rows = await db().pool.findMany({
       where: { source: "BOT", ...where },
       orderBy: { launchedAt: "asc" },
-      select: { token: true, symbol: true, name: true, quoteAddress: true, quoteSymbol: true, tickSpacing: true, hook: true, poolId: true, launchedAt: true },
+      select: { token: true, symbol: true, name: true, quoteAddress: true, quoteSymbol: true, quoteDecimals: true, tickSpacing: true, hook: true, poolId: true, launchedAt: true },
     });
-    return rows;
+    return rows.map((r) => ({ ...r, source: "bot" as const, liquidityUsd: null }));
   }
   async tradingSettings(xUserId: string) {
     const row = await db().user.findUnique({ where: { xUserId }, select: { tradingEnabled: true, maxTradeWei: true } });

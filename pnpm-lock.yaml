@@ -195,6 +195,9 @@ importers:
 
   packages/executor:
     dependencies:
+      '@o1bot/market':
+        specifier: workspace:*
+        version: link:../market
       '@o1bot/shared':
         specifier: workspace:*
         version: link:../shared

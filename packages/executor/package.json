@@ -14,6 +14,7 @@
     "simulate": "tsx scripts/simulate-launch.ts"
   },
   "dependencies": {
+    "@o1bot/market": "workspace:*",
     "@o1bot/shared": "workspace:*",
     "sharp": "^0.34.5",
     "viem": "^2.56.3"

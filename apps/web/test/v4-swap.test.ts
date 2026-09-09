@@ -21,11 +21,12 @@ describe("launchPoolKey", () => {
 });
 
 describe("encodeHookData", () => {
-  it("is referrer plus a 32-byte comment", () => {
+  it("is abi.encode(referrer, bytes32 comment), the form o1's hook decodes", () => {
     const data = encodeHookData(REFERRER, "o1bot.exchange");
-    expect(data.length).toBe(2 + 40 + 64);
-    expect(data.slice(0, 42).toLowerCase()).toBe(REFERRER.toLowerCase());
-    expect(hexToString(`0x${data.slice(42)}` as Hex, { size: 32 })).toBe("o1bot.exchange");
+    expect(data.length).toBe(2 + 64 + 64);
+    expect(data.slice(2, 26)).toBe("0".repeat(24));
+    expect(data.slice(26, 66).toLowerCase()).toBe(REFERRER.slice(2).toLowerCase());
+    expect(hexToString(`0x${data.slice(66)}` as Hex, { size: 32 })).toBe("o1bot.exchange");
   });
   it("is empty without a referrer", () => expect(encodeHookData(null)).toBe("0x"));
 });

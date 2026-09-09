@@ -39,8 +39,9 @@ export type TradeCommand = {
   ticker: string | null;
   /** 0x address exactly as written (case not normalised here); null when the user gave a ticker. */
   tokenAddress: string | null;
-  /** Decimal ETH string exactly as written; buys only. */
-  amountEth: string | null;
+  /** Buys only: the amount to spend exactly as written, and the asset it is in (null = ETH). */
+  amount: string | null;
+  amountSymbol: string | null;
   /** Sells only. */
   sellPortion: SellPortion | null;
   /** Requested slippage in basis points, already bounded; null = the bot's default. */
@@ -143,13 +144,29 @@ export function cleanSlippage(raw: string | null | undefined): number | null {
   return Math.min(SLIPPAGE_MAX_BPS, Math.max(SLIPPAGE_MIN_BPS, bps));
 }
 
+export type TradeAmount = { ok: true; value: string | null; symbol: string | null } | { ok: false };
+
+/** "0.05", "0.05 ETH", "5 NVDA" → amount and asset; anything else (USD, %, tokens) is unusable. */
+export function cleanTradeAmount(raw: string | null | undefined): TradeAmount {
+  if (raw === null || raw === undefined) return { ok: true, value: null, symbol: null };
+  const s = raw.trim().replace(/,/g, ".");
+  if (!s) return { ok: true, value: null, symbol: null };
+  const m = s.match(/^(\d+(?:\.\d+)?|\.\d+)\s*\$?([A-Za-z]{1,11})?$/);
+  if (!m) return { ok: false };
+  const value = m[1]!.startsWith(".") ? `0${m[1]}` : m[1]!;
+  if (!DECIMAL_RE.test(value) || Number(value) <= 0) return { ok: false };
+  let symbol = m[2] ? m[2].toUpperCase() : null;
+  if (symbol === "ETHER" || symbol === "ETHEREUM") symbol = "ETH";
+  return { ok: true, value, symbol };
+}
+
 function normalizeTrade(raw: ParseOutput, language: string, reason: string): ParseResult {
   const missing = new Set<MissingField>(raw.kind === "clarify" ? raw.missing.filter((m) => TRADE_MISSING.has(m)) : []);
   const side = raw.trade_side;
   const tokenRaw = (raw.ticker ?? "").trim();
   const tokenAddress = ADDRESS_RE.test(tokenRaw) ? tokenRaw : null;
   const ticker = tokenAddress ? null : cleanTicker(tokenRaw || null);
-  const amount = side === "buy" ? cleanAmount(raw.trade_amount) : { ok: true as const, value: null };
+  const amount: TradeAmount = side === "buy" ? cleanTradeAmount(raw.trade_amount) : { ok: true, value: null, symbol: null };
   const portion = side === "sell" ? cleanSellPortion(raw.trade_amount) : { ok: true as const, value: null };
 
   if (!side) missing.add("trade_side");
@@ -167,7 +184,8 @@ function normalizeTrade(raw: ParseOutput, language: string, reason: string): Par
     side: side!,
     ticker,
     tokenAddress,
-    amountEth: side === "buy" && amount.ok ? amount.value : null,
+    amount: side === "buy" && amount.ok ? amount.value : null,
+    amountSymbol: side === "buy" && amount.ok ? amount.symbol : null,
     sellPortion: side === "sell" && portion.ok ? portion.value : null,
     slippageBps: cleanSlippage(raw.trade_slippage_pct),
     language,

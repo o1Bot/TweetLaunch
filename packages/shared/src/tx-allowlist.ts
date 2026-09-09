@@ -1,4 +1,4 @@
-import { decodeFunctionData, getAddress, isAddress, parseAbi, toFunctionSelector, type Address, type Hex } from "viem";
+import { decodeFunctionData, getAddress, isAddress, parseAbi, toFunctionSelector, zeroAddress, type Address, type Hex } from "viem";
 import { decodeExactInputSwap, decodeHookData, launchPoolKey, SWAP_COMMENT } from "@o1bot/swap";
 
 /**
@@ -109,11 +109,11 @@ export function buildAllowlist(input: {
   if (input.trade) {
     const t = input.trade;
     const pools = t.pools.map((p) => ({ token: getAddress(p.token), quote: getAddress(p.quote), tickSpacing: p.tickSpacing }));
-    const tokens = pools.map((p) => p.token);
+    // The router pulls the token on a sell and the quote asset on a stock or USDG buy; both may need approvals.
+    const assets = [...new Set([...pools.map((p) => p.token), ...pools.map((p) => p.quote).filter((q) => q !== zeroAddress)])];
     entries.push({ kind: "routerExecute", to: getAddress(t.router), swap: { hook: getAddress(t.hook), referrer: t.referrer ? getAddress(t.referrer) : null, maxValueWei: t.maxValueWei, pools } });
-    entries.push({ kind: "permit2Approve", to: getAddress(t.permit2), spenders: [getAddress(t.router)], tokens });
-    // Selling needs the token approved to Permit2 once; buying needs nothing (ETH pools only).
-    for (const token of tokens) entries.push({ kind: "erc20Approve", to: token, spenders: [getAddress(t.permit2)] });
+    entries.push({ kind: "permit2Approve", to: getAddress(t.permit2), spenders: [getAddress(t.router)], tokens: assets });
+    for (const asset of assets) entries.push({ kind: "erc20Approve", to: asset, spenders: [getAddress(t.permit2)] });
   }
   return { chainId: input.chainId, entries };
 }

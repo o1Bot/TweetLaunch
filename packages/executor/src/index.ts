@@ -6,6 +6,7 @@ export * from "./limits";
 export * from "./metadata";
 export * from "./o1-pin";
 export * from "./plan";
+export * from "./quote-usd";
 export * from "./png";
 export * from "./route";
 export * from "./route-discovery";

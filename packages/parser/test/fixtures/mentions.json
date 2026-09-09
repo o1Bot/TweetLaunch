@@ -482,8 +482,8 @@
       "kind": "trade",
       "side": "buy",
       "tradeTicker": "CAT",
-      "amountEth": "0.05",
-      "sellPortion": null
+      "sellPortion": null,
+      "amount": "0.05"
     }
   },
   {
@@ -494,7 +494,7 @@
       "kind": "trade",
       "side": "buy",
       "tradeTicker": "CAT",
-      "amountEth": "0.1"
+      "amount": "0.1"
     }
   },
   {
@@ -505,7 +505,7 @@
       "kind": "trade",
       "side": "buy",
       "tradeTicker": "O1BOT",
-      "amountEth": "0.02"
+      "amount": "0.02"
     }
   },
   {
@@ -515,8 +515,8 @@
     "expect": {
       "kind": "trade",
       "side": "buy",
-      "amountEth": "0.05",
-      "slippageBps": 500
+      "slippageBps": 500,
+      "amount": "0.05"
     }
   },
   {
@@ -527,7 +527,7 @@
       "kind": "trade",
       "side": "buy",
       "tradeAddress": "0xF7d77243Fbd0413a6528edc275b09D31c25CB201",
-      "amountEth": "0.01"
+      "amount": "0.01"
     }
   },
   {
@@ -541,7 +541,7 @@
       "sellPortion": {
         "kind": "all"
       },
-      "amountEth": null
+      "amount": null
     }
   },
   {
@@ -580,8 +580,8 @@
       "kind": "trade",
       "side": "buy",
       "tradeTicker": "KOPI",
-      "amountEth": "0.05",
-      "languageStartsWith": "id"
+      "languageStartsWith": "id",
+      "amount": "0.05"
     }
   },
   {
@@ -696,7 +696,7 @@
       ],
       "side": "buy",
       "tradeTicker": "CAT",
-      "amountEth": "0.05"
+      "amount": "0.05"
     }
   },
   {
@@ -720,6 +720,30 @@
         "help",
         "ignore"
       ]
+    }
+  },
+  {
+    "id": "trade-buy-stock-unit",
+    "text": "@o1bot_exchange buy 5 NVDA of $NVDOG",
+    "hasImage": false,
+    "expect": {
+      "kind": "trade",
+      "side": "buy",
+      "tradeTicker": "NVDOG",
+      "amount": "5",
+      "amountSymbol": "NVDA"
+    }
+  },
+  {
+    "id": "trade-buy-usdg-unit",
+    "text": "@o1bot_exchange grab $HDASH with 20 USDG",
+    "hasImage": false,
+    "expect": {
+      "kind": "trade",
+      "side": "buy",
+      "tradeTicker": "HDASH",
+      "amount": "20",
+      "amountSymbol": "USDG"
     }
   }
 ]

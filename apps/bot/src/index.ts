@@ -8,6 +8,7 @@ import { ensureWalletForXUser, findUserByXUserId, linkStatus, type EnsureWalletI
 import { FakeXClient, HttpXClient, type XClient, type XMention } from "@o1bot/x";
 import { botConfig, type BotConfig } from "./config";
 import { executeLaunchPlan, setCreatorFeeRecipient } from "./execute";
+import { liveO1Tokens } from "./o1-tokens";
 import { dryRunTradeChain, liveTradeChain } from "./trade-chain";
 import { processMention, type PipelineDeps } from "./pipeline";
 import { BullQueue, MemoryQueue, type JobQueue } from "./queue";
@@ -159,6 +160,7 @@ function buildDeps(cfg: BotConfig, args: CliArgs, store: BotStore, x: XClient): 
     execute: (plan, wallet, audit) => executeLaunchPlan(plan, wallet, audit),
     setFeeRecipient: (input, wallet, audit) => setCreatorFeeRecipient(input, wallet, audit),
     trade: rpcConfigured ? liveTradeChain() : dryRunTradeChain(),
+    o1Tokens: liveO1Tokens(),
   };
 }
 

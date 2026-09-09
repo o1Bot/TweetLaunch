@@ -55,15 +55,22 @@ describe("successReply", () => {
 describe("tradeSuccess", () => {
   it("fits X with the explorer link and the token page, and the safe variant drops the transaction", () => {
     const tx = `0x${"ab".repeat(32)}`;
-    const r = replies.tradeSuccess({ side: "buy", ticker: "CASHCAT", amountIn: "0.05", amountOut: "1,234,567", token: TOKEN, siteUrl: SITE, txHash: tx });
+    const r = replies.tradeSuccess({ side: "buy", ticker: "CASHCAT", quoteSymbol: "ETH", amountIn: "0.05", amountOut: "1,234,567", token: TOKEN, siteUrl: SITE, txHash: tx });
     expect(fitsX(r.text)).toBe(true);
     expect(r.text).toContain(`https://rh-scan.com/tx/${tx}`);
     expect(r.text).toContain(`${SITE}/token/${TOKEN}`);
     expect(r.safe).not.toContain("rh-scan");
     expect(r.safe).toContain(`${SITE}/token/${TOKEN}`);
-    const sell = replies.tradeSuccess({ side: "sell", ticker: "CASHCAT", amountIn: "500,000", amountOut: "0.021", token: TOKEN, siteUrl: SITE, txHash: null });
+    const sell = replies.tradeSuccess({ side: "sell", ticker: "NVDOG", quoteSymbol: "NVDA", amountIn: "500,000", amountOut: "0.021", token: TOKEN, siteUrl: SITE, txHash: null });
     expect(sell.text).toBe(sell.safe);
-    expect(sell.text).toMatch(/^Sold 500,000 \$CASHCAT for 0\.021 ETH\./);
+    expect(sell.text).toMatch(/^Sold 500,000 \$NVDOG for 0\.021 NVDA\./);
+    const amb = replies.tradeAmbiguous("CAT", [
+      { name: "Cash Cat", token: TOKEN, liquidityUsd: 12345.6 },
+      { name: "Cat Coin", token: "0x9093f31188C0b5DaEA6c0270bf21FBbA24D80b01", liquidityUsd: null },
+    ]);
+    expect(fitsX(amb)).toBe(true);
+    expect(amb).toContain(TOKEN);
+    expect(amb).toContain("$12,346 liquidity");
   });
 });
 

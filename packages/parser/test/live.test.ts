@@ -27,7 +27,8 @@ type Expect = {
   side?: "buy" | "sell";
   tradeTicker?: string | null;
   tradeAddress?: string | null;
-  amountEth?: string | null;
+  amount?: string | null;
+  amountSymbol?: string | null;
   sellPortion?: { kind: "all" } | { kind: "percent"; value: number } | null;
   slippageBps?: number | null;
 };
@@ -58,7 +59,8 @@ describe.skipIf(!hasKey)("parser against the live model", () => {
         if (e.side !== undefined) expect(result.side).toBe(e.side);
         if (e.tradeTicker !== undefined) expect(result.ticker).toBe(e.tradeTicker);
         if (e.tradeAddress !== undefined) expect(result.tokenAddress?.toLowerCase() ?? null).toBe(e.tradeAddress?.toLowerCase() ?? null);
-        if (e.amountEth !== undefined) expect(result.amountEth).toBe(e.amountEth);
+        if (e.amount !== undefined) expect(result.amount).toBe(e.amount);
+        if (e.amountSymbol !== undefined) expect(result.amountSymbol).toBe(e.amountSymbol);
         if (e.sellPortion !== undefined) expect(result.sellPortion).toEqual(e.sellPortion);
         if (e.slippageBps !== undefined) expect(result.slippageBps).toBe(e.slippageBps);
       }
