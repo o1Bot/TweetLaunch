@@ -20,6 +20,8 @@ type Expect = {
   languageStartsWith?: string;
   /** Case-insensitive substrings a help reply must contain. */
   replyIncludes?: string[];
+  /** Case-insensitive substrings a help reply must not contain (injected text must never be echoed). */
+  replyExcludes?: string[];
   description?: string | null;
   website?: string | null;
   telegram?: string | null;
@@ -72,6 +74,7 @@ describe.skipIf(!hasKey)("parser against the live model", () => {
         expect(result.reply.length).toBeLessThanOrEqual(280);
         expect((result.reply.match(/https?:\/\//g) ?? []).length).toBeLessThanOrEqual(1);
         for (const s of e.replyIncludes ?? []) expect(result.reply.toLowerCase()).toContain(s.toLowerCase());
+        for (const s of e.replyExcludes ?? []) expect(result.reply.toLowerCase()).not.toContain(s.toLowerCase());
       }
     });
   }
