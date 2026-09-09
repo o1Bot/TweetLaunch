@@ -42,6 +42,7 @@ type LaunchRow = {
   ticker: string;
   name: string;
   quoteSymbol: string;
+  imageUrl: string | null;
   status: string;
   tokenAddress: string | null;
   launchTxHash: string | null;
@@ -84,6 +85,7 @@ export async function GET(req: Request) {
       ticker: l.ticker,
       name: l.name,
       quoteSymbol: l.quoteSymbol,
+      imageUrl: l.imageUri ? (ipfsToHttp(l.imageUri) ?? l.imageUri) : null,
       status: l.status,
       tokenAddress: l.tokenAddress,
       launchTxHash: l.launchTxHash,
