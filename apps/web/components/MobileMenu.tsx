@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useRef, useState } from "react";
 import { DOCS_URL } from "./links";
+import { SearchBox } from "./SearchBox";
 
 /**
  * Navigation for narrow screens, where the inline nav is hidden: one button
@@ -56,6 +57,7 @@ export function MobileMenu() {
       </button>
       {open && (
         <nav className="mmenu" aria-label="Menu">
+          <SearchBox compact />
           <Link href="/">Board</Link>
           <Link href="/launch">Launch a token</Link>
           <Link href="/how-it-works">How it works</Link>

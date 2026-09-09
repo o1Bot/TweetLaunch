@@ -2,6 +2,7 @@ import Link from "next/link";
 import { HeaderAccount } from "./HeaderAccount";
 import { DOCS_URL, SITE_NAME } from "./links";
 import { MobileMenu } from "./MobileMenu";
+import { SearchBox } from "./SearchBox";
 
 export function SiteHeader() {
   return (
@@ -19,6 +20,7 @@ export function SiteHeader() {
         </a>
       </nav>
       <div className="grow" />
+      <SearchBox />
       <HeaderAccount />
       <MobileMenu />
     </header>
