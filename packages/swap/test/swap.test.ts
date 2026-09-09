@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { concatHex, encodeAbiParameters, encodeFunctionData, getAddress, zeroAddress, type Address, type Hex } from "viem";
-import { COMMAND_V4_SWAP, decodeExactInputSwap, decodeHookData, encodeExactInputSwap, encodeHookData, launchPoolKey, universalRouterAbi } from "../src/index";
+import { concatHex, decodeAbiParameters, decodeFunctionData, encodeAbiParameters, encodeFunctionData, getAddress, zeroAddress, type Address, type Hex } from "viem";
+import { COMMAND_V4_SWAP, decodeExactInputSwap, decodeHookData, encodeExactInputSwap, encodeHookData, EXACT_INPUT_ACTIONS, launchPoolKey, universalRouterAbi } from "../src/index";
 
 const ROUTER: Address = getAddress("0x1111111111111111111111111111111111111111");
 const TOKEN: Address = getAddress("0x0ab6bf0ffa6d5c5aaa8fc94a8fb2f4ea2f4f5c01");
@@ -112,5 +112,52 @@ describe("encode / decode exact-input swap", () => {
     expect(decodeExactInputSwap(mismatch)).toBeNull();
     // Not router calldata at all.
     expect(decodeExactInputSwap("0xdeadbeef")).toBeNull();
+  });
+
+  it("encodes the Robinhood router's struct: minHopPriceX36 sits before hookData, so the hook receives the hook data", () => {
+    const poolKey = launchPoolKey(TOKEN, zeroAddress, 200, HOOK);
+    const hookData = encodeHookData(REFERRER);
+    const enc = encodeExactInputSwap({ router: ROUTER, poolKey, zeroForOne: true, amountIn: 10n, minAmountOut: 1n, hookData, deadline: 1n });
+    const [, inputs] = decodeFunctionData({ abi: universalRouterAbi, data: enc.data }).args;
+    const [, params] = decodeAbiParameters([{ type: "bytes" }, { type: "bytes[]" }], inputs[0]!);
+    const words = params[0]!.slice(2).match(/.{64}/g)!;
+    // Word 0 is the tuple offset; the struct starts at word 1: poolKey (5), zeroForOne, amountIn, amountOutMinimum, minHopPriceX36, hookData offset, length, data.
+    expect(BigInt(`0x${words[9]}`)).toBe(0n); // minHopPriceX36
+    expect(BigInt(`0x${words[10]}`)).toBe(BigInt(10 * 32)); // hookData offset, relative to the struct
+    expect(BigInt(`0x${words[11]}`)).toBe(64n); // hookData length
+    expect(`0x${words[12]}${words[13]}`).toBe(hookData);
+    expect(decodeExactInputSwap(enc.data)?.hookData).toBe(hookData);
+  });
+
+  it("refuses the stock Uniswap struct and a non-zero price floor", () => {
+    const poolKey = launchPoolKey(TOKEN, zeroAddress, 200, HOOK);
+    const hookData = encodeHookData(REFERRER);
+    const settle = encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [zeroAddress, 10n]);
+    const take = encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [TOKEN, 1n]);
+    const wrap = (swapParams: Hex) =>
+      encodeFunctionData({
+        abi: universalRouterAbi,
+        functionName: "execute",
+        args: [COMMAND_V4_SWAP, [encodeAbiParameters([{ type: "bytes" }, { type: "bytes[]" }], [EXACT_INPUT_ACTIONS, [swapParams, settle, take]])], 1n],
+      });
+    const poolKeyComponents = [
+      { name: "currency0", type: "address" },
+      { name: "currency1", type: "address" },
+      { name: "fee", type: "uint24" },
+      { name: "tickSpacing", type: "int24" },
+      { name: "hooks", type: "address" },
+    ] as const;
+    // Stock layout, no minHopPriceX36: the deployed router would read empty hook data from it.
+    const stock = encodeAbiParameters(
+      [{ type: "tuple", components: [{ name: "poolKey", type: "tuple", components: poolKeyComponents }, { name: "zeroForOne", type: "bool" }, { name: "amountIn", type: "uint128" }, { name: "amountOutMinimum", type: "uint128" }, { name: "hookData", type: "bytes" }] }],
+      [{ poolKey, zeroForOne: true, amountIn: 10n, amountOutMinimum: 1n, hookData }],
+    );
+    expect(decodeExactInputSwap(wrap(stock))).toBeNull();
+    // Deployed layout with a price floor set: not something the bot produces, so not something it signs.
+    const floored = encodeAbiParameters(
+      [{ type: "tuple", components: [{ name: "poolKey", type: "tuple", components: poolKeyComponents }, { name: "zeroForOne", type: "bool" }, { name: "amountIn", type: "uint128" }, { name: "amountOutMinimum", type: "uint128" }, { name: "minHopPriceX36", type: "uint256" }, { name: "hookData", type: "bytes" }] }],
+      [{ poolKey, zeroForOne: true, amountIn: 10n, amountOutMinimum: 1n, minHopPriceX36: 1n, hookData }],
+    );
+    expect(decodeExactInputSwap(wrap(floored))).toBeNull();
   });
 });
