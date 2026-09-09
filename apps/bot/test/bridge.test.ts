@@ -92,7 +92,7 @@ function harness(over: Partial<BotConfig> = {}): Harness {
         depositId: requestId,
         chainId: input.originChainId,
         to: RELAY_DEPOSITORY,
-        data: encodeFunctionData({ abi: depositAbi, functionName: "depositNative", args: [input.user, requestId] }),
+        data: encodeFunctionData({ abi: depositAbi, functionName: "depositNative", args: [zeroAddress, requestId] }),
         value: input.amountWei,
         amountOut: (input.amountWei * 9_980n) / 10_000n,
         timeEstimate: 1,

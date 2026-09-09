@@ -124,8 +124,10 @@ export function buildAllowlist(input: {
 
 /**
  * The allow-list for one bridge deposit on an origin chain: Relay's pinned
- * depository, `depositNative(wallet, depositId)` for this wallet and this
- * quote, carrying exactly the quoted value. Nothing else on that chain.
+ * depository, `depositNative(0x0, depositId)` for this quote, carrying
+ * exactly the quoted value. The zero depositor makes the contract credit
+ * msg.sender, the signing wallet, so no calldata field can redirect the
+ * deposit; the enclave policy pins the same zero. Nothing else on that chain.
  */
 export function buildBridgeAllowlist(input: { chainId: number; depository: Address; wallet: Address; depositId: Hex; amountWei: bigint }): TxAllowlist {
   return {
@@ -212,8 +214,8 @@ export function checkTransaction(allowlist: TxAllowlist, tx: TxLike): TxCheck {
   if (entry.kind === "relayDeposit") {
     const rules = entry.bridge;
     if (!rules) return { ok: false, reason: "deposit entry without bridge rules" };
-    const [to, id] = args;
-    if (typeof to !== "string" || !isAddress(to) || getAddress(to) !== rules.wallet) return { ok: false, reason: "deposit does not name the signing wallet" };
+    const [depositor, id] = args;
+    if (typeof depositor !== "string" || !isAddress(depositor) || getAddress(depositor) !== zeroAddress) return { ok: false, reason: "deposit must leave the depositor empty so the contract credits the signing wallet" };
     if (typeof id !== "string" || id.toLowerCase() !== rules.depositId) return { ok: false, reason: "deposit id is not the quoted one" };
     if (value !== rules.amountWei) return { ok: false, reason: `deposit value ${value} is not the quoted ${rules.amountWei}` };
   }

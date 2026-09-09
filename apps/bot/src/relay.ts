@@ -1,19 +1,24 @@
-import { decodeFunctionData, getAddress, isAddress, isHex, parseAbi, type Address, type Hex } from "viem";
+import { decodeFunctionData, encodeFunctionData, getAddress, isAddress, isHex, parseAbi, zeroAddress, type Address, type Hex } from "viem";
 import { env, logger, RELAY_DEPOSITORY } from "@o1bot/shared";
 
 /**
  * Relay (relay.link) moves ETH between chains in seconds: the user sends a
  * deposit to Relay's depository on the origin chain, a solver pays out on
  * Robinhood. The bot only ever asks for a quote whose recipient is the
- * user's own wallet, signs the one deposit the quote describes (after the
- * allow-list has checked it against the pinned depository, the wallet and
- * the request id), and polls the request until it is filled.
+ * user's own wallet, signs the one deposit the quote describes, and polls
+ * the request until it is filled.
+ *
+ * The depository's `depositNative(address depositor, bytes32 id)` credits
+ * `depositor`, or `msg.sender` when it is the zero address. The bot always
+ * encodes the zero address, so the credited party is structurally the
+ * signing wallet: the enclave policy pins that argument to zero, and a
+ * leaked key could only ever deposit on the wallet's own behalf.
  */
 
 export type RelayQuote = {
   /** Relay's request id, for status polling. */
   requestId: Hex;
-  /** The bytes32 inside the deposit calldata; the allow-list pins it. */
+  /** The bytes32 Relay put in the deposit calldata; the allow-list pins it. */
   depositId: Hex;
   chainId: number;
   to: Address;
@@ -87,7 +92,8 @@ export function liveRelay(fetchImpl: typeof fetch = fetch): RelayClient {
       }
       const amountOut = BigInt(json.details?.currencyOut?.amount ?? "0");
       if (amountOut <= 0n) throw new RelayError("relay quote has no output amount", res.status);
-      // The deposit must be depositNative(user, id): anything else is not a flow the bot signs.
+      // The deposit must be depositNative(user, id). The bot re-encodes it with the zero depositor
+      // (msg.sender in the contract), which credits the same wallet without naming it in calldata.
       let depositId: Hex;
       try {
         const decoded = decodeFunctionData({ abi: relayDepositAbi, data: data as Hex });
@@ -97,7 +103,8 @@ export function liveRelay(fetchImpl: typeof fetch = fetch): RelayClient {
       } catch (err) {
         throw new RelayError(`relay deposit calldata is not depositNative for this wallet: ${err instanceof Error ? err.message : String(err)}`, res.status);
       }
-      const quote: RelayQuote = { requestId: requestId as Hex, depositId, chainId, to: getAddress(to), data: data as Hex, value: BigInt(value), amountOut, timeEstimate: json.details?.timeEstimate ?? 0 };
+      const ownData = encodeFunctionData({ abi: relayDepositAbi, functionName: "depositNative", args: [zeroAddress, depositId] });
+      const quote: RelayQuote = { requestId: requestId as Hex, depositId, chainId, to: getAddress(to), data: ownData, value: BigInt(value), amountOut, timeEstimate: json.details?.timeEstimate ?? 0 };
       if (quote.to !== RELAY_DEPOSITORY) logger.warn({ to: quote.to, expected: RELAY_DEPOSITORY }, "relay quote points at an unknown depository; the allow-list will refuse it");
       return quote;
     },

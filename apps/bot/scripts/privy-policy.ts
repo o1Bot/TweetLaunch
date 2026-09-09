@@ -18,7 +18,10 @@
  *     signer allow-list still decodes the router call and pins the pool, the
  *     referral and the recipient; the policy bounds the value.
  *   - Bridging from a post: depositNative on Relay's pinned depository on
- *     Base, Ethereum, Arbitrum or Optimism, value at most MAX_BRIDGE_ETH.
+ *     Base, Ethereum, Arbitrum or Optimism, value at most MAX_BRIDGE_ETH,
+ *     with the depositor argument pinned to the zero address, which the
+ *     depository resolves to msg.sender: the deposit can only be credited
+ *     to the signing wallet, whatever the calldata's author intended.
  *   Message, typed-data, EIP-7702, raw and export requests fall through to
  *   the default DENY.
  *
@@ -200,6 +203,7 @@ async function main() {
           tx("to", "eq", RELAY_DEPOSITORY),
           tx("value", "lte", bridgeCapWei.toString()),
           { field_source: "ethereum_calldata", field: "function_name", abi: depositAbi, operator: "eq", value: "depositNative" },
+          { field_source: "ethereum_calldata", field: "depositNative.to", abi: depositAbi, operator: "eq", value: "0x0000000000000000000000000000000000000000" },
           { field_source: "reference", field: `aggregation.${aggregationId}`, operator: "lte", value: dailyCapWei.toString() },
         ],
       },
