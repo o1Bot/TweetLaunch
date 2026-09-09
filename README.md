@@ -152,6 +152,8 @@ The swap panel trades through o1's launch pool on Uniswap v4. `GET /api/token/:a
 
 ### Profile and fee claims
 
+The profile follows the v3 demo (`o1bot-profile-v3.html`): identity, total balance, wallet address, Launch / Deposit / Withdraw / Swap, ETH per chain (Robinhood plus the chains a post can bridge from) and the bot-signing card on the left; the claim banner, assets, launches with fees earned, trades from posts and the "from posts" settings on the right. Deposit shows the address (the same on every chain); Withdraw sends ETH or a token to another address, signed by the user's own wallet. Settings: trading and bridging from posts, the per-trade cap, whether other people may direct creator fees to this account (a `fees to @you` launch is refused when off), and whether the bot answers in the post's language or always in English.
+
 `/me` shows the signed-in account: wallet address (copy, explorer, key export), holdings in ETH, USDG and every o1bot token (balances read on chain, valued with the same prices as the board), the account's launches as creator or as fee recipient with their status, and the creator fees waiting in o1's escrow per paired asset (`FeeEscrow.owed`). Claiming is a transaction the user signs in the browser with their own embedded wallet (`claimFor(wallet, currency)`, which always pays the recorded recipient), so the bot's signer is never involved; it needs a little ETH for gas. Gas sponsorship for pregenerated `fees to` recipients is not built yet.
 
 ### Launching from the bot's own account

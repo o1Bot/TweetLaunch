@@ -34,6 +34,10 @@ model User {
   tradingEnabled Boolean  @default(false)
   /// The user's own per-trade cap in wei (decimal string); null = the deployment default.
   maxTradeWei   String?
+  /// Whether other people's launches may direct creator fees to this account.
+  acceptFeeRedirects Boolean @default(true)
+  /// "auto" answers in the language of the post; "en" always answers in English.
+  replyLanguage String   @default("auto")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

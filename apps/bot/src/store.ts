@@ -125,6 +125,8 @@ export type TradableToken = {
 };
 
 export type TradingSettings = { enabled: boolean; maxTradeWei: bigint | null };
+/** What the user chose on the profile about being talked to and being named. */
+export type UserPrefs = { acceptFeeRedirects: boolean; replyLanguage: "auto" | "en" };
 
 export type NewTrade = {
   mentionId: string | null;
@@ -204,6 +206,8 @@ export interface BotStore {
   findTradableTokens(query: { ticker?: string | null; address?: string | null }): Promise<TradableToken[]>;
   /** The user's trading opt-in and cap; null when the user is unknown. */
   tradingSettings(xUserId: string): Promise<TradingSettings | null>;
+  /** Profile preferences; defaults for an unknown user. */
+  userPrefs(xUserId: string): Promise<UserPrefs>;
   tradeCountSince(xUserId: string, since: Date): Promise<number>;
   lastTradeAt(xUserId: string): Promise<Date | null>;
   createTrade(t: NewTrade): Promise<{ id: string }>;
@@ -330,6 +334,10 @@ export class PrismaBotStore implements BotStore {
     if (!row) return null;
     return { enabled: row.tradingEnabled, maxTradeWei: row.maxTradeWei ? BigInt(row.maxTradeWei) : null };
   }
+  async userPrefs(xUserId: string): Promise<UserPrefs> {
+    const row = await db().user.findUnique({ where: { xUserId }, select: { acceptFeeRedirects: true, replyLanguage: true } });
+    return { acceptFeeRedirects: row?.acceptFeeRedirects ?? true, replyLanguage: row?.replyLanguage === "en" ? "en" : "auto" };
+  }
   async tradeCountSince(xUserId: string, since: Date) {
     return db().trade.count({ where: { user: { xUserId }, status: { in: COUNTED_TRADE_STATUSES }, createdAt: { gte: since } } });
   }
@@ -408,6 +416,7 @@ export class MemoryBotStore implements BotStore {
   /** Seeded by tests: pools the bot launched. */
   pools: TradableToken[] = [];
   trading = new Map<string, TradingSettings>();
+  prefs = new Map<string, UserPrefs>();
   trades: Array<NewTrade & { id: string; createdAt: Date } & TradePatch> = [];
   bridges: Array<NewBridge & { id: string; createdAt: Date } & BridgePatch> = [];
   private seq = 0;
@@ -489,6 +498,9 @@ export class MemoryBotStore implements BotStore {
   }
   async tradingSettings(xUserId: string) {
     return this.trading.get(xUserId) ?? (this.users.some((u) => u.xUserId === xUserId) ? { enabled: false, maxTradeWei: null } : null);
+  }
+  async userPrefs(xUserId: string): Promise<UserPrefs> {
+    return this.prefs.get(xUserId) ?? { acceptFeeRedirects: true, replyLanguage: "auto" };
   }
   async tradeCountSince(xUserId: string, since: Date) {
     return this.trades.filter((t) => this.userXId(t.userId) === xUserId && COUNTED_TRADE_STATUSES.includes(t.status) && t.createdAt >= since).length;

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function MePage() {
   return (
-    <main className="wrap me">
+    <main className="wrap me-page">
       <Profile />
     </main>
   );

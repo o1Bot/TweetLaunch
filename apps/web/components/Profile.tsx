@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
-import { useCallback, useEffect, useState } from "react";
-import { encodeFunctionData, parseAbi, type Address } from "viem";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { encodeFunctionData, erc20Abi, isAddress, parseAbi, parseUnits, type Address } from "viem";
 import { EXT_ICON, TokenLogo, X_ICON } from "@/components/TokenLogo";
 import { useGrantSigner, useLinkedRefresh } from "@/lib/use-grant-signer";
 
 /**
- * The signed-in user's page: wallet, holdings, launches and creator fees.
- * Fee claims are signed in the browser by the user's own embedded wallet
- * (claimFor pays the recorded recipient, which is this wallet), so the bot
- * never touches them.
+ * The signed-in user's page, laid out like the v3 demo: identity, balance,
+ * wallet actions and bot permissions on the left; claimable fees, assets,
+ * launches, trades and the "from posts" settings on the right. Fee claims
+ * and withdrawals are signed in the browser by the user's own embedded
+ * wallet; the bot never touches them.
  */
 
 type Me = {
@@ -22,15 +23,18 @@ type Me = {
   balances: Array<{ chain: string; eth: string | null }>;
 };
 
-type Trading = { enabled: boolean; maxTradeEth: string | null; defaultCapEth: string; maxCapEth: string };
-
+type Asset = { address: string; symbol: string; name: string; imageUrl: string | null; decimals: number; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null };
+type LaunchRow = { id: string; source: "X" | "WEB"; role: "creator" | "fee_recipient"; ticker: string; name: string; quoteSymbol: string; status: string; tokenAddress: string | null; launchTxHash: string | null; userMessage: string | null; createdAt: string; feesEarnedUsd: number | null; feesEarnedQuote: number | null };
+type TradeRow = { id: string; side: "BUY" | "SELL"; token: string; tokenSymbol: string; quoteSymbol: string; amountIn: string; amountOut: string | null; status: string; txHash: string | null; userMessage: string | null; createdAt: string };
 type Overview = {
   wallet: string | null;
-  assets: Array<{ address: string; symbol: string; name: string; imageUrl: string | null; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null }>;
-  launches: Array<{ id: string; source: "X" | "WEB"; role: "creator" | "fee_recipient"; ticker: string; name: string; quoteSymbol: string; status: string; tokenAddress: string | null; launchTxHash: string | null; userMessage: string | null; createdAt: string }>;
-  trades: Array<{ id: string; side: "BUY" | "SELL"; token: string; tokenSymbol: string; quoteSymbol: string; amountIn: string; amountOut: string | null; status: string; txHash: string | null; userMessage: string | null; createdAt: string }>;
-  fees: { escrow: string; positions: Array<{ currency: string; symbol: string; owed: string; usd: number | null }> };
+  assets: Asset[];
+  launches: LaunchRow[];
+  trades: TradeRow[];
+  fees: { escrow: string; positions: Array<{ currency: string; symbol: string; decimals: number; owed: string; usd: number | null }> };
+  gas: Array<{ chain: string; name: string; eth: string; usd: number | null }>;
 };
+type Settings = { enabled: boolean; maxTradeEth: string | null; defaultCapEth: string; maxCapEth: string; acceptFeeRedirects: boolean; replyLanguage: "auto" | "en" };
 
 const EXPLORER = "https://robinhoodchain.blockscout.com";
 const TX_EXPLORER = "https://rh-scan.com/tx";
@@ -38,54 +42,54 @@ const CHAIN_ID = 4663;
 const escrowAbi = parseAbi(["function claimFor(address recipient, address currency)"]);
 
 const fmt = (n: string | number, max = 6) => Number(n).toLocaleString("en-US", { maximumFractionDigits: max });
-const usd = (v: number | null) => (v === null ? "" : `$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}`);
+const usd = (v: number | null) => (v === null ? "" : `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
-const STATUS_LABEL: Record<string, string> = {
-  QUEUED: "queued",
-  SIMULATING: "simulating",
-  SIGNING: "signing",
-  BROADCAST: "broadcast",
-  CONFIRMED: "live",
-  FEE_RECIPIENT_PENDING: "live",
-  REPLIED: "live",
-  DRY_RUN: "dry run",
-  FAILED: "failed",
-};
-const TRADE_STATUS_LABEL: Record<string, string> = { QUEUED: "queued", SIGNING: "signing", CONFIRMED: "done", REPLIED: "done", DRY_RUN: "dry run", FAILED: "failed" };
-const TRADE_STATUS_CLASS = (status: string) => (status === "FAILED" ? "bad" : status === "CONFIRMED" || status === "REPLIED" ? "live" : "wait");
+const when = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+const STATUS_LABEL: Record<string, string> = { QUEUED: "queued", SIMULATING: "simulating", SIGNING: "signing", BROADCAST: "broadcast", CONFIRMED: "live", FEE_RECIPIENT_PENDING: "live", REPLIED: "live", DRY_RUN: "dry run", FAILED: "failed" };
+const TRADE_LABEL: Record<string, string> = { QUEUED: "queued", SIGNING: "signing", CONFIRMED: "done", REPLIED: "done", DRY_RUN: "dry run", FAILED: "failed" };
 
 const ICON = {
   copy: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
       <rect x="9" y="9" width="11" height="11" rx="2" />
       <path d="M5 15V6a2 2 0 0 1 2-2h9" />
     </svg>
   ),
-  key: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="8" cy="15" r="4" />
-      <path d="M11 12l9-9M17 6l3 3M14 9l3 3" />
-    </svg>
-  ),
-  rocket: (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M5 15l-2 6 6-2M14 4c3-1 6-1 7 0 1 1 1 4 0 7l-8 8-7-7 8-8z" />
-      <circle cx="15" cy="9" r="1.5" />
-    </svg>
-  ),
-  out: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9" />
-    </svg>
-  ),
   check: (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="m5 12 5 5 9-10" />
+    </svg>
+  ),
+  plus: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  ),
+  deposit: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 4v12M7 11l5 5 5-5M4 20h16" />
+    </svg>
+  ),
+  withdraw: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20V8M7 13l5-5 5 5M4 4h16" />
+    </svg>
+  ),
+  swap: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 12h16M14 6l6 6-6 6" />
     </svg>
   ),
 };
 
-const STATUS_CLASS = (status: string) => (status === "FAILED" ? "bad" : STATUS_LABEL[status] === "live" ? "live" : "wait");
+const CHAIN_BADGE: Record<string, { label: string; cls: string }> = {
+  robinhood: { label: "RH", cls: "rh" },
+  base: { label: "B", cls: "base" },
+  ethereum: { label: "E", cls: "eth" },
+  arbitrum: { label: "A", cls: "arb" },
+  optimism: { label: "O", cls: "op" },
+};
 
 export function Profile() {
   const { ready, authenticated, user, login, logout, getAccessToken, exportWallet } = usePrivy();
@@ -93,78 +97,77 @@ export function Profile() {
   const signer = useGrantSigner();
   const [me, setMe] = useState<Me | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [claiming, setClaiming] = useState<string | null>(null);
-  const [claimTx, setClaimTx] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [lastTx, setLastTx] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [trading, setTrading] = useState<Trading | null>(null);
-  const [capDraft, setCapDraft] = useState<string>("");
-  const [savingTrading, setSavingTrading] = useState(false);
+  const [sheet, setSheet] = useState<"deposit" | "withdraw" | null>(null);
+  const [hideSmall, setHideSmall] = useState(true);
+  const [capDraft, setCapDraft] = useState<string | null>(null);
+
+  const auth = useCallback(async () => {
+    const token = await getAccessToken();
+    return token ? { authorization: `Bearer ${token}` } : null;
+  }, [getAccessToken]);
 
   const load = useCallback(async () => {
-    const token = await getAccessToken();
-    if (!token) return;
-    const headers = { authorization: `Bearer ${token}` };
-    const [meRes, ovRes, trRes] = await Promise.all([fetch("/api/me", { headers }), fetch("/api/me/overview", { headers }), fetch("/api/me/trading", { headers })]);
+    const headers = await auth();
+    if (!headers) return;
+    const [meRes, ovRes, stRes] = await Promise.all([fetch("/api/me", { headers }), fetch("/api/me/overview", { headers }), fetch("/api/me/trading", { headers })]);
     if (meRes.ok) setMe((await meRes.json()) as Me);
     if (ovRes.ok) setOverview((await ovRes.json()) as Overview);
     else setError(`Could not load your profile (HTTP ${ovRes.status}).`);
-    if (trRes.ok) {
-      const t = (await trRes.json()) as Trading;
-      setTrading(t);
-      setCapDraft(t.maxTradeEth ?? "");
-    }
-  }, [getAccessToken]);
-
-  const saveTrading = useCallback(
-    async (patch: { enabled?: boolean; maxTradeEth?: string | null }) => {
-      const token = await getAccessToken();
-      if (!token) return;
-      setSavingTrading(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/me/trading", { method: "PATCH", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(patch) });
-        const json = (await res.json()) as Trading & { error?: string };
-        if (!res.ok) {
-          setError(json.error ?? `Could not save (HTTP ${res.status}).`);
-          return;
-        }
-        setTrading(json);
-        setCapDraft(json.maxTradeEth ?? "");
-      } finally {
-        setSavingTrading(false);
-      }
-    },
-    [getAccessToken],
-  );
+    if (stRes.ok) setSettings((await stRes.json()) as Settings);
+  }, [auth]);
 
   useEffect(() => {
     if (ready && authenticated) void load();
     if (ready && !authenticated) {
       setMe(null);
       setOverview(null);
+      setSettings(null);
     }
   }, [ready, authenticated, load]);
   useLinkedRefresh(load);
 
-  const claim = useCallback(
-    async (currency: string, symbol: string) => {
-      if (!overview?.wallet) return;
-      setClaiming(currency);
+  const save = useCallback(
+    async (patch: Partial<Pick<Settings, "enabled" | "maxTradeEth" | "acceptFeeRedirects" | "replyLanguage">>) => {
+      const headers = await auth();
+      if (!headers) return;
+      setBusy("settings");
       setError(null);
-      setClaimTx(null);
+      try {
+        const res = await fetch("/api/me/trading", { method: "PATCH", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify(patch) });
+        const json = (await res.json()) as Settings & { error?: string };
+        if (!res.ok) {
+          setError(json.error ?? `Could not save (HTTP ${res.status}).`);
+          return;
+        }
+        setSettings(json);
+        setCapDraft(null);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [auth],
+  );
+
+  const claim = useCallback(
+    async (currency: string) => {
+      if (!overview?.wallet) return;
+      setBusy(`claim:${currency}`);
+      setError(null);
+      setLastTx(null);
       try {
         const data = encodeFunctionData({ abi: escrowAbi, functionName: "claimFor", args: [overview.wallet as Address, currency as Address] });
-        // Privy shows its own confirmation for `claimFor(this wallet, currency)` on o1's escrow.
-        void symbol;
         const result = await sendTransaction({ to: overview.fees.escrow as Address, data, chainId: CHAIN_ID });
-        const hash = typeof result === "string" ? result : ((result as { hash?: string }).hash ?? null);
-        setClaimTx(hash);
+        setLastTx(typeof result === "string" ? result : ((result as { hash?: string }).hash ?? null));
         setTimeout(() => void load(), 4000);
       } catch (err) {
         setError(err instanceof Error ? err.message : "The claim was cancelled.");
       } finally {
-        setClaiming(null);
+        setBusy(null);
       }
     },
     [overview, sendTransaction, load],
@@ -177,13 +180,17 @@ export function Profile() {
     setTimeout(() => setCopied(false), 1500);
   }, [overview]);
 
-  if (!ready) return <div className="card me-empty">Loading…</div>;
+  const totalUsd = useMemo(() => overview?.assets.reduce((s, a) => s + (a.usd ?? 0), 0) ?? 0, [overview]);
+  const feeUsd = useMemo(() => overview?.fees.positions.reduce((s, p) => s + (p.usd ?? 0), 0) ?? 0, [overview]);
+  const shownAssets = useMemo(() => (overview?.assets ?? []).filter((a) => !hideSmall || a.kind === "native" || (a.usd ?? 0) >= 1 || Number(a.balance) > 0), [overview, hideSmall]);
+
+  if (!ready) return <div className="me-empty">Loading…</div>;
   if (!authenticated) {
     return (
-      <div className="card me-empty">
+      <div className="me-empty">
         <div className="me-empty-icon">{X_ICON}</div>
-        <h1 className="grad">Your profile</h1>
-        <p className="sub">Sign in with X to see your wallet, holdings, launches and creator fees.</p>
+        <h1 className="sora grad">Your profile</h1>
+        <p>Sign in with X to see your wallet, holdings, launches and creator fees.</p>
         <button className="btn-p" onClick={() => login()}>
           {X_ICON} Sign in with X
         </button>
@@ -193,323 +200,469 @@ export function Profile() {
 
   const handle = me?.xHandle ?? user?.twitter?.username ?? null;
   const avatar = user?.twitter?.profilePictureUrl ?? null;
-  const eth = me?.balances.find((b) => b.chain === "robinhood")?.eth ?? null;
-  const totalUsd = overview?.assets.reduce((s, a) => s + (a.usd ?? 0), 0) ?? 0;
-  const feeUsd = overview?.fees.positions.reduce((s, p) => s + (p.usd ?? 0), 0) ?? 0;
   const stale = Boolean(me?.wallet?.signerStale);
+  const assetCount = overview?.assets.filter((a) => Number(a.balance) > 0).length ?? 0;
+  const rhEth = overview?.gas.find((g) => g.chain === "robinhood");
 
   return (
-    <>
-      <div className="card me-head">
-        <div className="who">
-          <div className="av">{avatar ? <img src={avatar} alt="" /> : (handle ?? "?").slice(0, 1).toUpperCase()}</div>
-          <div className="id">
-            <h1 className="grad">{handle ? `@${handle}` : "Your profile"}</h1>
-            {overview?.wallet ? (
-              <div className="wallet">
-                <code className="addr" title={overview.wallet}>
-                  {short(overview.wallet)}
-                </code>
-                <button className="pill" onClick={copy} title="Copy the full wallet address">
-                  {copied ? ICON.check : ICON.copy}
-                  {copied ? "Copied" : "Copy"}
-                </button>
-                <a className="pill" href={`${EXPLORER}/address/${overview.wallet}`} target="_blank" rel="noreferrer">
-                  {EXT_ICON}
-                  Explorer
-                </a>
-                <button className="pill" onClick={() => exportWallet()} title="Reveal the private key of this wallet through Privy">
-                  {ICON.key}
-                  Export key
-                </button>
-              </div>
-            ) : (
-              <div className="hint">No wallet yet. It is created on your first sign-in.</div>
-            )}
+    <div className="me">
+      {/* ---- left: identity ---- */}
+      <aside className="side">
+        <div className="idcard">
+          <div className="h">
+            <div className="av">{avatar ? <img src={avatar} alt="" /> : (handle ?? "?").slice(0, 1).toUpperCase()}</div>
+            <div>
+              <b>{handle ? `@${handle}` : "Your profile"}</b>
+              <span>
+                <i className={me?.linked ? "" : "off"} />
+                {me?.linked ? "Bot signing on" : stale ? "Permission needs an update" : "Bot signing off"}
+              </span>
+            </div>
+          </div>
+          <div className="bal">
+            <div className="k">Total balance</div>
+            <div className="v sora grad">{overview ? usd(totalUsd) || "$0.00" : "…"}</div>
+            <div className="c">
+              {assetCount} asset{assetCount === 1 ? "" : "s"}
+              {rhEth ? ` · ${fmt(rhEth.eth, 5)} ETH for gas` : ""}
+            </div>
+          </div>
+          {overview?.wallet ? (
+            <div className="addr">
+              Wallet <b title={overview.wallet}>{short(overview.wallet)}</b>
+              <button title={copied ? "Copied" : "Copy the full address"} onClick={copy}>
+                {copied ? ICON.check : ICON.copy}
+              </button>
+              <a title="Open in the explorer" href={`${EXPLORER}/address/${overview.wallet}`} target="_blank" rel="noreferrer">
+                {EXT_ICON}
+              </a>
+            </div>
+          ) : (
+            <div className="addr">No wallet yet. It is created on your first sign-in.</div>
+          )}
+          <div className="acts">
+            <Link className="act p" href="/launch">
+              {ICON.plus}
+              Launch
+            </Link>
+            <button className="act" onClick={() => setSheet("deposit")}>
+              {ICON.deposit}
+              Deposit
+            </button>
+            <button className="act" onClick={() => setSheet("withdraw")} disabled={!overview?.wallet}>
+              {ICON.withdraw}
+              Withdraw
+            </button>
+            <Link className="act" href="/">
+              {ICON.swap}
+              Swap
+            </Link>
           </div>
         </div>
 
-        <div className="tiles">
-          <div className="tile">
-            <span className="k">Holdings</span>
-            <span className="v">{usd(totalUsd) || "—"}</span>
-            <span className="hint">{eth !== null ? `${fmt(eth, 5)} ETH on Robinhood` : ""}</span>
-          </div>
-          <div className="tile">
-            <span className="k">Claimable fees</span>
-            <span className="v">{usd(feeUsd) || "—"}</span>
-            <span className="hint">{overview ? `${overview.fees.positions.length} position${overview.fees.positions.length === 1 ? "" : "s"}` : ""}</span>
-          </div>
-          <div className="tile">
-            <span className="k">Bot signing</span>
+        <div className="gas">
+          <h3>Gas by chain</h3>
+          {overview === null ? (
+            <div className="hint">Loading…</div>
+          ) : (
+            overview.gas.map((g) => {
+              const badge = CHAIN_BADGE[g.chain] ?? { label: g.name.slice(0, 1), cls: "" };
+              const empty = Number(g.eth) === 0;
+              return (
+                <div className="net" key={g.chain}>
+                  <div className={`ic ${badge.cls}`}>{badge.label}</div>
+                  <div className="n">
+                    {g.name}
+                    {g.chain === "robinhood" ? <small className={empty ? "warn" : ""}>{empty ? "Fund it to launch or trade" : "Launches, trades and claims"}</small> : <small className={empty ? "" : "ok"}>{empty ? "Send ETH here to bridge from a post" : `Post "bridge ${Math.min(Number(g.eth), 1).toFixed(3)} ETH from ${g.chain}"`}</small>}
+                  </div>
+                  <div className="b">
+                    {fmt(g.eth, 5)} ETH
+                    <small>{g.usd === null ? (empty ? "empty" : "") : usd(g.usd)}</small>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="perm">
+          <h3>
+            Bot signing
+            {me?.linked ? <span className="ok">Allowed</span> : <span className={stale ? "warn" : "off"}>{stale ? "Update needed" : "Off"}</span>}
+          </h3>
+          <p>
+            Signs <b>launches, dev buys, fee claims, trades and bridges</b> from this wallet within Privy&apos;s policy. <b>Never a transfer out.</b>
+          </p>
+          <div className="links">
             {me?.linked ? (
-              <span className="v row">
-                <span className="badge live">{ICON.check} Allowed</span>
-                <button
-                  className="btn-s xs"
-                  disabled={signer.busy || !signer.embedded}
-                  title="Remove o1bot's signer from your wallet. Launches and trades from posts stop until you allow it again."
-                  onClick={async () => {
-                    if (await signer.revoke()) await load();
-                  }}
-                >
-                  {signer.busy ? "Waiting…" : "Revoke"}
-                </button>
-              </span>
+              <button
+                className="d"
+                disabled={signer.busy || !signer.embedded}
+                onClick={async () => {
+                  if (await signer.revoke()) await load();
+                }}
+              >
+                {signer.busy ? "Waiting…" : "Revoke"}
+              </button>
             ) : (
-              <span className="v row">
-                <span className={`badge ${stale ? "wait" : "off"}`}>{stale ? "Needs update" : "Off"}</span>
-                <button
-                  className="btn-p xs"
-                  disabled={signer.busy || !signer.embedded}
-                  title={stale ? "Your earlier permission predates the signing policy. Grant it again so Privy enforces the limits." : "Let o1bot sign launches and trades from this wallet, within Privy's policy."}
-                  onClick={async () => {
-                    if (await signer.grant({ replace: stale })) await load();
-                  }}
-                >
-                  {signer.busy ? "Waiting for Privy…" : stale ? "Update permission" : "Allow"}
-                </button>
-              </span>
+              <button
+                className="p"
+                disabled={signer.busy || !signer.embedded}
+                onClick={async () => {
+                  if (await signer.grant({ replace: stale })) await load();
+                }}
+              >
+                {signer.busy ? "Waiting for Privy…" : stale ? "Update permission" : "Allow"}
+              </button>
             )}
-            <span className="hint">{me?.linked ? "Launch and trade from a post" : "Needed for posts to work"}</span>
+            <button onClick={() => exportWallet()}>Export key</button>
+            <button onClick={() => logout()}>Sign out</button>
           </div>
+          {signer.error && <div className="hint warn">{signer.error}</div>}
         </div>
+      </aside>
 
-        <div className="actions">
-          <Link className="btn-p" href="/launch">
-            {ICON.rocket} Launch a token
-          </Link>
-          <Link className="btn-s" href="/">
-            Board
-          </Link>
-          <button className="btn-s ghost" onClick={() => logout()}>
-            {ICON.out} Sign out
+      {/* ---- right: content ---- */}
+      <main className="content">
+        {error && <div className="alert">{error}</div>}
+        {lastTx && (
+          <div className="notice">
+            Transaction sent:{" "}
+            <a href={`${TX_EXPLORER}/${lastTx}`} target="_blank" rel="noreferrer">
+              {short(lastTx)} {EXT_ICON}
+            </a>
+          </div>
+        )}
+
+        {overview && overview.fees.positions.length > 0 && (
+          <div className="claim">
+            <div className="t">
+              <b>{feeUsd > 0 ? `${usd(feeUsd)} in creator fees ready to claim` : "Creator fees ready to claim"}</b>
+              <span>
+                {overview.fees.positions.map((p) => `${fmt(p.owed)} ${p.symbol}`).join(" · ")} · held in o1&apos;s escrow until you claim
+                {rhEth && Number(rhEth.eth) === 0 ? " · needs a little ETH for gas" : ""}
+              </span>
+            </div>
+            <div className="btns">
+              {overview.fees.positions.map((p) => (
+                <button className="btn" key={p.currency} disabled={busy !== null} onClick={() => claim(p.currency)}>
+                  {busy === `claim:${p.currency}` ? "Confirm in wallet…" : overview.fees.positions.length > 1 ? `Claim ${p.symbol}` : "Claim"}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <section>
+          <div className="sec-h">
+            <h2 className="sora">Assets</h2>
+            <button onClick={() => setHideSmall((v) => !v)}>{hideSmall ? "Show all balances" : "Hide zero balances"}</button>
+          </div>
+          {overview === null ? (
+            <div className="hint">Loading…</div>
+          ) : shownAssets.length === 0 ? (
+            <div className="hint">Nothing here yet. Use Deposit to fund the wallet.</div>
+          ) : (
+            shownAssets.map((a) => (
+              <div className="row" key={a.address}>
+                {a.kind === "token" ? (
+                  <TokenLogo symbol={a.symbol} imageUrl={a.imageUrl} className="lg" />
+                ) : (
+                  <div className="lg plain">
+                    {a.kind === "native" ? "Ξ" : a.symbol.slice(0, 2)}
+                    <i className="rh" />
+                  </div>
+                )}
+                <div className="n">
+                  {a.tokenPage ? <Link href={a.tokenPage}>{a.name}</Link> : <b>{a.name}</b>}
+                  <span>
+                    {fmt(a.balance, a.kind === "token" ? 2 : 5)} {a.symbol}
+                    {a.kind === "native" ? " · Robinhood" : ""}
+                  </span>
+                </div>
+                <div className="v">
+                  <b>{usd(a.usd) || "—"}</b>
+                  <span>{a.kind === "native" ? "gas" : a.kind === "quote" ? "pair asset" : ""}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </section>
+
+        <section>
+          <div className="sec-h">
+            <h2 className="sora">Launches</h2>
+            <Link href="/launch">Launch a token</Link>
+          </div>
+          {overview === null ? (
+            <div className="hint">Loading…</div>
+          ) : overview.launches.length === 0 ? (
+            <div className="hint">
+              None yet. <Link href="/launch">Launch one from here</Link> or post the command on X.
+            </div>
+          ) : (
+            overview.launches.map((l) => {
+              const live = STATUS_LABEL[l.status] === "live" && l.tokenAddress;
+              return (
+                <div className="row" key={l.id}>
+                  <div className="lg plain">
+                    {l.ticker.slice(0, 2).toUpperCase()}
+                    <i className="rh" />
+                  </div>
+                  <div className="n">
+                    {live ? (
+                      <Link href={`/token/${l.tokenAddress}`}>
+                        {l.name}
+                        <em>${l.ticker}</em>
+                      </Link>
+                    ) : (
+                      <b>
+                        {l.name}
+                        <em>${l.ticker}</em>
+                      </b>
+                    )}
+                    <span>
+                      {l.quoteSymbol} pool · from {l.source === "WEB" ? "the web" : "a post"} · {when(l.createdAt)}
+                      {l.role === "fee_recipient" ? " · fees directed to you" : ""}
+                      {l.status === "FAILED" && l.userMessage ? ` · ${l.userMessage}` : ""}
+                    </span>
+                  </div>
+                  <div className="v">
+                    {live ? (
+                      <>
+                        <b>{l.feesEarnedUsd !== null ? usd(l.feesEarnedUsd) : l.feesEarnedQuote !== null ? `${fmt(l.feesEarnedQuote, 5)} ${l.quoteSymbol}` : "—"}</b>
+                        <span>fees earned</span>
+                      </>
+                    ) : (
+                      <span className={l.status === "FAILED" ? "warn" : ""}>{STATUS_LABEL[l.status] ?? l.status.toLowerCase()}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </section>
+
+        {overview && overview.trades.length > 0 && (
+          <section>
+            <div className="sec-h">
+              <h2 className="sora">Trades from posts</h2>
+              <span>{overview.trades.length} total</span>
+            </div>
+            {overview.trades.map((t) => (
+              <div className="row" key={t.id}>
+                <div className={`lg plain ${t.side === "BUY" ? "buy" : "sell"}`}>{t.side === "BUY" ? "B" : "S"}</div>
+                <div className="n">
+                  <Link href={`/token/${t.token}`}>
+                    {t.side === "BUY" ? "Bought" : "Sold"}
+                    <em>${t.tokenSymbol}</em>
+                  </Link>
+                  <span>
+                    {fmt(t.amountIn, t.side === "BUY" ? 5 : 2)} {t.side === "BUY" ? t.quoteSymbol : t.tokenSymbol}
+                    {t.amountOut ? ` → ${fmt(t.amountOut, t.side === "BUY" ? 2 : 5)} ${t.side === "BUY" ? t.tokenSymbol : t.quoteSymbol}` : ""} · {when(t.createdAt)}
+                    {t.status === "FAILED" && t.userMessage ? ` · ${t.userMessage}` : ""}
+                  </span>
+                </div>
+                <div className="v">
+                  {t.txHash ? (
+                    <a href={`${TX_EXPLORER}/${t.txHash}`} target="_blank" rel="noreferrer">
+                      <b>{TRADE_LABEL[t.status] ?? t.status.toLowerCase()}</b>
+                    </a>
+                  ) : (
+                    <b className={t.status === "FAILED" ? "warn" : ""}>{TRADE_LABEL[t.status] ?? t.status.toLowerCase()}</b>
+                  )}
+                  <span>{t.txHash ? "view tx" : ""}</span>
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
+        <section>
+          <div className="sec-h">
+            <h2 className="sora">From posts</h2>
+          </div>
+          {settings === null ? (
+            <div className="hint">Loading…</div>
+          ) : (
+            <div className="settings">
+              <div className="set">
+                <div>
+                  <b>Trading and bridging from posts</b>
+                  <span>buy 0.05 ETH of $CAT, sell half of $CAT, bridge 0.1 ETH from base. Output lands in this wallet.{!me?.linked ? " Allow bot signing first." : ""}</span>
+                </div>
+                <button className={`tg${settings.enabled ? " on" : ""}`} disabled={busy === "settings" || !me?.linked} aria-pressed={settings.enabled} aria-label="Trading from posts" onClick={() => void save({ enabled: !settings.enabled })} />
+              </div>
+              <div className="set">
+                <div>
+                  <b>Per-trade cap</b>
+                  <span>The bot refuses a buy above this. Ceiling {settings.maxCapEth} ETH.</span>
+                </div>
+                {capDraft === null ? (
+                  <button className="val" onClick={() => setCapDraft(settings.maxTradeEth ?? settings.defaultCapEth)}>
+                    {settings.maxTradeEth ?? settings.defaultCapEth} ETH
+                  </button>
+                ) : (
+                  <span className="edit">
+                    <input inputMode="decimal" value={capDraft} onChange={(e) => setCapDraft(e.target.value)} aria-label="Per-trade cap in ETH" autoFocus />
+                    <button className="ok" disabled={busy === "settings"} onClick={() => void save({ maxTradeEth: capDraft.trim() === "" ? null : capDraft.trim() })}>
+                      Save
+                    </button>
+                    <button onClick={() => setCapDraft(null)}>Cancel</button>
+                  </span>
+                )}
+              </div>
+              <div className="set">
+                <div>
+                  <b>Accept fees sent to me</b>
+                  <span>Others can launch with fees to @{handle ?? "you"}. Off means those launches are refused.</span>
+                </div>
+                <button className={`tg${settings.acceptFeeRedirects ? " on" : ""}`} disabled={busy === "settings"} aria-pressed={settings.acceptFeeRedirects} aria-label="Accept fees sent to me" onClick={() => void save({ acceptFeeRedirects: !settings.acceptFeeRedirects })} />
+              </div>
+              <div className="set">
+                <div>
+                  <b>Reply in my language</b>
+                  <span>The bot answers in the language of your post. Off means English.</span>
+                </div>
+                <button className={`tg${settings.replyLanguage === "auto" ? " on" : ""}`} disabled={busy === "settings"} aria-pressed={settings.replyLanguage === "auto"} aria-label="Reply in my language" onClick={() => void save({ replyLanguage: settings.replyLanguage === "auto" ? "en" : "auto" })} />
+              </div>
+            </div>
+          )}
+        </section>
+      </main>
+
+      {sheet === "deposit" && overview?.wallet && <DepositSheet wallet={overview.wallet} onClose={() => setSheet(null)} />}
+      {sheet === "withdraw" && overview?.wallet && (
+        <WithdrawSheet
+          assets={overview.assets.filter((a) => Number(a.balance) > 0)}
+          onClose={() => setSheet(null)}
+          onSent={(hash) => {
+            setLastTx(hash);
+            setSheet(null);
+            setTimeout(() => void load(), 4000);
+          }}
+          send={async (to, data, value) => {
+            const result = await sendTransaction({ to, data, value, chainId: CHAIN_ID });
+            return typeof result === "string" ? result : ((result as { hash?: string }).hash ?? "");
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function DepositSheet({ wallet, onClose }: { wallet: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="me-sheet-bg" onClick={onClose} role="presentation">
+      <div className="me-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Deposit">
+        <h3 className="sora">Deposit</h3>
+        <p>Send ETH on Robinhood Chain to this address. It is your wallet, the same address on Base, Ethereum, Arbitrum and Optimism, so you can also send ETH there and post &quot;bridge 0.1 ETH from base&quot;.</p>
+        <code className="full">{wallet}</code>
+        <div className="me-sheet-acts">
+          <button
+            className="btn-p"
+            onClick={async () => {
+              await navigator.clipboard.writeText(wallet);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }}
+          >
+            {copied ? "Copied" : "Copy address"}
+          </button>
+          <button className="btn-s" onClick={onClose}>
+            Close
           </button>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {error && <div className="alert">{error}</div>}
-      {signer.error && <div className="alert">{signer.error}</div>}
+function WithdrawSheet({ assets, onClose, onSent, send }: { assets: Asset[]; onClose: () => void; onSent: (hash: string) => void; send: (to: Address, data: `0x${string}` | undefined, value: bigint | undefined) => Promise<string> }) {
+  const [asset, setAsset] = useState(assets[0]?.address ?? "");
+  const [to, setTo] = useState("");
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const chosen = assets.find((a) => a.address === asset) ?? null;
 
-      <div className="me-grid">
-        <section className="card">
-          <div className="card-h">
-            <h2>Creator fees</h2>
-            <span className="hint">0.5% of every trade on your tokens</span>
-          </div>
-          <p className="sub">Paid in the paired asset and held in o1's escrow until you claim it. Claiming is a transaction from your wallet.</p>
-          {overview === null ? (
-            <div className="empty">Loading…</div>
-          ) : overview.fees.positions.length === 0 ? (
-            <div className="empty">Nothing to claim yet. Fees appear here as soon as your tokens trade.</div>
-          ) : (
-            <table>
-              <tbody>
-                {overview.fees.positions.map((p) => (
-                  <tr key={p.currency}>
-                    <td>
-                      <b>
-                        {fmt(p.owed)} {p.symbol}
-                      </b>
-                      <div className="hint">{usd(p.usd)}</div>
-                    </td>
-                    <td className="r">
-                      <button className="btn-p sm" disabled={claiming !== null} onClick={() => claim(p.currency, p.symbol)}>
-                        {claiming === p.currency ? "Confirm in wallet…" : "Claim"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {eth !== null && Number(eth) === 0 && overview?.fees.positions.length ? <div className="notice">Your wallet has no ETH for gas, so a claim cannot be sent yet. Top it up first.</div> : null}
-          {claimTx && (
-            <div className="notice">
-              Claim sent:{" "}
-              <a href={`${EXPLORER}/tx/${claimTx}`} target="_blank" rel="noreferrer">
-                {short(claimTx)} {EXT_ICON}
-              </a>
-            </div>
-          )}
-        </section>
+  const submit = async () => {
+    if (!chosen) return;
+    setError(null);
+    if (!isAddress(to)) {
+      setError("The destination is not a valid address.");
+      return;
+    }
+    let raw: bigint;
+    try {
+      raw = parseUnits(amount.trim(), chosen.decimals);
+    } catch {
+      setError("The amount is not a number.");
+      return;
+    }
+    if (raw <= 0n) {
+      setError("The amount must be above zero.");
+      return;
+    }
+    if (raw > parseUnits(chosen.balance, chosen.decimals)) {
+      setError(`You hold ${fmt(chosen.balance, 6)} ${chosen.symbol}.`);
+      return;
+    }
+    setBusy(true);
+    try {
+      // Native ETH is a plain transfer; anything else is an ERC-20 transfer, both signed by the user's own wallet.
+      const hash =
+        chosen.kind === "native"
+          ? await send(to as Address, undefined, raw)
+          : await send(chosen.address as Address, encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [to as Address, raw] }), undefined);
+      if (hash) onSent(hash);
+      else onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The transfer was cancelled.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
-        <section className="card">
-          <div className="card-h">
-            <h2>Holdings</h2>
-            <span className="hint">{overview ? `${overview.assets.length} asset${overview.assets.length === 1 ? "" : "s"}` : ""}</span>
-          </div>
-          {overview === null ? (
-            <div className="empty">Loading…</div>
-          ) : overview.assets.length === 0 ? (
-            <div className="empty">Nothing here yet. Send ETH on Robinhood Chain to your wallet address above.</div>
-          ) : (
-            <table>
-              <tbody>
-                {overview.assets.map((a) => (
-                  <tr key={a.address}>
-                    <td className="tk">
-                      {a.kind === "token" ? <TokenLogo symbol={a.symbol} imageUrl={a.imageUrl} className="logo sm" /> : <span className="dot">{a.symbol.slice(0, 1)}</span>}
-                      <div>
-                        {a.tokenPage ? <Link href={a.tokenPage}>{a.symbol}</Link> : <b>{a.symbol}</b>}
-                        <div className="hint">{a.name}</div>
-                      </div>
-                    </td>
-                    <td className="r">
-                      <b>{fmt(a.balance, a.kind === "token" ? 2 : 6)}</b>
-                      <div className="hint">{usd(a.usd)}</div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
+  return (
+    <div className="me-sheet-bg" onClick={onClose} role="presentation">
+      <div className="me-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Withdraw">
+        <h3 className="sora">Withdraw</h3>
+        <p>Send an asset from this wallet to another address on Robinhood Chain. You confirm it in the wallet; the bot is not involved.</p>
+        <label>
+          Asset
+          <select value={asset} onChange={(e) => setAsset(e.target.value)}>
+            {assets.map((a) => (
+              <option key={a.address} value={a.address}>
+                {a.symbol} · {fmt(a.balance, 6)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          To
+          <input value={to} onChange={(e) => setTo(e.target.value.trim())} placeholder="0x…" spellCheck={false} />
+        </label>
+        <label>
+          Amount
+          <span className="amt">
+            <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.0" />
+            <button type="button" onClick={() => chosen && setAmount(chosen.balance)}>
+              Max
+            </button>
+          </span>
+        </label>
+        {error && <div className="alert">{error}</div>}
+        <div className="me-sheet-acts">
+          <button className="btn-p" disabled={busy || !chosen} onClick={() => void submit()}>
+            {busy ? "Confirm in wallet…" : `Send ${chosen?.symbol ?? ""}`}
+          </button>
+          <button className="btn-s" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
       </div>
-
-      <section className="card">
-        <div className="card-h">
-          <h2>Trading from posts</h2>
-          <span className="hint">Opt-in, with your own cap</span>
-        </div>
-        <p className="sub">
-          When on, a post like <b>@o1bot_exchange buy 0.05 ETH of $CAT</b> or <b>sell half of $CAT</b> trades from this wallet on any o1 Launchpad pool, up to your cap per trade. The output always lands in this
-          wallet; the bot cannot send funds anywhere.
-        </p>
-        {trading === null ? (
-          <div className="empty">Loading…</div>
-        ) : (
-          <div className="trade-set">
-            <label className={`toggle${trading.enabled ? " on" : ""}${savingTrading || !me?.linked ? " disabled" : ""}`}>
-              <input type="checkbox" checked={trading.enabled} disabled={savingTrading || !me?.linked} onChange={(e) => void saveTrading({ enabled: e.target.checked })} />
-              <span className="track">
-                <span className="thumb" />
-              </span>
-              <span className="lbl">{trading.enabled ? "On" : "Off"}</span>
-              {!me?.linked && <span className="hint">Allow bot signing above first.</span>}
-            </label>
-            <div className="cap">
-              <span className="k">Per-trade cap</span>
-              <span className="field">
-                <input inputMode="decimal" placeholder={trading.defaultCapEth} value={capDraft} disabled={savingTrading} onChange={(e) => setCapDraft(e.target.value)} aria-label="Per-trade cap in ETH" />
-                <span className="suffix">ETH</span>
-              </span>
-              <button className="btn-p sm" disabled={savingTrading || capDraft === (trading.maxTradeEth ?? "")} onClick={() => void saveTrading({ maxTradeEth: capDraft.trim() === "" ? null : capDraft.trim() })}>
-                {savingTrading ? "Saving…" : "Save"}
-              </button>
-              <span className="hint">
-                Empty = {trading.defaultCapEth} ETH. Ceiling {trading.maxCapEth} ETH.
-              </span>
-            </div>
-          </div>
-        )}
-      </section>
-
-      <section className="card">
-        <div className="card-h">
-          <h2>Your trades</h2>
-          <span className="hint">{overview ? `${overview.trades.length} from posts` : ""}</span>
-        </div>
-        {overview === null ? (
-          <div className="empty">Loading…</div>
-        ) : overview.trades.length === 0 ? (
-          <div className="empty">
-            None yet. With trading on, post <b>@o1bot_exchange buy 0.05 ETH of $CAT</b> and it shows up here.
-          </div>
-        ) : (
-          <div className="tbl">
-            <table>
-              <thead>
-                <tr>
-                  <th>Side</th>
-                  <th>Token</th>
-                  <th className="r">In</th>
-                  <th className="r">Out</th>
-                  <th>Status</th>
-                  <th className="r">When</th>
-                </tr>
-              </thead>
-              <tbody>
-                {overview.trades.map((t) => (
-                  <tr key={t.id}>
-                    <td>
-                      <span className={`badge ${t.side === "BUY" ? "live" : "off"}`}>{t.side === "BUY" ? "Buy" : "Sell"}</span>
-                    </td>
-                    <td>
-                      <Link href={`/token/${t.token}`}>${t.tokenSymbol}</Link>
-                    </td>
-                    <td className="r">
-                      {fmt(t.amountIn, t.side === "BUY" ? 5 : 2)} {t.side === "BUY" ? t.quoteSymbol : t.tokenSymbol}
-                    </td>
-                    <td className="r">{t.amountOut ? `${fmt(t.amountOut, t.side === "BUY" ? 2 : 5)} ${t.side === "BUY" ? t.tokenSymbol : t.quoteSymbol}` : "—"}</td>
-                    <td>
-                      <span className={`badge ${TRADE_STATUS_CLASS(t.status)}`}>{TRADE_STATUS_LABEL[t.status] ?? t.status.toLowerCase()}</span>
-                      {t.txHash ? (
-                        <>
-                          {" "}
-                          <a href={`${TX_EXPLORER}/${t.txHash}`} target="_blank" rel="noreferrer" className="hint">
-                            tx {EXT_ICON}
-                          </a>
-                        </>
-                      ) : null}
-                      {t.status === "FAILED" && t.userMessage ? <div className="hint">{t.userMessage}</div> : null}
-                    </td>
-                    <td className="r">{new Date(t.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section className="card">
-        <div className="card-h">
-          <h2>Your launches</h2>
-          <span className="hint">{overview ? `${overview.launches.length} total` : ""}</span>
-        </div>
-        {overview === null ? (
-          <div className="empty">Loading…</div>
-        ) : overview.launches.length === 0 ? (
-          <div className="empty">
-            None yet. <Link href="/launch">Launch one from here</Link> or post the command on X.
-          </div>
-        ) : (
-          <div className="tbl">
-            <table>
-              <thead>
-                <tr>
-                  <th>Token</th>
-                  <th>Pair</th>
-                  <th>Via</th>
-                  <th>Status</th>
-                  <th className="r">When</th>
-                </tr>
-              </thead>
-              <tbody>
-                {overview.launches.map((l) => (
-                  <tr key={l.id}>
-                    <td>
-                      {l.tokenAddress && l.status !== "DRY_RUN" && l.status !== "FAILED" ? <Link href={`/token/${l.tokenAddress}`}>${l.ticker}</Link> : <b>${l.ticker}</b>}
-                      <div className="hint">
-                        {l.name}
-                        {l.role === "fee_recipient" ? " · fees directed to you" : ""}
-                      </div>
-                    </td>
-                    <td>{l.quoteSymbol}</td>
-                    <td>{l.source === "WEB" ? "web" : "X"}</td>
-                    <td>
-                      <span className={`badge ${STATUS_CLASS(l.status)}`}>{STATUS_LABEL[l.status] ?? l.status.toLowerCase()}</span>
-                      {l.status === "FAILED" && l.userMessage ? <div className="hint">{l.userMessage}</div> : null}
-                    </td>
-                    <td className="r">{new Date(l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </>
+    </div>
   );
 }
