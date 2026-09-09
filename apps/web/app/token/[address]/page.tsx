@@ -40,6 +40,7 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
   const usd = t.stats.priceUsd;
   const mcap = t.stats.mcapUsd !== null ? formatUsd(t.stats.mcapUsd) : formatPrice(t.stats.mcapQuote, t.quoteSymbol);
   const vol = t.stats.volume24hUsd !== null ? formatUsd(t.stats.volume24hUsd) : formatPrice(t.stats.volume24hQuote, t.quoteSymbol);
+  const volAll = t.stats.volumeAllUsd !== null ? formatUsd(t.stats.volumeAllUsd) : formatPrice(t.stats.volumeAllQuote, t.quoteSymbol);
   const creatorFees = t.feesQuoteTotal / 2;
   const postText = t.post?.text.replace(/(\$[A-Za-z0-9]+)/g, "<em>$1</em>").replace(/@o1bot_exchange/gi, "<em>@o1bot_exchange</em>");
 
@@ -110,6 +111,10 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
               <div>
                 <div className="k">24h volume</div>
                 <div className="v">{vol}</div>
+              </div>
+              <div>
+                <div className="k">All-time volume</div>
+                <div className="v">{volAll}</div>
               </div>
               <div>
                 <div className="k">Trades</div>

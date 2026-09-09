@@ -5,6 +5,8 @@ export type TokenStatsInput = {
   priceAt24hAgo: number | null;
   /** Quote volume over the last 24 hours (human units). */
   volume24hQuote: number;
+  /** Quote volume since launch (human units); defaults to the 24h figure when unknown. */
+  volumeAllQuote?: number;
   /** Circulating supply in tokens (human units); launches place the full supply in the pool. */
   supplyTokens: number;
   /** USD price of one unit of the quote asset, or null when unknown. */
@@ -19,6 +21,8 @@ export type TokenStats = {
   change24hPct: number | null;
   volume24hQuote: number;
   volume24hUsd: number | null;
+  volumeAllQuote: number;
+  volumeAllUsd: number | null;
   mcapQuote: number | null;
   mcapUsd: number | null;
 };
@@ -29,12 +33,15 @@ export function computeStats(input: TokenStatsInput): TokenStats {
   const change = price !== null && reference !== null && reference > 0 ? ((price - reference) / reference) * 100 : null;
   const usd = (q: number | null) => (q !== null && input.quoteUsd !== null ? q * input.quoteUsd : null);
   const mcapQuote = price !== null ? price * input.supplyTokens : null;
+  const volumeAllQuote = Math.max(input.volumeAllQuote ?? input.volume24hQuote, input.volume24hQuote);
   return {
     priceQuote: price,
     priceUsd: usd(price),
     change24hPct: change,
     volume24hQuote: input.volume24hQuote,
     volume24hUsd: usd(input.volume24hQuote),
+    volumeAllQuote,
+    volumeAllUsd: usd(volumeAllQuote),
     mcapQuote,
     mcapUsd: usd(mcapQuote),
   };

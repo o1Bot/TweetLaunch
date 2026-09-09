@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatUsd } from "@o1bot/market";
-import { BoardTable } from "@/components/BoardTable";
+import { Board } from "@/components/Board";
 import { DOCS_URL } from "@/components/links";
 import { boardTotals, listBoardTokens } from "@/lib/market";
 import type { TokenRow } from "@/lib/types";
@@ -55,8 +55,8 @@ export default async function Home() {
             <span>Volume through o1bot, 24h</span>
           </div>
           <div>
-            <b>196</b>
-            <span>Pairs on Robinhood Chain</span>
+            <b>{totals.volumeAllUsd !== null ? formatUsd(totals.volumeAllUsd) : "—"}</b>
+            <span>Volume all-time, {totals.trades.toLocaleString()} trades</span>
           </div>
           <div>
             <b>0.5%</b>
@@ -65,12 +65,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <div className="toolbar">
-        <span className="chip on">All launches</span>
-        <div className="grow" />
-        <span className="sort">Sorted by 24h volume</span>
-      </div>
-      {dbError ? <div className="empty">The board is not connected to a database yet.</div> : <BoardTable rows={rows} />}
+      {dbError ? <div className="empty">The board is not connected to a database yet.</div> : <Board rows={rows} />}
     </main>
   );
 }
