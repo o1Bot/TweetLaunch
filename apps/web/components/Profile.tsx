@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
 import { useCallback, useEffect, useState } from "react";
 import { encodeFunctionData, parseAbi, type Address } from "viem";
-import { TokenLogo } from "@/components/TokenLogo";
+import { EXT_ICON, TokenLogo, X_ICON } from "@/components/TokenLogo";
 import { useGrantSigner, useLinkedRefresh } from "@/lib/use-grant-signer";
 
 /**
@@ -49,6 +49,39 @@ const STATUS_LABEL: Record<string, string> = {
   DRY_RUN: "dry run",
   FAILED: "failed",
 };
+
+const ICON = {
+  copy: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+    </svg>
+  ),
+  key: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="8" cy="15" r="4" />
+      <path d="M11 12l9-9M17 6l3 3M14 9l3 3" />
+    </svg>
+  ),
+  rocket: (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 15l-2 6 6-2M14 4c3-1 6-1 7 0 1 1 1 4 0 7l-8 8-7-7 8-8z" />
+      <circle cx="15" cy="9" r="1.5" />
+    </svg>
+  ),
+  out: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9" />
+    </svg>
+  ),
+  check: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m5 12 5 5 9-10" />
+    </svg>
+  ),
+};
+
+const STATUS_CLASS = (status: string) => (status === "FAILED" ? "bad" : STATUS_LABEL[status] === "live" ? "live" : "wait");
 
 export function Profile() {
   const { ready, authenticated, user, login, logout, getAccessToken, exportWallet } = usePrivy();
@@ -140,14 +173,15 @@ export function Profile() {
     setTimeout(() => setCopied(false), 1500);
   }, [overview]);
 
-  if (!ready) return <div className="card">Loading…</div>;
+  if (!ready) return <div className="card me-empty">Loading…</div>;
   if (!authenticated) {
     return (
-      <div className="card">
-        <h1 className="grad">Profile</h1>
+      <div className="card me-empty">
+        <div className="me-empty-icon">{X_ICON}</div>
+        <h1 className="grad">Your profile</h1>
         <p className="sub">Sign in with X to see your wallet, holdings, launches and creator fees.</p>
         <button className="btn-p" onClick={() => login()}>
-          Sign in with X
+          {X_ICON} Sign in with X
         </button>
       </div>
     );
@@ -158,93 +192,112 @@ export function Profile() {
   const eth = me?.balances.find((b) => b.chain === "robinhood")?.eth ?? null;
   const totalUsd = overview?.assets.reduce((s, a) => s + (a.usd ?? 0), 0) ?? 0;
   const feeUsd = overview?.fees.positions.reduce((s, p) => s + (p.usd ?? 0), 0) ?? 0;
+  const stale = Boolean(me?.wallet?.signerStale);
 
   return (
     <>
       <div className="card me-head">
         <div className="who">
           <div className="av">{avatar ? <img src={avatar} alt="" /> : (handle ?? "?").slice(0, 1).toUpperCase()}</div>
-          <div>
+          <div className="id">
             <h1 className="grad">{handle ? `@${handle}` : "Your profile"}</h1>
-            <div className="sub">
-              {overview?.wallet ? (
-                <>
-                  Wallet <b>{short(overview.wallet)}</b>{" "}
-                  <span className="cp" role="button" onClick={copy}>
-                    {copied ? "copied" : "copy"}
-                  </span>{" "}
-                  · <a href={`${EXPLORER}/address/${overview.wallet}`} target="_blank" rel="noreferrer">explorer</a> ·{" "}
-                  <span className="cp" role="button" onClick={() => exportWallet()}>
-                    export key
-                  </span>
-                </>
-              ) : (
-                "No wallet yet"
-              )}
-            </div>
+            {overview?.wallet ? (
+              <div className="wallet">
+                <code className="addr" title={overview.wallet}>
+                  {short(overview.wallet)}
+                </code>
+                <button className="pill" onClick={copy} title="Copy the full wallet address">
+                  {copied ? ICON.check : ICON.copy}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+                <a className="pill" href={`${EXPLORER}/address/${overview.wallet}`} target="_blank" rel="noreferrer">
+                  {EXT_ICON}
+                  Explorer
+                </a>
+                <button className="pill" onClick={() => exportWallet()} title="Reveal the private key of this wallet through Privy">
+                  {ICON.key}
+                  Export key
+                </button>
+              </div>
+            ) : (
+              <div className="hint">No wallet yet. It is created on your first sign-in.</div>
+            )}
           </div>
         </div>
-        <div className="stats">
-          <div>
-            <div className="k">Holdings</div>
-            <div className="v">{usd(totalUsd) || "—"}</div>
+
+        <div className="tiles">
+          <div className="tile">
+            <span className="k">Holdings</span>
+            <span className="v">{usd(totalUsd) || "—"}</span>
+            <span className="hint">{eth !== null ? `${fmt(eth, 5)} ETH on Robinhood` : ""}</span>
           </div>
-          <div>
-            <div className="k">Claimable fees</div>
-            <div className="v">{usd(feeUsd) || "—"}</div>
+          <div className="tile">
+            <span className="k">Claimable fees</span>
+            <span className="v">{usd(feeUsd) || "—"}</span>
+            <span className="hint">{overview ? `${overview.fees.positions.length} position${overview.fees.positions.length === 1 ? "" : "s"}` : ""}</span>
           </div>
-          <div>
-            <div className="k">Bot signing</div>
-            <div className="v">
-              {me?.linked ? (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-                  <span className="ok">allowed</span>
-                  <button
-                    className="btn-s"
-                    disabled={signer.busy || !signer.embedded}
-                    title="Remove o1bot's signer from your wallet. Launches from posts stop until you allow it again."
-                    onClick={async () => {
-                      if (await signer.revoke()) await load();
-                    }}
-                  >
-                    {signer.busy ? "Waiting for Privy…" : "Revoke"}
-                  </button>
-                </span>
-              ) : (
+          <div className="tile">
+            <span className="k">Bot signing</span>
+            {me?.linked ? (
+              <span className="v row">
+                <span className="badge live">{ICON.check} Allowed</span>
                 <button
-                  className="btn-s"
+                  className="btn-s xs"
                   disabled={signer.busy || !signer.embedded}
-                  title={me?.wallet?.signerStale ? "Your earlier permission predates the signing policy. Grant it again so Privy enforces the limits." : undefined}
+                  title="Remove o1bot's signer from your wallet. Launches and trades from posts stop until you allow it again."
                   onClick={async () => {
-                    if (await signer.grant({ replace: Boolean(me?.wallet?.signerStale) })) await load();
+                    if (await signer.revoke()) await load();
                   }}
                 >
-                  {signer.busy ? "Waiting for Privy…" : me?.wallet?.signerStale ? "Update permission" : "Allow"}
+                  {signer.busy ? "Waiting…" : "Revoke"}
                 </button>
-              )}
-            </div>
+              </span>
+            ) : (
+              <span className="v row">
+                <span className={`badge ${stale ? "wait" : "off"}`}>{stale ? "Needs update" : "Off"}</span>
+                <button
+                  className="btn-p xs"
+                  disabled={signer.busy || !signer.embedded}
+                  title={stale ? "Your earlier permission predates the signing policy. Grant it again so Privy enforces the limits." : "Let o1bot sign launches and trades from this wallet, within Privy's policy."}
+                  onClick={async () => {
+                    if (await signer.grant({ replace: stale })) await load();
+                  }}
+                >
+                  {signer.busy ? "Waiting for Privy…" : stale ? "Update permission" : "Allow"}
+                </button>
+              </span>
+            )}
+            <span className="hint">{me?.linked ? "Launch and trade from a post" : "Needed for posts to work"}</span>
           </div>
         </div>
+
         <div className="actions">
           <Link className="btn-p" href="/launch">
-            Launch a token
+            {ICON.rocket} Launch a token
           </Link>
-          <button className="btn-s" onClick={() => logout()}>
-            Sign out
+          <Link className="btn-s" href="/">
+            Board
+          </Link>
+          <button className="btn-s ghost" onClick={() => logout()}>
+            {ICON.out} Sign out
           </button>
         </div>
       </div>
 
       {error && <div className="alert">{error}</div>}
+      {signer.error && <div className="alert">{signer.error}</div>}
 
       <div className="me-grid">
         <section className="card">
-          <h2>Creator fees</h2>
-          <p className="sub">Half of every 1% swap fee on your tokens, paid in the paired asset and held in o1's escrow until you claim it.</p>
+          <div className="card-h">
+            <h2>Creator fees</h2>
+            <span className="hint">0.5% of every trade on your tokens</span>
+          </div>
+          <p className="sub">Paid in the paired asset and held in o1's escrow until you claim it. Claiming is a transaction from your wallet.</p>
           {overview === null ? (
-            <div className="hint">Loading…</div>
+            <div className="empty">Loading…</div>
           ) : overview.fees.positions.length === 0 ? (
-            <div className="hint">Nothing to claim yet.</div>
+            <div className="empty">Nothing to claim yet. Fees appear here as soon as your tokens trade.</div>
           ) : (
             <table>
               <tbody>
@@ -257,7 +310,7 @@ export function Profile() {
                       <div className="hint">{usd(p.usd)}</div>
                     </td>
                     <td className="r">
-                      <button className="btn-p" disabled={claiming !== null} onClick={() => claim(p.currency, p.symbol)}>
+                      <button className="btn-p sm" disabled={claiming !== null} onClick={() => claim(p.currency, p.symbol)}>
                         {claiming === p.currency ? "Confirm in wallet…" : "Claim"}
                       </button>
                     </td>
@@ -266,21 +319,26 @@ export function Profile() {
               </tbody>
             </table>
           )}
-          {eth !== null && Number(eth) === 0 && overview?.fees.positions.length ? <div className="hint">Claiming is a transaction from your wallet, so it needs a little ETH for gas.</div> : null}
+          {eth !== null && Number(eth) === 0 && overview?.fees.positions.length ? <div className="notice">Your wallet has no ETH for gas, so a claim cannot be sent yet. Top it up first.</div> : null}
           {claimTx && (
-            <div className="hint">
+            <div className="notice">
               Claim sent:{" "}
               <a href={`${EXPLORER}/tx/${claimTx}`} target="_blank" rel="noreferrer">
-                {short(claimTx)}
+                {short(claimTx)} {EXT_ICON}
               </a>
             </div>
           )}
         </section>
 
         <section className="card">
-          <h2>Holdings</h2>
+          <div className="card-h">
+            <h2>Holdings</h2>
+            <span className="hint">{overview ? `${overview.assets.length} asset${overview.assets.length === 1 ? "" : "s"}` : ""}</span>
+          </div>
           {overview === null ? (
-            <div className="hint">Loading…</div>
+            <div className="empty">Loading…</div>
+          ) : overview.assets.length === 0 ? (
+            <div className="empty">Nothing here yet. Send ETH on Robinhood Chain to your wallet address above.</div>
           ) : (
             <table>
               <tbody>
@@ -306,79 +364,87 @@ export function Profile() {
       </div>
 
       <section className="card">
-        <h2>Your launches</h2>
-        {overview === null ? (
-          <div className="hint">Loading…</div>
-        ) : overview.launches.length === 0 ? (
-          <div className="hint">
-            None yet. <Link href="/launch">Launch one from here</Link> or post the command on X.
-          </div>
+        <div className="card-h">
+          <h2>Trading from posts</h2>
+          <span className="hint">Opt-in, with your own cap</span>
+        </div>
+        <p className="sub">
+          When on, a post like <b>@o1bot_exchange buy 0.05 ETH of $CAT</b> or <b>sell half of $CAT</b> trades from this wallet on any o1 Launchpad pool, up to your cap per trade. The output always lands in this
+          wallet; the bot cannot send funds anywhere.
+        </p>
+        {trading === null ? (
+          <div className="empty">Loading…</div>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Token</th>
-                <th>Pair</th>
-                <th>Via</th>
-                <th>Status</th>
-                <th className="r">When</th>
-              </tr>
-            </thead>
-            <tbody>
-              {overview.launches.map((l) => (
-                <tr key={l.id}>
-                  <td>
-                    {l.tokenAddress && l.status !== "DRY_RUN" && l.status !== "FAILED" ? <Link href={`/token/${l.tokenAddress}`}>${l.ticker}</Link> : <b>${l.ticker}</b>}
-                    <div className="hint">
-                      {l.name}
-                      {l.role === "fee_recipient" ? " · fees directed to you" : ""}
-                    </div>
-                  </td>
-                  <td>{l.quoteSymbol}</td>
-                  <td>{l.source === "WEB" ? "web" : "X"}</td>
-                  <td>
-                    <span className={l.status === "FAILED" ? "need" : STATUS_LABEL[l.status] === "live" ? "ok" : ""}>{STATUS_LABEL[l.status] ?? l.status.toLowerCase()}</span>
-                    {l.status === "FAILED" && l.userMessage ? <div className="hint">{l.userMessage}</div> : null}
-                  </td>
-                  <td className="r">{new Date(l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="trade-set">
+            <label className={`toggle${trading.enabled ? " on" : ""}${savingTrading || !me?.linked ? " disabled" : ""}`}>
+              <input type="checkbox" checked={trading.enabled} disabled={savingTrading || !me?.linked} onChange={(e) => void saveTrading({ enabled: e.target.checked })} />
+              <span className="track">
+                <span className="thumb" />
+              </span>
+              <span className="lbl">{trading.enabled ? "On" : "Off"}</span>
+              {!me?.linked && <span className="hint">Allow bot signing above first.</span>}
+            </label>
+            <div className="cap">
+              <span className="k">Per-trade cap</span>
+              <span className="field">
+                <input inputMode="decimal" placeholder={trading.defaultCapEth} value={capDraft} disabled={savingTrading} onChange={(e) => setCapDraft(e.target.value)} aria-label="Per-trade cap in ETH" />
+                <span className="suffix">ETH</span>
+              </span>
+              <button className="btn-p sm" disabled={savingTrading || capDraft === (trading.maxTradeEth ?? "")} onClick={() => void saveTrading({ maxTradeEth: capDraft.trim() === "" ? null : capDraft.trim() })}>
+                {savingTrading ? "Saving…" : "Save"}
+              </button>
+              <span className="hint">
+                Empty = {trading.defaultCapEth} ETH. Ceiling {trading.maxCapEth} ETH.
+              </span>
+            </div>
+          </div>
         )}
       </section>
 
       <section className="card">
-        <h2>Trading from posts</h2>
-        <p className="sub">
-          Off by default. When on, a post like <b>@o1bot_exchange buy 0.05 ETH of $CAT</b> or <b>sell half of $CAT</b> trades from this wallet, on ETH pools of tokens launched here, up to
-          your cap per trade. The output always lands in this wallet; the bot cannot send funds anywhere.
-        </p>
-        {trading === null ? (
-          <div className="hint">Loading…</div>
+        <div className="card-h">
+          <h2>Your launches</h2>
+          <span className="hint">{overview ? `${overview.launches.length} total` : ""}</span>
+        </div>
+        {overview === null ? (
+          <div className="empty">Loading…</div>
+        ) : overview.launches.length === 0 ? (
+          <div className="empty">
+            None yet. <Link href="/launch">Launch one from here</Link> or post the command on X.
+          </div>
         ) : (
-          <div className="trade-set">
-            <label className="switch">
-              <input type="checkbox" checked={trading.enabled} disabled={savingTrading || !me?.linked} onChange={(e) => void saveTrading({ enabled: e.target.checked })} />
-              <span>{trading.enabled ? "On" : "Off"}</span>
-              {!me?.linked && <span className="hint">Allow bot signing above first.</span>}
-            </label>
-            <div className="cap">
-              <span>Per-trade cap</span>
-              <input
-                inputMode="decimal"
-                placeholder={trading.defaultCapEth}
-                value={capDraft}
-                disabled={savingTrading}
-                onChange={(e) => setCapDraft(e.target.value)}
-                aria-label="Per-trade cap in ETH"
-              />
-              <span>ETH</span>
-              <button className="btn-s" disabled={savingTrading || capDraft === (trading.maxTradeEth ?? "")} onClick={() => void saveTrading({ maxTradeEth: capDraft.trim() === "" ? null : capDraft.trim() })}>
-                {savingTrading ? "Saving…" : "Save"}
-              </button>
-              <span className="hint">Empty = {trading.defaultCapEth} ETH. Ceiling {trading.maxCapEth} ETH.</span>
-            </div>
+          <div className="tbl">
+            <table>
+              <thead>
+                <tr>
+                  <th>Token</th>
+                  <th>Pair</th>
+                  <th>Via</th>
+                  <th>Status</th>
+                  <th className="r">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overview.launches.map((l) => (
+                  <tr key={l.id}>
+                    <td>
+                      {l.tokenAddress && l.status !== "DRY_RUN" && l.status !== "FAILED" ? <Link href={`/token/${l.tokenAddress}`}>${l.ticker}</Link> : <b>${l.ticker}</b>}
+                      <div className="hint">
+                        {l.name}
+                        {l.role === "fee_recipient" ? " · fees directed to you" : ""}
+                      </div>
+                    </td>
+                    <td>{l.quoteSymbol}</td>
+                    <td>{l.source === "WEB" ? "web" : "X"}</td>
+                    <td>
+                      <span className={`badge ${STATUS_CLASS(l.status)}`}>{STATUS_LABEL[l.status] ?? l.status.toLowerCase()}</span>
+                      {l.status === "FAILED" && l.userMessage ? <div className="hint">{l.userMessage}</div> : null}
+                    </td>
+                    <td className="r">{new Date(l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
