@@ -1,3 +1,5 @@
+import { dryRunBridgeChain, liveBridgeChain } from "./bridge-chain";
+import { liveRelay } from "./relay";
 import { alerterFromEnv } from "./alerts";
 import "@o1bot/shared/load-env";
 import { formatEther, getAddress, isAddress, keccak256, toHex, type Address } from "viem";
@@ -162,6 +164,8 @@ function buildDeps(cfg: BotConfig, args: CliArgs, store: BotStore, x: XClient): 
     setFeeRecipient: (input, wallet, audit) => setCreatorFeeRecipient(input, wallet, audit),
     trade: rpcConfigured ? liveTradeChain() : dryRunTradeChain(),
     o1Tokens: liveO1Tokens(),
+    bridge: rpcConfigured ? liveBridgeChain() : dryRunBridgeChain(),
+    relay: liveRelay(),
     alerts: cfg.dryRun ? undefined : alerterFromEnv(),
   };
 }

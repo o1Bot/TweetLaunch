@@ -14,6 +14,8 @@ export type BotConfig = {
   tradeCooldownSeconds: number;
   maxTradesPerDay: number;
   tradeSlippageBps: number;
+  /** Largest Relay deposit the bot signs on an origin chain. */
+  maxBridgeWei: bigint;
   siteUrl: string;
   botHandle: string;
   botUserId: string | null;
@@ -34,6 +36,7 @@ export function botConfig(): BotConfig {
     tradeCooldownSeconds: e.TRADE_COOLDOWN_SECONDS,
     maxTradesPerDay: e.MAX_TRADES_PER_USER_PER_DAY,
     tradeSlippageBps: e.TRADE_SLIPPAGE_BPS,
+    maxBridgeWei: parseEther(e.MAX_BRIDGE_ETH),
     siteUrl: e.SITE_URL.replace(/\/$/, ""),
     botHandle: e.X_BOT_HANDLE,
     botUserId: e.X_BOT_USER_ID ?? null,

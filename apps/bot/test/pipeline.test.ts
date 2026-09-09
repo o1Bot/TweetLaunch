@@ -1,3 +1,4 @@
+import { dryRunBridgeChain } from "../src/bridge-chain";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getAddress, parseEther, type Address, type Hex } from "viem";
 import type { LaunchPlan, PlanResult } from "@o1bot/executor";
@@ -70,6 +71,7 @@ function config(over: Partial<BotConfig> = {}): BotConfig {
     tradeCooldownSeconds: 30,
     maxTradesPerDay: 20,
     tradeSlippageBps: 300,
+    maxBridgeWei: parseEther("1"),
     siteUrl: "https://o1bot.exchange",
     botHandle: "o1bot_exchange",
     botUserId: "999",
@@ -166,6 +168,8 @@ function harness(over: Partial<BotConfig> = {}): Harness {
     },
     trade: dryRunTradeChain(),
     o1Tokens: noO1Tokens,
+    bridge: dryRunBridgeChain(),
+    relay: { quote: async () => { throw new Error("not used"); }, status: async () => ({ status: "unknown", fillTxHash: null }) },
     now: () => new Date("2026-09-07T10:00:00Z"),
   };
   return h;

@@ -1,4 +1,4 @@
-import { normalizeHandle } from "@o1bot/shared";
+import { isBridgeChainKey, normalizeHandle, type BridgeChainKey } from "@o1bot/shared";
 import type { MissingField, ParseOutput } from "./schema";
 
 /**
@@ -46,6 +46,18 @@ export type TradeCommand = {
   sellPortion: SellPortion | null;
   /** Requested slippage in basis points, already bounded; null = the bot's default. */
   slippageBps: number | null;
+  /** Bridge ETH from this chain into the wallet first; null = the ETH is already on Robinhood. */
+  fromChain: BridgeChainKey | null;
+  language: string;
+  reason: string;
+};
+
+/** "bridge 0.1 ETH from base": ETH from the poster's wallet on another chain to the same wallet on Robinhood. */
+export type BridgeCommand = {
+  kind: "bridge";
+  fromChain: BridgeChainKey;
+  /** Decimal ETH string exactly as written. */
+  amount: string;
   language: string;
   reason: string;
 };
@@ -95,8 +107,9 @@ export function cleanXHandle(raw: string | null | undefined): string | null {
 export type ParseResult =
   | LaunchCommand
   | TradeCommand
+  | BridgeCommand
   | { kind: "clarify"; question: string; missing: MissingField[]; language: string; reason: string }
-  | { kind: "unsupported_chain"; chain: "base" | "other"; language: string; reason: string }
+  | { kind: "unsupported_chain"; chain: string; language: string; reason: string }
   | { kind: "help"; reply: string; language: string; reason: string }
   | { kind: "ignore"; language: string; reason: string };
 
@@ -114,6 +127,7 @@ const FALLBACK_QUESTION: Record<MissingField, string> = {
   trade_side: "Buy or sell? Example: buy 0.05 ETH of $CAT",
   trade_token: "Which token? Give its ticker or address. Example: sell half of $CAT",
   trade_amount: "How much? For a buy give the ETH amount, for a sell give all, half or a percentage. Example: buy 0.05 ETH of $CAT",
+  bridge_chain: "From which chain? Base, Ethereum, Arbitrum or Optimism. Example: bridge 0.1 ETH from base",
 };
 
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -121,6 +135,22 @@ const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 export const SLIPPAGE_MIN_BPS = 10;
 export const SLIPPAGE_MAX_BPS = 1000;
 const TRADE_MISSING: ReadonlySet<MissingField> = new Set(["trade_side", "trade_token", "trade_amount"]);
+const BRIDGE_MISSING: ReadonlySet<MissingField> = new Set(["trade_amount", "bridge_chain"]);
+
+function normalizeBridge(raw: ParseOutput, language: string, reason: string): ParseResult {
+  const missing = new Set<MissingField>(raw.kind === "clarify" ? raw.missing.filter((m) => BRIDGE_MISSING.has(m)) : []);
+  const amount = cleanTradeAmount(raw.trade_amount);
+  if (!amount.ok || amount.value === null || (amount.symbol !== null && amount.symbol !== "ETH")) missing.add("trade_amount");
+  if (raw.chain === "other") return { kind: "unsupported_chain", chain: "other", language, reason };
+  const fromChain = raw.chain && isBridgeChainKey(raw.chain) ? raw.chain : null;
+  if (!fromChain) missing.add("bridge_chain");
+  if (missing.size > 0) {
+    const list = [...missing];
+    const question = (raw.question ?? "").trim() || list.map((m) => FALLBACK_QUESTION[m]).join(" ");
+    return { kind: "clarify", question, missing: list, language, reason };
+  }
+  return { kind: "bridge", fromChain: fromChain!, amount: amount.ok ? amount.value! : "0", language, reason };
+}
 
 export function cleanSellPortion(raw: string | null | undefined): { ok: true; value: SellPortion | null } | { ok: false } {
   if (raw === null || raw === undefined) return { ok: true, value: null };
@@ -179,6 +209,9 @@ function normalizeTrade(raw: ParseOutput, language: string, reason: string): Par
     const question = (raw.question ?? "").trim() || list.map((m) => FALLBACK_QUESTION[m]).join(" ");
     return { kind: "clarify", question, missing: list, language, reason };
   }
+  // "from base": bridge first. Any other named chain is one the bot cannot bridge from.
+  if (raw.chain === "other") return { kind: "unsupported_chain", chain: "other", language, reason };
+  const fromChain = raw.chain && isBridgeChainKey(raw.chain) ? raw.chain : null;
   return {
     kind: "trade",
     side: side!,
@@ -188,6 +221,7 @@ function normalizeTrade(raw: ParseOutput, language: string, reason: string): Par
     amountSymbol: side === "buy" && amount.ok ? amount.symbol : null,
     sellPortion: side === "sell" && portion.ok ? portion.value : null,
     slippageBps: cleanSlippage(raw.trade_slippage_pct),
+    fromChain,
     language,
     reason,
   };
@@ -240,12 +274,15 @@ export function normalizeParseOutput(raw: ParseOutput, input: { hasImage: boolea
     return { kind: "help", reply, language, reason };
   }
 
+  // A bridge, or a clarify about one, is decided before trades: it has no side.
+  const bridgeIntent = raw.kind === "bridge" || (raw.kind === "clarify" && raw.missing.includes("bridge_chain"));
+  if (bridgeIntent) return normalizeBridge(raw, language, reason);
   // A trade, or a clarify about one: the trade fields decide, never the launch fields.
   const tradeIntent = raw.kind === "trade" || (raw.kind === "clarify" && (raw.missing.some((m) => TRADE_MISSING.has(m)) || raw.trade_side !== null));
   if (tradeIntent) return normalizeTrade(raw, language, reason);
 
   // launch or clarify: re-derive the missing list from the values themselves.
-  const missing = new Set<MissingField>(raw.kind === "clarify" ? raw.missing.filter((m) => !TRADE_MISSING.has(m)) : []);
+  const missing = new Set<MissingField>(raw.kind === "clarify" ? raw.missing.filter((m) => !TRADE_MISSING.has(m) && !BRIDGE_MISSING.has(m)) : []);
   const ticker = cleanTicker(raw.ticker);
   const name = cleanName(raw.name);
   const pair = cleanPair(raw.pair);
@@ -265,7 +302,7 @@ export function normalizeParseOutput(raw: ParseOutput, input: { hasImage: boolea
     return { kind: "clarify", question, missing: list, language, reason };
   }
 
-  if (raw.chain === "base" || raw.chain === "other") {
+  if (raw.chain !== null && raw.chain !== "robinhood") {
     return { kind: "unsupported_chain", chain: raw.chain, language, reason };
   }
 

@@ -93,7 +93,7 @@ export const replies = {
   notRegistered: (siteUrl: string) =>
     `Three steps first: 1) sign in with X at ${siteUrl} and allow signing, 2) send a little ETH on Robinhood Chain to the wallet it shows, 3) post the full launch command again. Then I launch from your wallet.`,
 
-  unsupportedChain: () => `Only Robinhood Chain is supported right now. Leave the chain out or write "on robinhood" and post again.`,
+  unsupportedChain: () => `Only Robinhood Chain is supported. Launches and trades run there; ETH can be bridged in from Base, Ethereum, Arbitrum or Optimism with "bridge 0.1 ETH from base".`,
 
   pairUnavailable: (pair: string, siteUrl: string) => `${pair} is not a pair on o1's Robinhood factory. Use ETH, USDG or a listed stock token. Pairs: ${siteUrl}/how-it-works`,
 
@@ -162,6 +162,24 @@ export const replies = {
   tradeSlowDown: (retryAfterSeconds: number) => `One trade every few seconds per account. Try again in ${Math.max(1, retryAfterSeconds)} seconds.`,
 
   tradeDailyCap: () => `This account has reached today's trade limit. Try again tomorrow.`,
+
+  // Bridges from a post, through Relay.
+  bridgeTooLarge: (capEth: string) => `Bridges from a post have a cap of ${capEth} ETH per transfer. Lower the amount and post again.`,
+
+  bridgeInsufficient: (chainName: string, shortfallEth: string, siteUrl: string) => `Your ${chainName} wallet is ${shortfallEth} ETH short for this transfer, amount plus gas. It is the same address as on Robinhood, shown at ${siteUrl}/me.`,
+
+  bridgeFailed: (detail: string) => `The bridge did not go through (${detail}). Nothing left your wallet except gas, if any. Post again to retry.`,
+
+  bridgeSuccess: (p: { chainName: string; amountIn: string; amountOut: string; fillTxHash: string | null; siteUrl: string }) => {
+    const line = `Bridged ${p.amountIn} ETH from ${p.chainName} to your Robinhood wallet, ${p.amountOut} ETH landed.`;
+    return p.fillTxHash ? `${line}\nTx: ${TX_EXPLORER}${p.fillTxHash}` : `${line}\n${p.siteUrl}/me`;
+  },
+
+  bridgePending: (p: { chainName: string; amountIn: string; depositTxHash: string; siteUrl: string }) =>
+    `Your ${p.amountIn} ETH left ${p.chainName} and is still on its way to Robinhood through Relay. It usually lands within a minute; your balance is at ${p.siteUrl}/me. Deposit: ${p.depositTxHash.slice(0, 10)}…`,
+
+  /** One reply for "buy … from base": the bridge line above the trade confirmation. */
+  bridgedThen: (bridgeLine: string, tradeText: string) => `${bridgeLine}\n${tradeText}`,
 
   tradeFailed: (detail: string) => `The trade did not go through (${detail}). Nothing was spent except gas, if any. Post again to retry.`,
 

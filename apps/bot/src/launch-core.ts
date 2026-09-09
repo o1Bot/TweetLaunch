@@ -67,6 +67,7 @@ export const SIGNED_KIND: Record<AllowedTxKind, SignedTxKindValue> = {
   feeClaimTo: "FEE_CLAIM",
   permit2Approve: "PERMIT2_APPROVE",
   routerExecute: "ROUTER_EXECUTE",
+  relayDeposit: "RELAY_DEPOSIT",
 };
 
 /** Short, user-facing phrasing for plan / execution failures that are not the user's fault. */

@@ -5,11 +5,14 @@ import { activeFactory, findQuote, logger, tickerCollidesWithStock } from "@o1bo
 import type { EnsureWalletInput, LinkedUser, LinkStatus } from "@o1bot/wallet";
 import { stripLeadingMentions, XPostError, type XClient, type XMention } from "@o1bot/x";
 import { noAlerts, postUrl, type Alerter } from "./alerts";
+import type { BridgeChain } from "./bridge-core";
+import { handleBridge } from "./bridge-handler";
 import type { BotConfig } from "./config";
 import type { AuditSink, ExecutionResult, WalletRef } from "./execute";
 import { runLaunch } from "./launch-core";
 import { clampReply, formatEthCeil, replies } from "./replies";
 import type { O1TokenSource } from "./o1-tokens";
+import type { RelayClient } from "./relay";
 import type { BotStore, MentionStatusValue } from "./store";
 import type { TradeChain } from "./trade-core";
 import { handleTrade } from "./trade-handler";
@@ -45,6 +48,9 @@ export type PipelineDeps = {
   trade: TradeChain;
   /** o1's token directory, for trading tokens the bot did not launch. */
   o1Tokens: O1TokenSource;
+  /** Origin-chain reads and the Relay deposit for a bridge from a post. */
+  bridge: BridgeChain;
+  relay: RelayClient;
   /** Operator alerts; absent in tests and dry runs. */
   alerts?: Alerter;
   now?: () => Date;
@@ -58,6 +64,8 @@ export type PipelineOutcome =
   | { outcome: "launched"; launchId: string; token: Address; txHash: Hex; feeRecipientTxHash: Hex | null; reply: string | null }
   | { outcome: "trade_dry_run"; tradeId: string; reply: string }
   | { outcome: "traded"; tradeId: string; txHash: Hex; reply: string | null }
+  | { outcome: "bridge_dry_run"; bridgeId: string; reply: string }
+  | { outcome: "bridged"; bridgeId: string; depositTxHash: Hex; fillTxHash: Hex | null; reply: string | null }
   | { outcome: "failed"; error: string; reply: string | null; launchId: string | null };
 
 type ReplyResult = { text: string; tweetId: string | null; posted: boolean; error: string | null };
@@ -185,6 +193,8 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
       return handleLaunch(result, { mention, mentionId, deps, now, log, reply, setMention });
     case "trade":
       return handleTrade(result, { mention, mentionId, deps, now, log, reply, setMention });
+    case "bridge":
+      return handleBridge(result, { mention, mentionId, deps, now, log, reply, setMention });
   }
 }
 
