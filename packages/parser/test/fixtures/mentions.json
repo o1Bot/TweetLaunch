@@ -745,5 +745,16 @@
       "amount": "20",
       "amountSymbol": "USDG"
     }
+  },
+  {
+    "id": "qa-buy-stock-itself",
+    "text": "@o1bot_exchange can you buy me some NVDA stock token?",
+    "hasImage": false,
+    "expect": {
+      "kind": "help",
+      "replyIncludes": [
+        "paired"
+      ]
+    }
   }
 ]

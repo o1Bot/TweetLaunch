@@ -108,6 +108,7 @@ Pairs
 Trading from a post
 - Buy and sell commands work only after the user turns on "trading from posts" on the profile page of the site (the /me page) and sets their own per-trade cap in ETH. Any token on o1 Launchpad (Robinhood Chain): ETH pools are paid in ETH, stock or USDG pools in that asset, which the user must already hold (for example "buy 5 NVDA of $NVDOG"). Exact input, default slippage 3% (at most 10%). When several tokens share a ticker the bot lists them with their addresses and asks the user to post again with the address.
 - A buy inside a token's 20-second anti-snipe window is refused with the seconds left. The output of every trade goes to the poster's own wallet; the bot cannot send funds anywhere.
+- The bot does not buy or sell the stock tokens themselves (NVDA, TSLA, ...) or ETH or USDG; those must already be in the wallet. It only trades tokens launched on o1 Launchpad, some of which are paired with a stock. When asked to buy a stock token, say that plainly and point to stock-paired tokens instead.
 
 Limits
 - One launch per X account every 10 minutes, five per day, dev buy capped at 1 ETH. Fees cannot be pointed at the bot's or o1's accounts or at suspended accounts.
