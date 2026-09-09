@@ -8,6 +8,7 @@ import type { BotConfig } from "./config";
 import type { AuditSink, ExecutionResult, WalletRef } from "./execute";
 import { runLaunch } from "./launch-core";
 import { clampReply, formatEthCeil, replies } from "./replies";
+import type { O1TokenSource } from "./o1-tokens";
 import type { BotStore, MentionStatusValue } from "./store";
 import type { TradeChain } from "./trade-core";
 import { handleTrade } from "./trade-handler";
@@ -41,6 +42,8 @@ export type PipelineDeps = {
   setFeeRecipient: (input: { factory: Address; chainId: number; token: Address; recipient: Address }, wallet: WalletRef, audit: AuditSink) => Promise<Hex>;
   /** Chain reads and the signing of a trade from a post. */
   trade: TradeChain;
+  /** o1's token directory, for trading tokens the bot did not launch. */
+  o1Tokens: O1TokenSource;
   now?: () => Date;
 };
 

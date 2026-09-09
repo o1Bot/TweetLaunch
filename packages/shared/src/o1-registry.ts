@@ -143,6 +143,19 @@ export const activeHook = (key: ChainKey): Address => requiredContract(key, "hoo
 export const activeFeeEscrow = (key: ChainKey): Address => requiredContract(key, "feeEscrow");
 export const activeLaunchBuyAdapter = (key: ChainKey): Address => requiredContract(key, "launchBuyAdapter");
 
+/** Every LaunchHook o1 has deployed on the chain (current and past suites): a pool on any of them is an o1 launch pool. */
+export function knownHooks(key: ChainKey): Address[] {
+  const chain = o1Chain(key);
+  const hooks = new Set<Address>();
+  const current = chain.contracts.hook;
+  if (current) hooks.add(getAddress(current));
+  for (const suite of chain.suites) {
+    const hook = suite.contracts.hook;
+    if (hook) hooks.add(getAddress(hook));
+  }
+  return [...hooks];
+}
+
 /** Recognise a historical launch by its originating factory (indexer use). */
 export function suiteByFactory(chainId: number, factory: string): { key: ChainKey; suite: O1Suite } | null {
   if (!isAddress(factory, { strict: false })) return null;

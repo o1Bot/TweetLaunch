@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanSellPortion, cleanSlippage, normalizeParseOutput } from "../src/normalize";
+import { cleanSellPortion, cleanSlippage, cleanTradeAmount, normalizeParseOutput } from "../src/normalize";
 import type { ParseOutput } from "../src/schema";
 
 const base: ParseOutput = {
@@ -26,7 +26,17 @@ const base: ParseOutput = {
 
 describe("normalizeParseOutput for trades", () => {
   it("passes a buy through with the ticker uppercased and the amount verbatim", () => {
-    expect(normalizeParseOutput(base, { hasImage: false })).toMatchObject({ kind: "trade", side: "buy", ticker: "CAT", tokenAddress: null, amountEth: "0.05", sellPortion: null, slippageBps: null });
+    expect(normalizeParseOutput(base, { hasImage: false })).toMatchObject({ kind: "trade", side: "buy", ticker: "CAT", tokenAddress: null, amount: "0.05", amountSymbol: null, sellPortion: null, slippageBps: null });
+  });
+
+  it("keeps the asset of a buy amount and normalises its spelling", () => {
+    expect(normalizeParseOutput({ ...base, trade_amount: "5 NVDA" }, { hasImage: false })).toMatchObject({ kind: "trade", amount: "5", amountSymbol: "NVDA" });
+    expect(normalizeParseOutput({ ...base, trade_amount: "0.05 eth" }, { hasImage: false })).toMatchObject({ kind: "trade", amount: "0.05", amountSymbol: "ETH" });
+    expect(cleanTradeAmount("20 $USDG")).toEqual({ ok: true, value: "20", symbol: "USDG" });
+    expect(cleanTradeAmount(".5")).toEqual({ ok: true, value: "0.5", symbol: null });
+    expect(cleanTradeAmount("$20")).toEqual({ ok: false });
+    expect(cleanTradeAmount("10%")).toEqual({ ok: false });
+    expect(cleanTradeAmount("0")).toEqual({ ok: false });
   });
 
   it("keeps an address as given and drops the ticker", () => {
@@ -36,7 +46,7 @@ describe("normalizeParseOutput for trades", () => {
 
   it("normalises sell portions and bounds slippage", () => {
     const r = normalizeParseOutput({ ...base, trade_side: "sell", trade_amount: "half", trade_slippage_pct: "25" }, { hasImage: false });
-    expect(r).toMatchObject({ kind: "trade", side: "sell", amountEth: null, sellPortion: { kind: "percent", value: 50 }, slippageBps: 1000 });
+    expect(r).toMatchObject({ kind: "trade", side: "sell", amount: null, sellPortion: { kind: "percent", value: 50 }, slippageBps: 1000 });
     expect(cleanSellPortion("all")).toEqual({ ok: true, value: { kind: "all" } });
     expect(cleanSellPortion("100%")).toEqual({ ok: true, value: { kind: "all" } });
     expect(cleanSellPortion("25 %")).toEqual({ ok: true, value: { kind: "percent", value: 25 } });

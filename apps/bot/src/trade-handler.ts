@@ -35,7 +35,7 @@ export async function handleTrade(cmd: TradeCommand, ctx: MentionContext): Promi
   });
 
   await setMention("QUEUED");
-  const result = await runTrade({ mentionId, tweetId: mention.id, userId: user.id, xUserId: mention.authorId, handle, wallet, cmd }, { store, config, trade: deps.trade, now }, log);
+  const result = await runTrade({ mentionId, tweetId: mention.id, userId: user.id, xUserId: mention.authorId, handle, wallet, cmd }, { store, config, trade: deps.trade, o1Tokens: deps.o1Tokens, now }, log);
 
   if (!result.ok) {
     const r = await reply(result.userText);
@@ -51,7 +51,7 @@ export async function handleTrade(cmd: TradeCommand, ctx: MentionContext): Promi
     await setMention("DONE");
     return { outcome: "trade_dry_run", tradeId: result.tradeId, reply: r.text };
   }
-  const r = await reply(result.userText);
+  const r = await reply(result.userText, { safe: result.safeText });
   if (r.posted) {
     await store.updateTrade(result.tradeId, { status: "REPLIED" });
     await setMention("DONE");

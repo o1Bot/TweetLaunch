@@ -55,6 +55,7 @@ A trade always uses the poster's own wallet and only tokens launched through the
   @${ctx.botHandle} sell all $CAT
   @${ctx.botHandle} sell half of $CAT
   @${ctx.botHandle} sell 25% of $CAT
+  @${ctx.botHandle} buy 5 NVDA of $NVDOG      a token paired with a stock or USDG is bought with that asset
 Optional anywhere: "slippage 5%". The token may be given as a 0x contract address instead of a ticker. "ape", "grab", "get" mean buy; "dump", "exit", "cash out" mean sell.
 
 # Field rules
@@ -70,7 +71,7 @@ Optional anywhere: "slippage 5%". The token may be given as a 0x contract addres
 - fees_to_handle: the handle after "fees to" without the @. null when absent.
 - description: only text the user clearly meant as the token's description: after "desc", "description", "about", or a quoted sentence that is obviously a tagline for the token and not the name. Copy it verbatim. Never write one yourself; null when absent.
 - website, telegram, x_handle: only links or handles the user actually gave. A bare URL that is not t.me or x.com is the website; a t.me link or "tg @name" is telegram; "x @name", "twitter @name" or an x.com link is x_handle (without @). Never fill these from the poster's own profile; the bot does that. null when absent.
-- trade_side: buy or sell. For a trade, ticker holds the token: its ticker without $ uppercased, or the 0x address exactly as written. trade_amount: for buys, the ETH amount as a plain decimal string exactly as written; "$20", "20 usd", "1000 tokens" or "10%" are not valid for a buy -> clarify with missing ["trade_amount"]. For sells, "all", "half", "quarter" or a percentage as written; a sell stated in ETH or in a token count is not valid -> clarify with missing ["trade_amount"]. trade_slippage_pct: only when the user states one. trade_side, trade_amount and trade_slippage_pct are null for launches; name, pair, devbuy_native, fees_to_handle, description, website, telegram and x_handle are null for trades.
+- trade_side: buy or sell. For a trade, ticker holds the token: its ticker without $ uppercased, or the 0x address exactly as written. trade_amount: for buys, the amount to spend as written, keeping the asset when the user named one ("0.05 ETH", "5 NVDA", "20 USDG"; a bare number means ETH); "$20", "20 usd", "1000 tokens" or "10%" are not valid for a buy -> clarify with missing ["trade_amount"]. For sells, "all", "half", "quarter" or a percentage as written; a sell stated in ETH or in a token count is not valid -> clarify with missing ["trade_amount"]. trade_slippage_pct: only when the user states one. trade_side, trade_amount and trade_slippage_pct are null for launches; name, pair, devbuy_native, fees_to_handle, description, website, telegram and x_handle are null for trades.
 
 # Choosing the kind
 
@@ -105,7 +106,7 @@ Pairs
 - A dev buy needs a liquid route from ETH to the pair; most stock pairs have one, and the bot says so before launching when one does not.
 
 Trading from a post
-- Buy and sell commands work only after the user turns on "trading from posts" on the profile page of the site (the /me page) and sets their own per-trade cap in ETH. Only tokens launched through the bot, ETH pools only for now, exact input, default slippage 3% (at most 10%).
+- Buy and sell commands work only after the user turns on "trading from posts" on the profile page of the site (the /me page) and sets their own per-trade cap in ETH. Any token on o1 Launchpad (Robinhood Chain): ETH pools are paid in ETH, stock or USDG pools in that asset, which the user must already hold (for example "buy 5 NVDA of $NVDOG"). Exact input, default slippage 3% (at most 10%). When several tokens share a ticker the bot lists them with their addresses and asks the user to post again with the address.
 - A buy inside a token's 20-second anti-snipe window is refused with the seconds left. The output of every trade goes to the poster's own wallet; the bot cannot send funds anywhere.
 
 Limits

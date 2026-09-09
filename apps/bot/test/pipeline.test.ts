@@ -9,6 +9,7 @@ import type { BotConfig } from "../src/config";
 import type { WalletRef } from "../src/execute";
 import { processMention, type PipelineDeps } from "../src/pipeline";
 import { MemoryBotStore } from "../src/store";
+import { noO1Tokens } from "../src/o1-tokens";
 import { dryRunTradeChain } from "../src/trade-chain";
 
 /**
@@ -164,6 +165,7 @@ function harness(over: Partial<BotConfig> = {}): Harness {
       return FEE_TX;
     },
     trade: dryRunTradeChain(),
+    o1Tokens: noO1Tokens,
     now: () => new Date("2026-09-07T10:00:00Z"),
   };
   return h;

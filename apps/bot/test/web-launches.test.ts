@@ -8,6 +8,7 @@ import type { BotConfig } from "../src/config";
 import type { PipelineDeps } from "../src/pipeline";
 import { MemoryBotStore, type NewLaunch } from "../src/store";
 import { drainWebLaunches, processWebLaunch } from "../src/web-launches";
+import { noO1Tokens } from "../src/o1-tokens";
 import { dryRunTradeChain } from "../src/trade-chain";
 
 const ALICE_WALLET: Address = getAddress("0x1111111111111111111111111111111111111111");
@@ -97,6 +98,7 @@ function harness(over: Partial<BotConfig> = {}) {
     },
     setFeeRecipient: async () => TX,
     trade: dryRunTradeChain(),
+    o1Tokens: noO1Tokens,
     now: () => new Date("2026-09-08T10:00:00Z"),
   };
   return { store, x, deps, state };

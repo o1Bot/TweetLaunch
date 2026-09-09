@@ -75,6 +75,25 @@ describe("trade allow-list", () => {
     expect(checkTransaction(list, { chainId: 4663, to: TOKEN, data: approve, value: 1n })).toMatchObject({ ok: false, reason: expect.stringContaining("value") });
   });
 
+  it("opens approvals for the quote asset of a stock or USDG pool, and only for it", () => {
+    const USDG: Address = getAddress("0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168");
+    const stock = buildAllowlist({
+      chainId: 4663,
+      factory: FACTORY,
+      feeEscrow: ESCROW,
+      trade: { router: ROUTER, permit2: PERMIT2, hook: HOOK, referrer: REFERRER, maxValueWei: 0n, pools: [{ token: OTHER_TOKEN, quote: USDG, tickSpacing: 200 }] },
+    });
+    const approve = encodeFunctionData({ abi: erc20, functionName: "approve", args: [PERMIT2, 1n] });
+    expect(checkTransaction(stock, { chainId: 4663, to: USDG, data: approve, value: 0n }).ok).toBe(true);
+    expect(checkTransaction(stock, { chainId: 4663, to: TOKEN, data: approve, value: 0n }).ok).toBe(false);
+    const p2 = encodeFunctionData({ abi: permit2Abi, functionName: "approve", args: [USDG, ROUTER, 1n, 1] });
+    expect(checkTransaction(stock, { chainId: 4663, to: PERMIT2, data: p2, value: 0n }).ok).toBe(true);
+    const key = launchPoolKey(OTHER_TOKEN, USDG, 200, HOOK);
+    const swap = encodeExactInputSwap({ router: ROUTER, poolKey: key, zeroForOne: key.currency0 === USDG, amountIn: 5n, minAmountOut: 1n, hookData: encodeHookData(REFERRER), deadline: 1n });
+    expect(swap.value).toBe(0n);
+    expect(checkTransaction(stock, { chainId: 4663, to: ROUTER, data: swap.data, value: 0n }).ok).toBe(true);
+  });
+
   it("does not open the router or Permit2 without a trade allowance", () => {
     const plain = buildAllowlist({ chainId: 4663, factory: FACTORY, feeEscrow: ESCROW });
     const enc = buy();
