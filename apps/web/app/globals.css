@@ -1440,3 +1440,259 @@ svg {
     grid-template-columns: 1fr;
   }
 }
+
+/* Header account control. */
+.acct-slot {
+  display: inline-block;
+  width: 120px;
+  height: 36px;
+}
+.acct-connect {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+}
+.acct {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 12px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.acct:hover {
+  border-color: var(--accent);
+  background: var(--panel-2);
+}
+.acct-av {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  flex: none;
+}
+.acct-av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.acct-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acct-x {
+  color: var(--ink-3);
+  display: inline-flex;
+}
+@media (max-width: 560px) {
+  .acct-name {
+    display: none;
+  }
+  .acct {
+    padding-right: 8px;
+  }
+}
+
+/* Header search: ticker, name or address, results drop down under the field. */
+.search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 220px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-3);
+  margin-right: 10px;
+}
+.search:focus-within {
+  border-color: var(--blue);
+  color: var(--ink-2);
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.search input::placeholder {
+  color: var(--ink-3);
+}
+.search-hits {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 320px;
+  max-width: calc(100vw - 28px);
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}
+.search-hits button {
+  display: grid;
+  grid-template-columns: 26px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.search-hits button.on {
+  background: var(--panel-2);
+}
+.search-hits .s {
+  font-weight: 600;
+}
+.search-hits .n {
+  color: var(--ink-3);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-hits .p {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.search-hits .none {
+  padding: 10px 12px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.logo.xs {
+  width: 26px;
+  height: 26px;
+  font-size: 10px;
+  border-radius: 50%;
+}
+.search.compact {
+  width: 100%;
+  margin: 0 0 6px;
+}
+.search.compact .search-hits {
+  position: static;
+  width: 100%;
+  box-shadow: none;
+  border: 0;
+  padding: 0;
+  margin-top: 4px;
+}
+@media (max-width: 1000px) {
+  .top > .search {
+    display: none;
+  }
+}
+
+/* Mobile menu: hidden on wide screens where the inline nav shows. */
+.mmenu-wrap {
+  position: relative;
+  display: none;
+  margin-left: 8px;
+}
+.mmenu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+}
+.mmenu-btn:hover {
+  border-color: var(--accent);
+}
+.mmenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}
+.mmenu a,
+.mmenu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+.mmenu a:hover,
+.mmenu button:hover {
+  background: var(--panel-2);
+}
+.mmenu .sep {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 4px;
+}
+.mmenu .search-hits button {
+  padding: 8px 10px;
+}
+@media (max-width: 860px) {
+  .mmenu-wrap {
+    display: block;
+  }
+}
+
+/* Never let anything push the page sideways on small screens. */
+html,
+body {
+  overflow-x: hidden;
+}
+@media (max-width: 560px) {
+  .footer-in {
+    grid-template-columns: 1fr;
+  }
+  .top {
+    padding: 0 14px;
+    gap: 14px;
+  }
+}
