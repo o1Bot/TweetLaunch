@@ -52,6 +52,21 @@ describe("successReply", () => {
   });
 });
 
+describe("tradeSuccess", () => {
+  it("fits X with the explorer link and the token page, and the safe variant drops the transaction", () => {
+    const tx = `0x${"ab".repeat(32)}`;
+    const r = replies.tradeSuccess({ side: "buy", ticker: "CASHCAT", amountIn: "0.05", amountOut: "1,234,567", token: TOKEN, siteUrl: SITE, txHash: tx });
+    expect(fitsX(r.text)).toBe(true);
+    expect(r.text).toContain(`https://rh-scan.com/tx/${tx}`);
+    expect(r.text).toContain(`${SITE}/token/${TOKEN}`);
+    expect(r.safe).not.toContain("rh-scan");
+    expect(r.safe).toContain(`${SITE}/token/${TOKEN}`);
+    const sell = replies.tradeSuccess({ side: "sell", ticker: "CASHCAT", amountIn: "500,000", amountOut: "0.021", token: TOKEN, siteUrl: SITE, txHash: null });
+    expect(sell.text).toBe(sell.safe);
+    expect(sell.text).toMatch(/^Sold 500,000 \$CASHCAT for 0\.021 ETH\./);
+  });
+});
+
 describe("clampReply", () => {
   it("leaves short text alone", () => expect(clampReply("hello")).toBe("hello"));
   it("truncates on the weighted length", () => {

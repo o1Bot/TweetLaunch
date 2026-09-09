@@ -10,6 +10,9 @@ import { fitsX, truncateForX } from "@o1bot/shared";
  * two links.
  */
 
+/** Explorer used in trade replies (the founder's pick for Robinhood Chain). */
+export const TX_EXPLORER = "https://rh-scan.com/tx/";
+
 /** o1's token page: the chain goes in the query string, not the path. */
 export const O1_TOKEN_BASE = "https://launch.o1.exchange/token";
 export const O1_CHAIN_QUERY = "?chain=4663";
@@ -155,9 +158,16 @@ export const replies = {
 
   tradeFailed: (detail: string) => `The trade did not go through (${detail}). Nothing was spent except gas, if any. Post again to retry.`,
 
-  tradeSuccess: (p: { side: "buy" | "sell"; ticker: string; amountIn: string; amountOut: string; token: string; siteUrl: string }) => {
-    const link = tokenPageUrl(p.siteUrl, p.token);
+  /**
+   * Trade confirmation: the amounts, the transaction on the explorer and the
+   * token page. `safe` leaves the transaction link out, for the case where X
+   * refuses the hash in the URL the way it refuses addresses.
+   */
+  tradeSuccess: (p: { side: "buy" | "sell"; ticker: string; amountIn: string; amountOut: string; token: string; siteUrl: string; txHash?: string | null }) => {
+    const page = tokenPageUrl(p.siteUrl, p.token);
     const line = p.side === "buy" ? `Bought ${p.amountOut} $${p.ticker} for ${p.amountIn} ETH.` : `Sold ${p.amountIn} $${p.ticker} for ${p.amountOut} ETH.`;
-    return `${line}\n${link}`;
+    const safe = `${line}\n${page}`;
+    const text = p.txHash ? `${line}\nTx: ${TX_EXPLORER}${p.txHash}\n${page}` : safe;
+    return { text, safe };
   },
 };

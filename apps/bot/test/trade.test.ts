@@ -207,8 +207,9 @@ describe("trades from a post", () => {
     expect(plan.minAmountOut).toBe((plan.expectedOut * 9_700n) / 10_000n);
     const reply = h.x.replies[0]!.text;
     expect(reply).toMatch(/^Bought [\d,]+ \$CAT for 0\.05 ETH\./);
+    expect(reply).toContain(`https://rh-scan.com/tx/${TX}`);
     expect(reply).toContain(`https://o1bot.exchange/token/${CAT}`);
-    expect(reply.replace(`https://o1bot.exchange/token/${CAT}`, "")).not.toMatch(/0x[0-9a-fA-F]{40}/);
+    expect(reply.replace(`https://o1bot.exchange/token/${CAT}`, "").replace(`https://rh-scan.com/tx/${TX}`, "")).not.toMatch(/0x[0-9a-fA-F]{40}/);
     expect(h.store.trades[0]).toMatchObject({ side: "BUY", status: "REPLIED", txHash: TX });
     expect(h.store.signedTxs[0]).toMatchObject({ kind: "ROUTER_EXECUTE", xUserId: "111", wallet: ALICE_WALLET, valueWei: parseEther("0.05").toString() });
     expect(h.store.mentions[0]!.status).toBe("DONE");

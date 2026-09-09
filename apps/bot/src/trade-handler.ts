@@ -51,7 +51,7 @@ export async function handleTrade(cmd: TradeCommand, ctx: MentionContext): Promi
     await setMention("DONE");
     return { outcome: "trade_dry_run", tradeId: result.tradeId, reply: r.text };
   }
-  const r = await reply(result.userText);
+  const r = await reply(result.userText, { safe: result.safeText });
   if (r.posted) {
     await store.updateTrade(result.tradeId, { status: "REPLIED" });
     await setMention("DONE");

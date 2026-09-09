@@ -85,7 +85,7 @@ export type TradeCoreResult =
   | { ok: false; outcome: "rejected"; error: string; userText: string }
   | { ok: false; outcome: "failed"; error: string; userText: string; tradeId: string | null }
   | { ok: true; dryRun: true; tradeId: string; userText: string }
-  | { ok: true; dryRun: false; tradeId: string; txHash: Hex; userText: string };
+  | { ok: true; dryRun: false; tradeId: string; txHash: Hex; userText: string; safeText: string };
 
 type Logger = { info: (obj: object, msg: string) => void; warn: (obj: object, msg: string) => void; error: (obj: object, msg: string) => void };
 
@@ -234,11 +234,11 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
   });
   const tradeId = created.id;
   const inHuman = cmd.side === "buy" ? humanAmount(amountIn, 18, "eth") : humanAmount(amountIn, 18, "token");
-  const successText = (out: bigint) =>
-    replies.tradeSuccess({ side: cmd.side, ticker, amountIn: inHuman, amountOut: cmd.side === "buy" ? humanAmount(out, 18, "token") : humanAmount(out, 18, "eth"), token, siteUrl });
+  const successText = (out: bigint, txHash: Hex | null) =>
+    replies.tradeSuccess({ side: cmd.side, ticker, amountIn: inHuman, amountOut: cmd.side === "buy" ? humanAmount(out, 18, "token") : humanAmount(out, 18, "eth"), token, siteUrl, txHash });
 
   if (config.dryRun) {
-    const userText = successText(expectedOut);
+    const userText = successText(expectedOut, null).text;
     await store.updateTrade(tradeId, { status: "DRY_RUN", userMessage: userText });
     log.info({ tradeId, side: cmd.side, token, amountIn: amountIn.toString(), expectedOut: expectedOut.toString(), minAmountOut: minAmountOut.toString(), approvals }, "dry run: would sign the swap");
     return { ok: true, dryRun: true, tradeId, userText };
@@ -259,10 +259,10 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
     });
   try {
     const done = await trade.execute(plan, wallet, audit);
-    const userText = successText(done.amountOut);
+    const { text: userText, safe: safeText } = successText(done.amountOut, done.txHash);
     await store.updateTrade(tradeId, { status: "CONFIRMED", txHash: done.txHash, amountOut: done.amountOut, userMessage: userText });
     log.info({ tradeId, txHash: done.txHash, amountOut: done.amountOut.toString() }, "trade confirmed");
-    return { ok: true, dryRun: false, tradeId, txHash: done.txHash, userText };
+    return { ok: true, dryRun: false, tradeId, txHash: done.txHash, userText, safeText };
   } catch (err) {
     const message = errMessage(err);
     const txHash = err instanceof ExecutionError ? err.txHash : null;
