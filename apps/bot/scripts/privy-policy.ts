@@ -43,7 +43,7 @@ import { join } from "node:path";
 import { formatEther, parseEther } from "viem";
 import { findRepoRoot } from "@o1bot/shared/load-env";
 import { activeFactory, activeFeeEscrow, BRIDGE_CHAIN_KEYS, bridgeChainByKey, chainByKey, env, o1Chain, RELAY_DEPOSITORY, requireEnv } from "@o1bot/shared";
-import { feeEscrowAbi, launchFactoryAbi } from "@o1bot/executor";
+import { baseFeeEscrowAbi, baseLaunchFactoryAbi, feeEscrowAbi, launchFactoryAbi } from "@o1bot/executor";
 import { permit2Abi, universalRouterAbi } from "@o1bot/swap";
 
 const VARS = ["PRIVY_POLICY_ID", "NEXT_PUBLIC_PRIVY_POLICY_ID"] as const;
@@ -126,6 +126,15 @@ async function main() {
   }
 
   const tx = (field: "chain_id" | "to" | "value", operator: "eq" | "lte", value: string) => ({ field_source: "ethereum_transaction", field, operator, value });
+  // Base (2026-09-11): launches and fee claims only. Router and Permit2 rules for Base arrive with trades on Base.
+  const base = {
+    chainId: String(chainByKey("base").id),
+    factory: activeFactory("base"),
+    escrow: activeFeeEscrow("base"),
+    router: o1Chain("base").uniswapV4.universalRouter,
+    permit2: o1Chain("base").uniswapV4.permit2,
+    perTxCapWei: BigInt(o1Chain("base").snapshot.nativeLaunchFeeRaw) + parseEther(env().MAX_DEV_BUY_ETH),
+  };
 
   // 2. Aggregation: value signed by the signer over a rolling day, across all wallets and chains.
   let aggregationId = argValue("--aggregation");
@@ -216,6 +225,64 @@ async function main() {
           tx("to", "eq", permit2),
           tx("value", "eq", "0"),
           { field_source: "ethereum_calldata", field: "approve.spender", abi: abiFunctions(permit2Abi as unknown as readonly unknown[], ["approve"]), operator: "eq", value: router },
+        ],
+      },
+      {
+        name: "Launch, dev buy or fee recipient on o1 Base",
+        method: "eth_signTransaction",
+        action: "ALLOW",
+        conditions: [
+          tx("chain_id", "eq", base.chainId),
+          tx("to", "eq", base.factory),
+          tx("value", "lte", base.perTxCapWei.toString()),
+          { field_source: "ethereum_calldata", field: "function_name", abi: abiFunctions(baseLaunchFactoryAbi, LAUNCH_FUNCTIONS), operator: "in", value: LAUNCH_FUNCTIONS },
+          { field_source: "reference", field: `aggregation.${aggregationId}`, operator: "lte", value: dailyCapWei.toString() },
+        ],
+      },
+      {
+        name: "Fee claims on the o1 Base escrow",
+        method: "eth_signTransaction",
+        action: "ALLOW",
+        conditions: [
+          tx("chain_id", "eq", base.chainId),
+          tx("to", "eq", base.escrow),
+          tx("value", "eq", "0"),
+          { field_source: "ethereum_calldata", field: "function_name", abi: abiFunctions(baseFeeEscrowAbi, CLAIM_FUNCTIONS), operator: "in", value: CLAIM_FUNCTIONS },
+        ],
+      },
+      // Router and Permit2 on Base: the code allow-list only admits them once trades run on Base,
+      // but having the enclave rules now spares users another re-grant then.
+      {
+        name: "Router swap on Base (trade from a post)",
+        method: "eth_signTransaction",
+        action: "ALLOW",
+        conditions: [
+          tx("chain_id", "eq", base.chainId),
+          tx("to", "eq", base.router),
+          tx("value", "lte", tradeCapWei.toString()),
+          { field_source: "ethereum_calldata", field: "function_name", abi: universalRouterAbi, operator: "eq", value: "execute" },
+          { field_source: "reference", field: `aggregation.${aggregationId}`, operator: "lte", value: dailyCapWei.toString() },
+        ],
+      },
+      {
+        name: "Token approval to Permit2 on Base (sell)",
+        method: "eth_signTransaction",
+        action: "ALLOW",
+        conditions: [
+          tx("chain_id", "eq", base.chainId),
+          tx("value", "eq", "0"),
+          { field_source: "ethereum_calldata", field: "approve.spender", abi: erc20ApproveAbi, operator: "eq", value: base.permit2 },
+        ],
+      },
+      {
+        name: "Permit2 approval to router on Base (sell)",
+        method: "eth_signTransaction",
+        action: "ALLOW",
+        conditions: [
+          tx("chain_id", "eq", base.chainId),
+          tx("to", "eq", base.permit2),
+          tx("value", "eq", "0"),
+          { field_source: "ethereum_calldata", field: "approve.spender", abi: abiFunctions(permit2Abi as unknown as readonly unknown[], ["approve"]), operator: "eq", value: base.router },
         ],
       },
     ],

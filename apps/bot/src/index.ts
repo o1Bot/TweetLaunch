@@ -181,6 +181,7 @@ async function main() {
       snapshotFetchedAt: o1Config().fetchedAt,
       factory: activeFactory("robinhood"),
       feeEscrow: activeFeeEscrow("robinhood"),
+      base: { factory: activeFactory("base"), feeEscrow: activeFeeEscrow("base"), cryptoPairs: cryptoQuotes("base").map((q) => q.symbol), stockPairs: stockQuotes("base").length },
       nativeLaunchFee: `${formatEther(BigInt(chain.snapshot.nativeLaunchFeeRaw))} ETH (snapshot)`,
       cryptoPairs: cryptoQuotes("robinhood").map((q) => q.symbol),
       stockPairs: stockQuotes("robinhood").length,

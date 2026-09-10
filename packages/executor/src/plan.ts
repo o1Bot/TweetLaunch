@@ -2,6 +2,8 @@ import { getAddress, parseEther, zeroAddress, type Address, type Hex, type Publi
 import {
   activeFactory,
   chainByKey,
+  chainDisplayName,
+  DEFAULT_CHAIN_KEY,
   env,
   findQuote,
   logger,
@@ -9,15 +11,16 @@ import {
   publicClient,
   registryDrift,
   tickerCollidesWithStock,
+  type ChainKey,
   type O1Quote,
 } from "@o1bot/shared";
-import { launchFactoryAbi } from "./abis";
+import { factoryAbiFor } from "./abis";
 import { classifyError, type LaunchError, type LaunchErrorKind } from "./errors";
 import { readFactoryState, readQuoteState, readTokenBytecodeHash, type FactoryState, type QuoteState } from "./factory-state";
 import { O1_LIMITS, validateTokenFields } from "./limits";
 import { buildLaunchRoute, launchPoolStep, type RouteStep } from "./route";
 import { discoverPrefixRoutes, type RouteCandidate } from "./route-discovery";
-import { mineCreatorSalt, type MinedSalt } from "./salt";
+import { mineCreatorSalt, mineCreatorSaltB20, type MinedSalt } from "./salt";
 
 /**
  * planLaunch: everything up to (but never including) signing.
@@ -68,6 +71,8 @@ export type LaunchRequest = {
   deadlineSeconds?: number;
   /** Slippage applied to the simulated dev-buy output. Default: DEV_BUY_SLIPPAGE_BPS (500 = 5%). */
   slippageBps?: number;
+  /** Chain to launch on; Robinhood when the post names none. */
+  chain?: ChainKey;
 };
 
 export type PlanOptions = {
@@ -92,7 +97,8 @@ export type LaunchPlan = {
   state: FactoryState;
   quote: O1Quote;
   quoteState: QuoteState;
-  bytecodeHash: Hex;
+  /** Token creation-code hash on erc20 chains; null on Base, where the B20 precompile predicts the address. */
+  bytecodeHash: Hex | null;
   salt: MinedSalt;
   params: LaunchParams;
   call: LaunchCall;
@@ -154,10 +160,12 @@ function failure(stage: PlanStage, kind: LaunchErrorKind, message: string, extra
 }
 
 export async function planLaunch(req: LaunchRequest, opts: PlanOptions = {}): Promise<PlanResult> {
-  const key = "robinhood" as const;
+  const key = req.chain ?? DEFAULT_CHAIN_KEY;
   const client = opts.client ?? publicClient(key);
   const chain = chainByKey(key);
   const factory = activeFactory(key);
+  const abi = factoryAbiFor(key);
+  const mode = o1Chain(key).tokenMode;
   const creator = getAddress(req.creator);
 
   // 1. The snapshot's factory must still be the one o1 selects for creation.
@@ -191,7 +199,7 @@ export async function planLaunch(req: LaunchRequest, opts: PlanOptions = {}): Pr
   try {
     const b = await client.getBlock();
     block = { number: b.number, timestamp: b.timestamp };
-    state = await readFactoryState(client, factory, block.number);
+    state = await readFactoryState(client, factory, block.number, mode);
     quoteState = await readQuoteState(client, factory, quote.address, block.number);
   } catch (err) {
     return failure("state", "rpc_error", `factory read failed: ${msg(err)}`);
@@ -202,7 +210,8 @@ export async function planLaunch(req: LaunchRequest, opts: PlanOptions = {}): Pr
     return failure("state", "pair_not_registered", `${quote.symbol} is no longer registered (revision ${quoteState.revision})`);
   }
   const snapshot = o1Chain(key).contracts;
-  if (!snapshot.launchTokenDeployer || getAddress(snapshot.launchTokenDeployer) !== state.tokenDeployer || !snapshot.hook || getAddress(snapshot.hook) !== state.hook) {
+  const deployerDrift = mode === "erc20" && (!snapshot.launchTokenDeployer || !state.tokenDeployer || getAddress(snapshot.launchTokenDeployer) !== state.tokenDeployer);
+  if (deployerDrift || !snapshot.hook || getAddress(snapshot.hook) !== state.hook) {
     return failure("state", "config_error", "live token deployer or hook differ from config/o1.json; run pnpm o1:sync and pnpm abi:vendor");
   }
 
@@ -221,22 +230,34 @@ export async function planLaunch(req: LaunchRequest, opts: PlanOptions = {}): Pr
     metadataKeys: [],
     metadataValues: [],
   };
-  let bytecodeHash: Hex;
-  try {
-    bytecodeHash = await readTokenBytecodeHash(client, factory, { ...base, creatorSalt: ZERO_SALT }, block.number);
-  } catch (err) {
-    return failure("bytecode", "rpc_error", `launchTokenBytecodeHash failed: ${msg(err)}`);
+  // 6. Mine a salt whose token address ends in 01: locally from the creation-code
+  // hash on erc20 chains, through the B20 precompile on Base.
+  let bytecodeHash: Hex | null = null;
+  let salt: MinedSalt;
+  if (mode === "erc20") {
+    try {
+      bytecodeHash = await readTokenBytecodeHash(client, factory, { ...base, creatorSalt: ZERO_SALT }, block.number);
+    } catch (err) {
+      return failure("bytecode", "rpc_error", `launchTokenBytecodeHash failed: ${msg(err)}`);
+    }
+    if (!state.tokenDeployer) return failure("state", "config_error", "factory reports no token deployer");
+    salt = mineCreatorSalt({ creator, deployer: state.tokenDeployer, bytecodeHash, suffix: state.tokenAddressSuffix, seed: opts.saltSeed });
+  } else {
+    const b20 = o1Chain(key).b20;
+    if (!b20) return failure("state", "config_error", `config/o1.json has no b20 block for ${key}; run pnpm o1:sync`);
+    try {
+      salt = await mineCreatorSaltB20({ client, b20Factory: b20.factory, launchFactory: factory, creator, suffix: state.tokenAddressSuffix, seed: opts.saltSeed });
+    } catch (err) {
+      return failure("salt", "rpc_error", `B20 address prediction failed: ${msg(err)}`);
+    }
   }
-
-  // 6. Mine a salt whose token address ends in 01.
-  const salt = mineCreatorSalt({ creator, deployer: state.tokenDeployer, bytecodeHash, suffix: state.tokenAddressSuffix, seed: opts.saltSeed });
   const params: LaunchParams = { ...base, creatorSalt: salt.creatorSalt };
 
   const stateOverride: StateOverride | undefined = opts.fundSimulation ? [{ address: creator, balance: state.nativeLaunchFee + devBuy + parseEther("1") }] : undefined;
   const simulateBuy = async (buy: LaunchBuyParams, value: bigint) => {
     const { result } = await client.simulateContract({
       address: factory,
-      abi: launchFactoryAbi,
+      abi,
       functionName: "createLaunchAndBuy",
       args: [params, buy],
       account: creator,
@@ -256,12 +277,12 @@ export async function planLaunch(req: LaunchRequest, opts: PlanOptions = {}): Pr
     if (state.launchBuyAdapter === zeroAddress) return failure("state", "dev_buy_rejected", "the factory has no launch-buy adapter configured");
     let candidates: RouteCandidate[];
     try {
-      candidates = await discoverPrefixRoutes(client, quote);
+      candidates = await discoverPrefixRoutes(client, quote, {}, key);
     } catch (err) {
       return failure("route", "rpc_error", `route discovery failed: ${msg(err)}`);
     }
     if (candidates.length === 0) {
-      return failure("route", "dev_buy_no_route", `no liquid ETH route to ${quote.symbol} exists on Robinhood; launch without a dev buy`);
+      return failure("route", "dev_buy_no_route", `no liquid ETH route to ${quote.symbol} exists on ${chainDisplayName(key)}; launch without a dev buy`);
     }
     const value = state.nativeLaunchFee + devBuy;
     const launchHop = launchPoolStep({ quote: quote.address, token: salt.token, hook: state.hook, tickSpacing: state.tickSpacing });
@@ -298,7 +319,7 @@ export async function planLaunch(req: LaunchRequest, opts: PlanOptions = {}): Pr
     try {
       const { result } = await client.simulateContract({
         address: factory,
-        abi: launchFactoryAbi,
+        abi,
         functionName: "createLaunch",
         args: call.args,
         account: creator,
@@ -319,8 +340,8 @@ export async function planLaunch(req: LaunchRequest, opts: PlanOptions = {}): Pr
   try {
     const gas =
       call.functionName === "createLaunch"
-        ? await client.estimateContractGas({ address: factory, abi: launchFactoryAbi, functionName: "createLaunch", args: call.args, account: creator, value: call.value, stateOverride })
-        : await client.estimateContractGas({ address: factory, abi: launchFactoryAbi, functionName: "createLaunchAndBuy", args: call.args, account: creator, value: call.value, stateOverride });
+        ? await client.estimateContractGas({ address: factory, abi, functionName: "createLaunch", args: call.args, account: creator, value: call.value, stateOverride })
+        : await client.estimateContractGas({ address: factory, abi, functionName: "createLaunchAndBuy", args: call.args, account: creator, value: call.value, stateOverride });
     simulation = { ...simulation, gas: (gas * 120n) / 100n, gasSource: "estimate" };
   } catch (err) {
     logger.warn({ err: msg(err) }, "gas estimate failed; using fallback");

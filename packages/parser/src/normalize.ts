@@ -13,8 +13,8 @@ export type LaunchCommand = {
   name: string;
   /** Pair symbol as normalised (validator checks it against the live factory). */
   pair: string;
-  /** null = not stated; v1 treats that as Robinhood. */
-  chain: "robinhood" | null;
+  /** null = not stated, which means Robinhood; "base" only when the post says so. */
+  chain: "robinhood" | "base" | null;
   /** Decimal ETH string exactly as the user wrote it, or null. */
   devBuyNative: string | null;
   feesToHandle: string | null;
@@ -302,7 +302,7 @@ export function normalizeParseOutput(raw: ParseOutput, input: { hasImage: boolea
     return { kind: "clarify", question, missing: list, language, reason };
   }
 
-  if (raw.chain !== null && raw.chain !== "robinhood") {
+  if (raw.chain !== null && raw.chain !== "robinhood" && raw.chain !== "base") {
     return { kind: "unsupported_chain", chain: raw.chain, language, reason };
   }
 

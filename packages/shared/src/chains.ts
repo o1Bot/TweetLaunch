@@ -1,15 +1,17 @@
 import { createPublicClient, fallback, http, type Chain, type PublicClient } from "viem";
-import { robinhood } from "viem/chains";
+import { base, robinhood } from "viem/chains";
 import { env } from "./env";
 
 /**
- * v1 targets Robinhood Chain only (decided 2026-09-07). The key/record shape
- * is kept so a second chain can be added without touching call sites.
+ * Chains o1 launches can run on through o1bot. v1 was Robinhood Chain only
+ * (2026-09-07); Base joined on 2026-09-11. Robinhood stays the default
+ * wherever a post names no chain.
  */
-export const CHAIN_KEYS = ["robinhood"] as const;
+export const CHAIN_KEYS = ["robinhood", "base"] as const;
 export type ChainKey = (typeof CHAIN_KEYS)[number];
+export const DEFAULT_CHAIN_KEY: ChainKey = "robinhood";
 
-export const CHAINS: Record<ChainKey, Chain> = { robinhood };
+export const CHAINS: Record<ChainKey, Chain> = { robinhood, base };
 
 /**
  * Public RPCs tried in order when RPC_ROBINHOOD is unset. The chain's own
@@ -21,6 +23,7 @@ export const PUBLIC_RPCS: Record<ChainKey, readonly string[]> = {
     "https://rpc.ordofi.network",
     "https://rpc.mainnet.chain.robinhood.com",
   ],
+  base: ["https://base-rpc.publicnode.com", "https://mainnet.base.org", "https://base.drpc.org"],
 };
 
 export function isChainKey(value: string): value is ChainKey {
@@ -37,12 +40,12 @@ export function chainKeyById(chainId: number): ChainKey | null {
 }
 
 export function chainDisplayName(key: ChainKey): string {
-  return key === "robinhood" ? "Robinhood" : key;
+  return key === "robinhood" ? "Robinhood" : "Base";
 }
 
 /** RPC URLs in priority order: explicit env override, else the public list. */
 export function rpcUrls(key: ChainKey): string[] {
-  const override = key === "robinhood" ? env().RPC_ROBINHOOD : undefined;
+  const override = key === "robinhood" ? env().RPC_ROBINHOOD : env().RPC_BASE;
   return override ? [override] : [...PUBLIC_RPCS[key]];
 }
 
@@ -64,8 +67,9 @@ export function publicClient(key: ChainKey): PublicClient {
  */
 export function logsClient(key: ChainKey): PublicClient {
   const e = env();
-  const override = e.INDEXER_RPC ?? (key === "robinhood" ? e.RPC_ROBINHOOD : undefined);
+  // INDEXER_RPC is the Robinhood archive endpoint; Base uses RPC_BASE or its public list.
+  const override = key === "robinhood" ? (e.INDEXER_RPC ?? e.RPC_ROBINHOOD) : e.RPC_BASE;
   const ordofi = "https://rpc.ordofi.network";
-  const urls = override ? [override] : [ordofi, ...PUBLIC_RPCS[key].filter((u) => u !== ordofi)];
+  const urls = override ? [override] : key === "robinhood" ? [ordofi, ...PUBLIC_RPCS[key].filter((u) => u !== ordofi)] : [...PUBLIC_RPCS[key]];
   return createPublicClient({ chain: CHAINS[key], transport: fallback(urls.map((u) => http(u, { timeout: 30_000 })), { rank: false }) });
 }

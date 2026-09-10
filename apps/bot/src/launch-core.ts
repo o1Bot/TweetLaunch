@@ -1,6 +1,6 @@
 import type { Address, Hex } from "viem";
 import { classifyError, type LaunchErrorKind, type PreparedMetadata } from "@o1bot/executor";
-import { chainByKey, type O1Quote, type AllowedTxKind } from "@o1bot/shared";
+import { chainByKey, DEFAULT_CHAIN_KEY, type ChainKey, type O1Quote, type AllowedTxKind } from "@o1bot/shared";
 import type { SignAudit } from "@o1bot/wallet";
 import { noAlerts, postUrl, txUrl } from "./alerts";
 import type { BotConfig } from "./config";
@@ -26,6 +26,8 @@ export type LaunchCoreInput = {
   wallet: WalletRef;
   author: { xUserId: string; handle: string };
   quote: O1Quote;
+  /** Chain to launch on; Robinhood when the request names none. */
+  chain?: ChainKey;
   ticker: string;
   name: string;
   devBuyWei: bigint | null;
@@ -94,6 +96,7 @@ type Logger = { info: (obj: object, msg: string) => void; error: (obj: object, m
 export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, log: Logger): Promise<LaunchCoreResult> {
   const { store, config } = deps;
   const { launchId, wallet, author, quote, origin, recipient } = input;
+  const chain = input.chain ?? DEFAULT_CHAIN_KEY;
   const siteUrl = config.siteUrl;
 
   /**
@@ -112,7 +115,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
         ["User", `@${author.handle}`],
         ["Source", origin.kind === "x" ? postUrl(author.handle, origin.tweetId) : `web launch ${launchId}`],
         ["Wallet", wallet.address],
-        ["Tx", extra.launchTxHash ? txUrl(extra.launchTxHash) : null],
+        ["Tx", extra.launchTxHash ? txUrl(extra.launchTxHash, chain) : null],
         ["Error", error],
         ["Told the user", userText],
       ],
@@ -136,7 +139,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
       website: input.website,
       x: `https://x.com/${input.xHandle ?? author.handle}`,
       telegram: input.telegram,
-      o1: { chainId: chainByKey("robinhood").id, creator: wallet.address, market: quote.kind === "stock" ? "rwa" : "standard", quoteAddress: quote.address },
+      o1: { chainId: chainByKey(chain).id, creator: wallet.address, market: quote.kind === "stock" ? "rwa" : "standard", quoteAddress: quote.address },
     });
   } catch (err) {
     const detail = /plan usage limit|FORBIDDEN|429/i.test(errMessage(err)) ? "our IPFS pinning service is over its quota, the team has been alerted, try again later" : "the image or metadata upload failed";
@@ -147,6 +150,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
   // 2. Plan: live factory reads, salt, route, simulation, funding.
   const planned = await deps.plan({
     creator: wallet.address,
+    chain,
     name: input.name,
     symbol: input.ticker,
     tokenContractURI: metadata.uri,
@@ -187,6 +191,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
     replies.success({
       ticker: input.ticker,
       name: input.name,
+      chain,
       pair: quote.symbol,
       token: extra.token ?? plan.salt.token,
       siteUrl,

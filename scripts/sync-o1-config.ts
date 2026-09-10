@@ -30,10 +30,13 @@ const SOURCES = {
   suites: `${DOCS}/launchpad/reference/launch-contract-suites.json`,
   deployments: `${DOCS}/launchpad/reference/production-deployments.json`,
   robinhoodStocks: `${DOCS}/launchpad/reference/robinhood-stock-quotes.json`,
+  baseStocks: `${DOCS}/launchpad/reference/base-stock-quotes.json`,
 } as const;
 
-/** Chains o1bot supports. v1 is Robinhood Chain only (decided 2026-09-07); Base and Monad are out of scope. */
-const SUPPORTED: Record<number, "robinhood"> = { 4663: "robinhood" };
+/** Chains o1bot supports: Robinhood Chain (v1, 2026-09-07) and Base (2026-09-11). Monad is out of scope. */
+type SupportedKey = "robinhood" | "base";
+const SUPPORTED: Record<number, SupportedKey> = { 4663: "robinhood", 8453: "base" };
+const STOCK_SOURCES: Record<SupportedKey, string> = { robinhood: SOURCES.robinhoodStocks, base: SOURCES.baseStocks };
 
 type Suite = {
   suiteId: string;
@@ -57,6 +60,7 @@ type Deployments = {
   chains: Array<{
     chainId: number;
     rpc?: string;
+    b20?: { factory: string; activationRegistry: string; policyRegistry: string; assetFeature?: string };
     contracts: Record<string, string>;
     uniswapV4: Record<string, string>;
     swapX: Record<string, unknown>;
@@ -101,14 +105,15 @@ async function main() {
   const outDir = path.join(root, "config");
   await mkdir(outDir, { recursive: true });
 
-  const [suites, deployments, rhStocks] = await Promise.all([
+  const [suites, deployments, rhStocks, baseStocks] = await Promise.all([
     getJson<SuitesRegistry>(SOURCES.suites),
     getJson<Deployments>(SOURCES.deployments),
     getJson<StockCatalog>(SOURCES.robinhoodStocks),
+    getJson<StockCatalog>(SOURCES.baseStocks),
   ]);
 
   const fetchedAt = new Date().toISOString();
-  const stockCatalogs: Record<"robinhood", StockCatalog> = { robinhood: rhStocks };
+  const stockCatalogs: Record<SupportedKey, StockCatalog> = { robinhood: rhStocks, base: baseStocks };
   const chains: Record<string, unknown> = {};
 
   for (const reg of suites.chains) {
@@ -134,7 +139,7 @@ async function main() {
       JSON.stringify(
         {
           fetchedAt,
-          source: SOURCES.robinhoodStocks,
+          source: STOCK_SOURCES[key],
           o1LastUpdatedAt: stocks.lastUpdatedAt,
           o1LastVerifiedBlock: stocks.lastVerifiedBlock,
           chainId: stocks.chainId,
@@ -166,6 +171,7 @@ async function main() {
       contracts: checksumRecord({ ...current.contracts, ...dep.contracts }, `${key}.contracts`),
       uniswapV4: checksumRecord(dep.uniswapV4, `${key}.uniswapV4`),
       swapX: dep.swapX,
+      b20: dep.b20 ? checksumRecord({ factory: dep.b20.factory, activationRegistry: dep.b20.activationRegistry, policyRegistry: dep.b20.policyRegistry }, `${key}.b20`) : null,
       requiredTokenAddressSuffix: dep.stockRoute?.requiredTokenAddressSuffix ?? "01",
       feeConfiguration: {
         ...dep.feeConfiguration,

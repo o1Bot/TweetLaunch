@@ -3,8 +3,9 @@ import { z } from "zod";
 import { CHAIN_KEYS, type ChainKey } from "./chains";
 import o1Raw from "../../../config/o1.json" with { type: "json" };
 import robinhoodStocksRaw from "../../../config/o1-stocks.robinhood.json" with { type: "json" };
+import baseStocksRaw from "../../../config/o1-stocks.base.json" with { type: "json" };
 
-const STOCK_FILES: Record<ChainKey, unknown> = { robinhood: robinhoodStocksRaw };
+const STOCK_FILES: Record<ChainKey, unknown> = { robinhood: robinhoodStocksRaw, base: baseStocksRaw };
 
 /**
  * Typed access to the dated o1 snapshot in `config/o1.json`, plus a live
@@ -59,6 +60,8 @@ const ChainSchema = z.object({
     permit2: addressSchema,
   }),
   swapX: z.record(z.string(), z.unknown()),
+  /** Base only: the B20 precompiles the factory mints through and predicts addresses with. */
+  b20: z.object({ factory: addressSchema, activationRegistry: addressSchema, policyRegistry: addressSchema }).nullable().optional(),
   requiredTokenAddressSuffix: z.string(),
   feeConfiguration: z.object({
     baseFeeBps: z.number().int(),
@@ -99,7 +102,7 @@ const ConfigSchema = z.object({
   governance: z.record(z.string(), z.string()),
   hardCaps: z.record(z.string(), z.unknown()),
   defaults: z.record(z.string(), z.unknown()),
-  chains: z.object({ robinhood: ChainSchema }),
+  chains: z.object({ robinhood: ChainSchema, base: ChainSchema }),
 });
 export type O1Config = z.infer<typeof ConfigSchema>;
 

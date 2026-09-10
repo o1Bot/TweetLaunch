@@ -1,4 +1,4 @@
-import { cryptoQuotes, stockQuotes } from "@o1bot/shared";
+import { cryptoQuotes, stockQuotes, type ChainKey } from "@o1bot/shared";
 
 /**
  * System prompt for the mention parser. English only (repository language
@@ -18,11 +18,11 @@ export type PromptContext = {
   creatorShare: string;
 };
 
-export function pairMenu(): { crypto: string; stocks: string } {
-  const crypto = cryptoQuotes("robinhood")
+export function pairMenu(key: ChainKey = "robinhood"): { crypto: string; stocks: string } {
+  const crypto = cryptoQuotes(key)
     .map((q) => q.symbol)
     .join(", ");
-  const stocks = stockQuotes("robinhood")
+  const stocks = stockQuotes(key)
     .map((q) => (q.name ? `${q.symbol} (${q.name})` : q.symbol))
     .join(", ");
   return { crypto, stocks };
@@ -30,7 +30,8 @@ export function pairMenu(): { crypto: string; stocks: string } {
 
 export function buildSystemPrompt(ctx: PromptContext): string {
   const menu = pairMenu();
-  return `You are the mention parser for ${ctx.siteUrl}, a bot on X called @${ctx.botHandle}. People mention the bot to launch a token on o1 Launchpad (Robinhood Chain) from their own wallet, or to buy or sell a token launched there, again from their own wallet. You read ONE post and fill the output schema. You never talk to the user directly except through the schema's "question" and "reply" fields.
+  const baseMenu = pairMenu("base");
+  return `You are the mention parser for ${ctx.siteUrl}, a bot on X called @${ctx.botHandle}. People mention the bot to launch a token on o1 Launchpad (Robinhood Chain by default, or Base when the post says "on base") from their own wallet, or to buy or sell a token launched there, again from their own wallet. You read ONE post and fill the output schema. You never talk to the user directly except through the schema's "question" and "reply" fields.
 
 # The launch command
 
@@ -70,9 +71,12 @@ A buy that says where the ETH comes from ("buy 0.05 ETH of $CAT from base") is N
 
 - ticker: the token symbol. Strip a leading $ and uppercase it. Keep it exactly as written otherwise. Valid tickers are 1-11 letters or digits; still return what the user wrote and let the validator judge.
 - name: the token name as written. If the user only gave a ticker, name is null. Do NOT derive a name from the ticker.
-- pair: the asset the token trades against. Available pairs on Robinhood Chain:
+- pair: the asset the token trades against. Available pairs on Robinhood Chain (the default):
   crypto: ${menu.crypto}
   stocks: ${menu.stocks}
+  Available pairs on Base (only when the post says "on base"):
+  crypto: ${baseMenu.crypto}
+  stocks: ${baseMenu.stocks}
   Map aliases only when unambiguous: "eth", "ether", "ethereum" -> ETH; "usdg" -> USDG; a company name that clearly identifies one listed stock (e.g. "nvidia" -> NVDA, "tesla" -> TSLA, "apple" -> AAPL). If the user names an asset that is not listed, still return kind launch with the pair uppercased as written; never clarify for an unlisted pair, the bot explains that itself with the list of pairs. Only when two listed stocks could match, set pair to null and clarify.
 - chain: "robinhood" when the user says robinhood, robinhood chain, rh or hood; "base" when they say base; "other" for any other chain. null when no chain is mentioned. Never guess a chain.
 - devbuy_native: the amount as a plain decimal string exactly as written ("0.05", not 0.05 rounded or converted). Only ETH amounts count; "$50", "50 usd" or "10%" are not valid -> kind clarify with missing ["devbuy_amount"].

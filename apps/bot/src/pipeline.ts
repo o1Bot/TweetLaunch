@@ -1,7 +1,7 @@
 import { getAddress, type Address, type Hex } from "viem";
 import type { LaunchPlan, LaunchRequest, PlanResult, PreparedMetadata, TokenMetadataInput } from "@o1bot/executor";
 import { ParserError, type LaunchCommand, type MentionInput, type ParsedMention } from "@o1bot/parser";
-import { activeFactory, findQuote, logger, tickerCollidesWithStock } from "@o1bot/shared";
+import { activeFactory, chainByKey, chainDisplayName, DEFAULT_CHAIN_KEY, findQuote, logger, tickerCollidesWithStock } from "@o1bot/shared";
 import type { EnsureWalletInput, LinkedUser, LinkStatus } from "@o1bot/wallet";
 import { stripLeadingMentions, XPostError, type XClient, type XMention } from "@o1bot/x";
 import { noAlerts, postUrl, type Alerter } from "./alerts";
@@ -29,7 +29,6 @@ import { checkDevBuy, checkFeesToHandle, checkRate, startOfUtcDay } from "./vali
  * predicted token address.
  */
 
-const CHAIN_KEY = "robinhood" as const;
 
 export type PipelineDeps = {
   store: BotStore;
@@ -255,9 +254,10 @@ async function handleLaunch(cmd: LaunchCommand, ctx: MentionContext): Promise<Pi
   if (!rate.ok) return rejected(replies.slowDown(rate.reason, rate.retryAfterSeconds, config.cooldownSeconds), `rate limit: ${rate.reason}`);
 
   // 6. Pair and ticker against the o1 snapshot (the plan re-checks them live).
-  const quote = findQuote(CHAIN_KEY, cmd.pair);
-  if (!quote) return rejected(replies.pairUnavailable(cmd.pair, config.siteUrl), `pair not registered: ${cmd.pair}`);
-  if (tickerCollidesWithStock(CHAIN_KEY, cmd.ticker)) return rejected(replies.tickerCollides(cmd.ticker), `ticker collides with stock: ${cmd.ticker}`);
+  const key = cmd.chain ?? DEFAULT_CHAIN_KEY;
+  const quote = findQuote(key, cmd.pair);
+  if (!quote) return rejected(replies.pairUnavailable(cmd.pair, config.siteUrl, chainDisplayName(key)), `pair not registered on ${key}: ${cmd.pair}`);
+  if (tickerCollidesWithStock(key, cmd.ticker)) return rejected(replies.tickerCollides(cmd.ticker), `ticker collides with stock: ${cmd.ticker}`);
 
   // 7. Dev buy amount within the bot's cap.
   const devBuy = checkDevBuy(cmd.devBuyNative, config.maxDevBuyWei);
@@ -318,8 +318,8 @@ async function handleLaunch(cmd: LaunchCommand, ctx: MentionContext): Promise<Pi
     source: "X",
     creatorUserId: creator.id,
     feeRecipientUserId: recipient?.userId ?? null,
-    chainId: 4663,
-    factory: activeFactory(CHAIN_KEY),
+    chainId: chainByKey(key).id,
+    factory: activeFactory(key),
     quoteAddress: quote.address,
     quoteSymbol: quote.symbol,
     ticker: cmd.ticker,
@@ -338,6 +338,7 @@ async function handleLaunch(cmd: LaunchCommand, ctx: MentionContext): Promise<Pi
       wallet,
       author: { xUserId: mention.authorId, handle: authorHandle },
       quote,
+      chain: key,
       ticker: cmd.ticker,
       name: cmd.name,
       devBuyWei: devBuy.wei,

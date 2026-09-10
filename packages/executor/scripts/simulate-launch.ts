@@ -1,7 +1,7 @@
 /**
  * Dry-run a launch end to end WITHOUT signing or broadcasting:
  *
- *   pnpm simulate --name "Rugrat" --symbol RUGRAT [--pair ETH] [--devbuy 0.01]
+ *   pnpm simulate --name "Rugrat" --symbol RUGRAT [--pair ETH] [--devbuy 0.01] [--chain base]
  *                 [--creator 0x…] [--uri ipfs://…] [--editable] [--skip-drift-check] [--no-fund]
  *
  * With no --creator a random address is used and, unless --no-fund, given a
@@ -28,6 +28,7 @@ const { values } = parseArgs({
     name: { type: "string" },
     symbol: { type: "string" },
     pair: { type: "string", default: "ETH" },
+    chain: { type: "string", default: "robinhood" },
     creator: { type: "string" },
     devbuy: { type: "string" },
     uri: { type: "string", default: "ipfs://placeholder-not-pinned" },
@@ -39,7 +40,7 @@ const { values } = parseArgs({
 });
 
 if (!values.name || !values.symbol) {
-  console.error('usage: pnpm simulate --name "Token name" --symbol TICKER [--pair ETH] [--devbuy 0.01] [--creator 0x…]');
+  console.error('usage: pnpm simulate --name "Token name" --symbol TICKER [--pair ETH] [--devbuy 0.01] [--creator 0x…] [--chain robinhood|base]');
   process.exit(2);
 }
 
@@ -48,6 +49,7 @@ const started = Date.now();
 const result = await planLaunch(
   {
     creator,
+    chain: values.chain === "base" ? "base" : "robinhood",
     name: values.name,
     symbol: values.symbol,
     pair: values.pair,
