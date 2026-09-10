@@ -24,6 +24,15 @@ import {
  * `(address, bytes32)`, 64 bytes with the address left-padded; the packed
  * 52-byte form the docs' wording suggests makes the whole swap revert.
  *
+ * The Universal Router deployed on Robinhood Chain is not the stock build:
+ * its `ExactInputSingleParams` carries a `uint256 minHopPriceX36` between
+ * `amountOutMinimum` and `hookData` (verified source, Sourcify). Encoding
+ * the stock struct still swaps, but the router then reads the hook-data
+ * offset as the price floor and the pool key's zero fee as the hook-data
+ * length, so the hook sees empty hook data and the referral share goes to
+ * the platform. The struct below is the deployed one; the decoder only
+ * accepts a zero price floor so the allow-list stays exact.
+ *
  * Pure encoding and decoding, shared by the web app (quote API and swap
  * panel), the bot (trades from a post) and the signer allow-list, which
  * decodes every router call before it is signed. Nothing here talks to a
@@ -71,6 +80,7 @@ const SWAP_PARAMS = [
       { name: "zeroForOne", type: "bool" },
       { name: "amountIn", type: "uint128" },
       { name: "amountOutMinimum", type: "uint128" },
+      { name: "minHopPriceX36", type: "uint256" },
       { name: "hookData", type: "bytes" },
     ],
   },
@@ -124,7 +134,7 @@ export function encodeExactInputSwap(input: ExactInputSwap & { router: Address }
   const { poolKey, zeroForOne } = input;
   const currencyIn = zeroForOne ? poolKey.currency0 : poolKey.currency1;
   const currencyOut = zeroForOne ? poolKey.currency1 : poolKey.currency0;
-  const swapParams = encodeAbiParameters(SWAP_PARAMS, [{ poolKey, zeroForOne, amountIn: input.amountIn, amountOutMinimum: input.minAmountOut, hookData: input.hookData }]);
+  const swapParams = encodeAbiParameters(SWAP_PARAMS, [{ poolKey, zeroForOne, amountIn: input.amountIn, amountOutMinimum: input.minAmountOut, minHopPriceX36: 0n, hookData: input.hookData }]);
   const settle = encodeAbiParameters(CURRENCY_AMOUNT, [currencyIn, input.amountIn]);
   const take = encodeAbiParameters(CURRENCY_AMOUNT, [currencyOut, input.minAmountOut]);
   const v4Input = encodeAbiParameters(V4_INPUT, [EXACT_INPUT_ACTIONS, [swapParams, settle, take]]);
@@ -163,6 +173,7 @@ export function decodeExactInputSwap(data: Hex): DecodedExactInputSwap | null {
     const [actions, params] = decodeAbiParameters(V4_INPUT, inputs[0]!);
     if (actions.toLowerCase() !== EXACT_INPUT_ACTIONS.toLowerCase() || params.length !== 3) return null;
     const [swap] = decodeAbiParameters(SWAP_PARAMS, params[0]!);
+    if (swap.minHopPriceX36 !== 0n) return null;
     const [settleCurrency, settleAmount] = decodeAbiParameters(CURRENCY_AMOUNT, params[1]!);
     const [takeCurrency, takeAmount] = decodeAbiParameters(CURRENCY_AMOUNT, params[2]!);
     const poolKey: PoolKey = {
