@@ -2,16 +2,19 @@ import Link from "next/link";
 import { formatUsd } from "@o1bot/market";
 import { Board } from "@/components/Board";
 import { DOCS_URL } from "@/components/links";
+import { selectedChain } from "@/lib/chain-select";
+import { CHAIN_LABEL } from "@/lib/chains-web";
 import { boardTotals, listBoardTokens } from "@/lib/market";
 import type { TokenRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<{ chain?: string | string[] }> }) {
+  const chain = await selectedChain(await searchParams);
   let rows: TokenRow[] = [];
   let dbError: string | null = null;
   try {
-    rows = await listBoardTokens();
+    rows = await listBoardTokens(chain);
   } catch (err) {
     dbError = err instanceof Error ? err.message : String(err);
   }
@@ -29,7 +32,7 @@ export default async function Home() {
         </h1>
         <p>
           o1bot.exchange turns a mention on X into a real launch on o1 Launchpad. Link your account, top up your wallet once, then post the command. The bot mines an 01 address, signs
-          with your wallet, and opens a permanent Uniswap v4 pool on Robinhood Chain. No form, no site to visit.
+          with your wallet, and opens a permanent Uniswap v4 pool on Robinhood Chain or Base. No form, no site to visit.
         </p>
         <div className="hero-cta">
           <Link className="btn-p" href="/start">
@@ -48,7 +51,7 @@ export default async function Home() {
         <div className="hero-stats">
           <div>
             <b>{totals.launches.toLocaleString()}</b>
-            <span>Tokens launched from posts</span>
+            <span>Tokens launched from posts on {CHAIN_LABEL[chain]}</span>
           </div>
           <div>
             <b>{totals.volume24hUsd !== null ? formatUsd(totals.volume24hUsd) : "—"}</b>
@@ -65,7 +68,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {dbError ? <div className="empty">The board is not connected to a database yet.</div> : <Board rows={rows} />}
+      {dbError ? <div className="empty">The board is not connected to a database yet.</div> : <Board rows={rows} chain={chain} />}
     </main>
   );
 }

@@ -28,8 +28,8 @@ function mapHolder(r: Raw): Holder | null {
   return { address, balance, percent, label };
 }
 
-export async function getHolders(token: string): Promise<HoldersResult> {
-  const key = token.toLowerCase();
+export async function getHolders(token: string, chainId = 4663): Promise<HoldersResult> {
+  const key = `${chainId}:${token.toLowerCase()}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
 
@@ -39,7 +39,7 @@ export async function getHolders(token: string): Promise<HoldersResult> {
     value = { holders: [], total: null, source: "o1", error: "not_configured" };
   } else {
     try {
-      const res = await fetch(`${e.O1_API_URL.replace(/\/$/, "")}/tokens/4663/${token}/holders?limit=50`, {
+      const res = await fetch(`${e.O1_API_URL.replace(/\/$/, "")}/tokens/${chainId}/${token}/holders?limit=50`, {
         headers: { "x-api-key": e.O1_API_KEY, accept: "application/json" },
         signal: AbortSignal.timeout(15_000),
       });

@@ -2,7 +2,8 @@ import { erc20Abi, formatUnits, getAddress, isAddress, parseUnits, zeroAddress, 
 import { db, dbConfigured } from "@o1bot/db";
 import { launchHookAbi } from "@o1bot/executor";
 import { env, o1Chain, publicClient } from "@o1bot/shared";
-import { antiSnipeFeeBps, applySlippage, encodeHookData, launchPoolKey, permit2Abi, v4QuoterAbi } from "@/lib/v4-swap";
+import { chainKeyOf } from "@/lib/chains-web";
+import { antiSnipeFeeBps, applySlippage, encodeHookData, launchPoolKey, permit2Abi, routerLayoutFor, v4QuoterAbi } from "@/lib/v4-swap";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,8 +47,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ address:
   const decimalsIn = side === "buy" ? pool.quoteDecimals : 18;
   const decimalsOut = side === "buy" ? 18 : pool.quoteDecimals;
 
-  const client = publicClient("robinhood");
-  const chain = o1Chain("robinhood");
+  const key = chainKeyOf(pool.chainId);
+  const client = publicClient(key);
+  const chain = o1Chain(key);
   const router = chain.uniswapV4.universalRouter;
   const permit2 = chain.uniswapV4.permit2;
 
@@ -92,6 +94,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ address:
   const base = {
     side,
     token,
+    chainId: pool.chainId,
+    layout: routerLayoutFor(pool.chainId),
     quote,
     poolKey,
     zeroForOne,

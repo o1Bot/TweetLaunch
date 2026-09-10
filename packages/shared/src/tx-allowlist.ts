@@ -1,5 +1,5 @@
 import { decodeFunctionData, getAddress, isAddress, parseAbi, toFunctionSelector, zeroAddress, type Address, type Hex } from "viem";
-import { decodeExactInputSwap, decodeHookData, launchPoolKey, SWAP_COMMENT } from "@o1bot/swap";
+import { decodeExactInputSwap, decodeHookData, launchPoolKey, routerLayoutFor, SWAP_COMMENT } from "@o1bot/swap";
 
 /**
  * The bot signs ONLY these transaction kinds, and only to known contracts:
@@ -148,10 +148,10 @@ export type TxLike = {
 /** Kinds whose native value the plan sets and verifies against the balance; every other call must carry none. */
 const VALUE_BEARING: ReadonlySet<AllowedTxKind> = new Set(["createLaunch", "createLaunchAndBuy", "routerExecute", "relayDeposit"]);
 
-function checkSwap(entry: AllowlistEntry, data: Hex, value: bigint): TxCheck {
+function checkSwap(entry: AllowlistEntry, data: Hex, value: bigint, chainId: number): TxCheck {
   const rules = entry.swap;
   if (!rules) return { ok: false, reason: "router entry without swap rules" };
-  const swap = decodeExactInputSwap(data);
+  const swap = decodeExactInputSwap(data, routerLayoutFor(chainId));
   if (!swap) return { ok: false, reason: "router call is not exactly one exact-input v4 swap paying the sender" };
   if (swap.poolKey.hooks !== rules.hook || swap.poolKey.fee !== 0) return { ok: false, reason: "swap is not on an o1 launch pool" };
   const pool = rules.pools.find((p) => {
@@ -210,7 +210,7 @@ export function checkTransaction(allowlist: TxAllowlist, tx: TxLike): TxCheck {
     if (!(entry.tokens ?? []).includes(getAddress(token))) return { ok: false, reason: `permit2 approve token ${getAddress(token)} is not allow-listed` };
     if (!(entry.spenders ?? []).includes(getAddress(spender))) return { ok: false, reason: `permit2 approve spender ${getAddress(spender)} is not allow-listed` };
   }
-  if (entry.kind === "routerExecute") return checkSwap(entry, data as Hex, value);
+  if (entry.kind === "routerExecute") return checkSwap(entry, data as Hex, value, allowlist.chainId);
   if (entry.kind === "relayDeposit") {
     const rules = entry.bridge;
     if (!rules) return { ok: false, reason: "deposit entry without bridge rules" };

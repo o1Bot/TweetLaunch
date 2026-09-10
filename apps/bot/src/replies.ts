@@ -70,8 +70,7 @@ const SUCCESS_OPENERS: Array<(p: SuccessInput) => string> = [
 ];
 
 export function successReply(p: SuccessInput): string {
-  // Base tokens link to o1's page until o1bot's indexer and token pages cover Base.
-  const link = p.chain === "base" ? o1TokenUrl(p.token, "base") : tokenPageUrl(p.siteUrl, p.token);
+  const link = tokenPageUrl(p.siteUrl, p.token);
   const index = Number.parseInt(p.token.slice(-4), 16) % SUCCESS_OPENERS.length;
   // A Base launch always says so, since Robinhood is what people expect.
   const opener = (p.chain === "base" ? SUCCESS_OPENERS.map((o) => o(p)).find((t) => t.includes("Base")) : undefined) ?? SUCCESS_OPENERS[Number.isNaN(index) ? 0 : index]!(p);

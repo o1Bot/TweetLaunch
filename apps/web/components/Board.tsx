@@ -13,12 +13,12 @@ import { BoardTable } from "./BoardTable";
 type Filter = "all" | "new" | "eth" | "usd" | "stk";
 type Sort = "vol24" | "volAll" | "mcap" | "change" | "newest";
 
-const FILTERS: Array<{ id: Filter; label: string }> = [
+const filtersFor = (chain: "robinhood" | "base"): Array<{ id: Filter; label: string }> => [
   { id: "all", label: "All launches" },
   { id: "new", label: "New (24h)" },
   { id: "eth", label: "ETH pairs" },
   { id: "stk", label: "Stock pairs" },
-  { id: "usd", label: "USDG pairs" },
+  { id: "usd", label: chain === "base" ? "USDC pairs" : "USDG pairs" },
 ];
 
 const SORTS: Array<{ id: Sort; label: string }> = [
@@ -34,9 +34,10 @@ const STORAGE_KEY = "o1bot:board";
 
 const usdOrQuote = (usd: number | null, quote: number | null) => usd ?? quote ?? 0;
 
-export function Board({ rows }: { rows: TokenRow[] }) {
+export function Board({ rows, chain = "robinhood" }: { rows: TokenRow[]; chain?: "robinhood" | "base" }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("vol24");
+  const FILTERS = filtersFor(chain);
 
   useEffect(() => {
     try {

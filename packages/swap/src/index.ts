@@ -24,6 +24,15 @@ import {
  * `(address, bytes32)`, 64 bytes with the address left-padded; the packed
  * 52-byte form the docs' wording suggests makes the whole swap revert.
  *
+ * The Universal Router deployed on Robinhood Chain is not the stock build:
+ * its `ExactInputSingleParams` carries a `uint256 minHopPriceX36` between
+ * `amountOutMinimum` and `hookData` (verified source, Sourcify). Encoding
+ * the stock struct still swaps, but the router then reads the hook-data
+ * offset as the price floor and the pool key's zero fee as the hook-data
+ * length, so the hook sees empty hook data and the referral share goes to
+ * the platform. The struct below is the deployed one; the decoder only
+ * accepts a zero price floor so the allow-list stays exact.
+ *
  * Pure encoding and decoding, shared by the web app (quote API and swap
  * panel), the bot (trades from a post) and the signer allow-list, which
  * decodes every router call before it is signed. Nothing here talks to a
@@ -63,7 +72,32 @@ const POOL_KEY_COMPONENTS = [
   { name: "hooks", type: "address" },
 ] as const;
 
-const SWAP_PARAMS = [
+/**
+ * Which `ExactInputSingleParams` a chain's Universal Router decodes. Robinhood
+ * runs a modified v4-periphery with `minHopPriceX36` before `hookData`; Base
+ * (and stock Uniswap deployments) do not have that field. Encoding the wrong
+ * layout still swaps but the hook receives empty hook data, so the referral
+ * is lost. Always derive the layout from the chain id.
+ */
+export type RouterLayout = "robinhood" | "stock";
+export function routerLayoutFor(chainId: number): RouterLayout {
+  return chainId === CHAIN_ID ? "robinhood" : "stock";
+}
+
+const SWAP_PARAMS_ROBINHOOD = [
+  {
+    type: "tuple",
+    components: [
+      { name: "poolKey", type: "tuple", components: POOL_KEY_COMPONENTS },
+      { name: "zeroForOne", type: "bool" },
+      { name: "amountIn", type: "uint128" },
+      { name: "amountOutMinimum", type: "uint128" },
+      { name: "minHopPriceX36", type: "uint256" },
+      { name: "hookData", type: "bytes" },
+    ],
+  },
+] as const;
+const SWAP_PARAMS_STOCK = [
   {
     type: "tuple",
     components: [
@@ -112,6 +146,8 @@ export function decodeHookData(hookData: Hex): { referrer: Address | null; comme
 export type SwapEncoding = { to: Address; data: Hex; value: bigint };
 
 export type ExactInputSwap = {
+  /** Router calldata layout for the chain; Robinhood when omitted. See routerLayoutFor. */
+  layout?: RouterLayout;
   poolKey: PoolKey;
   zeroForOne: boolean;
   amountIn: bigint;
@@ -124,7 +160,11 @@ export function encodeExactInputSwap(input: ExactInputSwap & { router: Address }
   const { poolKey, zeroForOne } = input;
   const currencyIn = zeroForOne ? poolKey.currency0 : poolKey.currency1;
   const currencyOut = zeroForOne ? poolKey.currency1 : poolKey.currency0;
-  const swapParams = encodeAbiParameters(SWAP_PARAMS, [{ poolKey, zeroForOne, amountIn: input.amountIn, amountOutMinimum: input.minAmountOut, hookData: input.hookData }]);
+  const layout = input.layout ?? "robinhood";
+  const swapParams =
+    layout === "robinhood"
+      ? encodeAbiParameters(SWAP_PARAMS_ROBINHOOD, [{ poolKey, zeroForOne, amountIn: input.amountIn, amountOutMinimum: input.minAmountOut, minHopPriceX36: 0n, hookData: input.hookData }])
+      : encodeAbiParameters(SWAP_PARAMS_STOCK, [{ poolKey, zeroForOne, amountIn: input.amountIn, amountOutMinimum: input.minAmountOut, hookData: input.hookData }]);
   const settle = encodeAbiParameters(CURRENCY_AMOUNT, [currencyIn, input.amountIn]);
   const take = encodeAbiParameters(CURRENCY_AMOUNT, [currencyOut, input.minAmountOut]);
   const v4Input = encodeAbiParameters(V4_INPUT, [EXACT_INPUT_ACTIONS, [swapParams, settle, take]]);
@@ -147,7 +187,7 @@ export type DecodedExactInputSwap = ExactInputSwap & {
  * wallet that signs. Anything else (another command, a TAKE with a
  * recipient, extra inputs) returns null and must not be signed.
  */
-export function decodeExactInputSwap(data: Hex): DecodedExactInputSwap | null {
+export function decodeExactInputSwap(data: Hex, layout: RouterLayout = "robinhood"): DecodedExactInputSwap | null {
   let commands: Hex;
   let inputs: readonly Hex[];
   let deadline: bigint;
@@ -162,7 +202,8 @@ export function decodeExactInputSwap(data: Hex): DecodedExactInputSwap | null {
   try {
     const [actions, params] = decodeAbiParameters(V4_INPUT, inputs[0]!);
     if (actions.toLowerCase() !== EXACT_INPUT_ACTIONS.toLowerCase() || params.length !== 3) return null;
-    const [swap] = decodeAbiParameters(SWAP_PARAMS, params[0]!);
+    const swap = layout === "robinhood" ? decodeAbiParameters(SWAP_PARAMS_ROBINHOOD, params[0]!)[0] : decodeAbiParameters(SWAP_PARAMS_STOCK, params[0]!)[0];
+    if ("minHopPriceX36" in swap && swap.minHopPriceX36 !== 0n) return null;
     const [settleCurrency, settleAmount] = decodeAbiParameters(CURRENCY_AMOUNT, params[1]!);
     const [takeCurrency, takeAmount] = decodeAbiParameters(CURRENCY_AMOUNT, params[2]!);
     const poolKey: PoolKey = {
@@ -177,6 +218,7 @@ export function decodeExactInputSwap(data: Hex): DecodedExactInputSwap | null {
     if (getAddress(settleCurrency) !== currencyIn || settleAmount !== swap.amountIn) return null;
     if (getAddress(takeCurrency) !== currencyOut || takeAmount !== swap.amountOutMinimum) return null;
     return {
+      layout,
       poolKey,
       zeroForOne: swap.zeroForOne,
       amountIn: swap.amountIn,

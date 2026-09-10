@@ -1,5 +1,5 @@
 import { erc20Abi, getAddress, type Address } from "viem";
-import { publicClient } from "@o1bot/shared";
+import { publicClient, type ChainKey } from "@o1bot/shared";
 
 /**
  * Burns on o1 launch tokens. The token has no burn() and refuses transfers
@@ -11,12 +11,12 @@ import { publicClient } from "@o1bot/shared";
 export const BURN_ADDRESS = "0x000000000000000000000000000000000000dEaD" as const;
 
 /** Burned amount (raw units) per token address, for one multicall. */
-export async function readBurned(tokens: string[]): Promise<Map<string, bigint>> {
+export async function readBurned(tokens: string[], chain: ChainKey = "robinhood"): Promise<Map<string, bigint>> {
   const out = new Map<string, bigint>();
   if (tokens.length === 0) return out;
   const addresses = tokens.map((t) => getAddress(t) as Address);
   try {
-    const results = await publicClient("robinhood").multicall({
+    const results = await publicClient(chain).multicall({
       allowFailure: true,
       contracts: addresses.map((address) => ({ address, abi: erc20Abi, functionName: "balanceOf", args: [BURN_ADDRESS] }) as const),
     });

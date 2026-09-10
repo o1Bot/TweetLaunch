@@ -25,7 +25,7 @@ type Me = {
 };
 
 type Asset = { address: string; symbol: string; name: string; imageUrl: string | null; decimals: number; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null };
-type LaunchRow = { id: string; source: "X" | "WEB"; role: "creator" | "fee_recipient"; ticker: string; name: string; quoteSymbol: string; imageUrl: string | null; status: string; tokenAddress: string | null; launchTxHash: string | null; userMessage: string | null; createdAt: string; feesEarnedUsd: number | null; feesEarnedQuote: number | null };
+type LaunchRow = { id: string; source: "X" | "WEB"; role: "creator" | "fee_recipient"; ticker: string; name: string; quoteSymbol: string; imageUrl: string | null; chainId: number; status: string; tokenAddress: string | null; launchTxHash: string | null; userMessage: string | null; createdAt: string; feesEarnedUsd: number | null; feesEarnedQuote: number | null };
 type TradeRow = { id: string; side: "BUY" | "SELL"; token: string; tokenSymbol: string; quoteSymbol: string; amountIn: string; amountOut: string | null; status: string; txHash: string | null; userMessage: string | null; createdAt: string };
 type Overview = {
   wallet: string | null;
@@ -421,7 +421,7 @@ export function Profile() {
                       </b>
                     )}
                     <span>
-                      {l.quoteSymbol} pool · from {l.source === "WEB" ? "the web" : "a post"} · {when(l.createdAt)}
+                      {l.quoteSymbol} pool{l.chainId === 8453 ? " on Base" : ""} · from {l.source === "WEB" ? "the web" : "a post"} · {when(l.createdAt)}
                       {l.role === "fee_recipient" ? " · fees directed to you" : ""}
                       {l.status === "FAILED" && l.userMessage ? ` · ${l.userMessage}` : ""}
                     </span>
