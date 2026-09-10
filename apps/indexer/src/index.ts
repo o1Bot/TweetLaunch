@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { formatUnits, type Hex } from "viem";
 import { dbConfigured } from "@o1bot/db";
 import { e18ToDecimalString } from "@o1bot/market";
-import { activeHook, env, logger, logsClient, o1Chain } from "@o1bot/shared";
+import { activeHook, CHAIN_KEYS, env, logger, logsClient, o1Chain, type ChainKey } from "@o1bot/shared";
 import { DEFAULT_SCAN, scanAdaptive, type ScanConfig, type ScanProgress } from "./scanner";
 import { MemoryStore, PrismaStore, type PoolRecord, type Store, type SwapRecord } from "./store";
 import { ensurePools, trackedTokens } from "./tracked";
@@ -27,7 +27,8 @@ try {
 const args = new Set(process.argv.slice(2));
 const DRY = args.has("--dry");
 const ONCE = args.has("--once") || DRY;
-const CURSOR_ID = "swaps";
+/** Robinhood keeps the original cursor id; every other chain gets its own. */
+const cursorIdFor = (key: ChainKey) => (key === "robinhood" ? "swaps" : `swaps:${key}`);
 /** Blocks re-scanned on every loop to absorb short reorgs (inserts are idempotent). */
 const ROLLBACK_BLOCKS = 50n;
 /** Stay this many blocks behind the tip. */
@@ -51,20 +52,22 @@ function line(s: SwapRecord, p: PoolRecord) {
   );
 }
 
-async function loop(store: Store, cfg: ScanConfig, progress: ScanProgress) {
-  const client = logsClient("robinhood");
-  const pools = await ensurePools(client, store, await trackedTokens(store));
+async function loop(key: ChainKey, store: Store, cfg: ScanConfig, progress: ScanProgress) {
+  const client = logsClient(key);
+  const pools = await ensurePools(client, store, await trackedTokens(store, key), key);
   if (pools.length === 0) {
-    logger.info("no tracked tokens yet (no confirmed bot launches, INDEXER_DEV_TOKENS empty)");
+    logger.info({ chain: key }, "no tracked tokens yet (no confirmed bot launches, INDEXER_DEV_TOKENS empty)");
     return;
   }
   const byPoolId = new Map<Hex, PoolRecord>(pools.map((p) => [p.poolId, p]));
   const tip = (await client.getBlockNumber()) - CONFIRMATIONS;
-  const endEnv = env().INDEXER_END_BLOCK;
+  // INDEXER_START_BLOCK / INDEXER_END_BLOCK are Robinhood block numbers.
+  const endEnv = key === "robinhood" ? env().INDEXER_END_BLOCK : undefined;
   const head = endEnv !== undefined && BigInt(endEnv) < tip ? BigInt(endEnv) : tip;
   const earliest = pools.reduce((m, p) => (p.launchBlock < m ? p.launchBlock : m), pools[0]!.launchBlock);
-  const startEnv = env().INDEXER_START_BLOCK !== undefined ? BigInt(env().INDEXER_START_BLOCK!) : null;
-  const cursor = await store.getCursor(CURSOR_ID);
+  const startEnv = key === "robinhood" && env().INDEXER_START_BLOCK !== undefined ? BigInt(env().INDEXER_START_BLOCK!) : null;
+  const cursorId = cursorIdFor(key);
+  const cursor = await store.getCursor(cursorId);
 
   // Pools that launched before the cursor were added later: backfill them alone first.
   if (cursor !== null) {
@@ -81,24 +84,28 @@ async function loop(store: Store, cfg: ScanConfig, progress: ScanProgress) {
   if (from < earliest) from = earliest;
   if (from > head) return;
   const before = progress.swaps;
-  await scanAdaptive(client, cfg, byPoolId, from, head, async (swaps, upTo) => void (await store.commit(swaps, CURSOR_ID, upTo)), progress);
-  logger.info({ from: from.toString(), to: head.toString(), swaps: progress.swaps - before, ranges: progress.ranges, errors: progress.errors, range: progress.range.toString() }, "scan complete");
+  await scanAdaptive(client, cfg, byPoolId, from, head, async (swaps, upTo) => void (await store.commit(swaps, cursorId, upTo)), progress);
+  logger.info({ chain: key, from: from.toString(), to: head.toString(), swaps: progress.swaps - before, ranges: progress.ranges, errors: progress.errors, range: progress.range.toString() }, "scan complete");
 }
 
 async function main() {
   const store: Store = DRY || !dbConfigured() ? new MemoryStore() : new PrismaStore();
   if (!DRY && !dbConfigured()) logger.warn("DATABASE_URL not set: running in memory, nothing will be persisted");
-  const chain = o1Chain("robinhood");
-  const cfg: ScanConfig = { ...DEFAULT_SCAN, poolManager: chain.uniswapV4.poolManager, hook: activeHook("robinhood") };
-  const progress: ScanProgress = { range: cfg.rangeInit, ranges: 0, errors: 0, swaps: 0 };
-  logger.info({ dry: DRY, once: ONCE, poolManager: cfg.poolManager, hook: cfg.hook }, "indexer starting");
+  const chains = CHAIN_KEYS.map((key) => {
+    const cfg: ScanConfig = { ...DEFAULT_SCAN, poolManager: o1Chain(key).uniswapV4.poolManager, hook: activeHook(key) };
+    const progress: ScanProgress = { range: cfg.rangeInit, ranges: 0, errors: 0, swaps: 0 };
+    return { key, cfg, progress };
+  });
+  logger.info({ dry: DRY, once: ONCE, chains: chains.map((c) => ({ chain: c.key, poolManager: c.cfg.poolManager, hook: c.cfg.hook })) }, "indexer starting");
 
   for (;;) {
-    try {
-      await loop(store, cfg, progress);
-    } catch (err) {
-      logger.error({ err: err instanceof Error ? err.message : String(err) }, "loop failed");
-      if (ONCE) throw err;
+    for (const c of chains) {
+      try {
+        await loop(c.key, store, c.cfg, c.progress);
+      } catch (err) {
+        logger.error({ chain: c.key, err: err instanceof Error ? err.message : String(err) }, "loop failed");
+        if (ONCE) throw err;
+      }
     }
     if (ONCE) break;
     await new Promise((r) => setTimeout(r, env().INDEXER_POLL_MS));

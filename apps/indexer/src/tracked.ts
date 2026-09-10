@@ -1,7 +1,7 @@
 import { erc20Abi, getAddress, isAddress, parseAbi, parseEventLogs, zeroAddress, type Address, type Hash, type PublicClient } from "viem";
 import { launchFactoryAbi } from "@o1bot/executor";
 import { tokenIsCurrency0 } from "@o1bot/market";
-import { activeFactory, activeHook, activeSuite, env, findQuote, logger, o1Chain } from "@o1bot/shared";
+import { type ChainKey, activeFactory, activeHook, activeSuite, chainByKey, env, findQuote, logger, o1Chain } from "@o1bot/shared";
 import type { BotLaunch, PoolRecord, Store } from "./store";
 
 /**
@@ -32,10 +32,15 @@ export function devTokensFromEnv(): Array<{ token: Address; launchTxHash: Hash |
     });
 }
 
-export async function trackedTokens(store: Store): Promise<TrackedToken[]> {
+export async function trackedTokens(store: Store, key: ChainKey = "robinhood"): Promise<TrackedToken[]> {
+  const chainId = chainByKey(key).id;
   const out = new Map<Address, TrackedToken>();
-  for (const l of await store.botLaunches()) out.set(getAddress(l.token), { token: getAddress(l.token), source: "BOT", launch: l, launchTxHash: l.launchTxHash });
-  for (const d of devTokensFromEnv()) if (!out.has(d.token)) out.set(d.token, { token: d.token, source: "DEV", launch: null, launchTxHash: d.launchTxHash });
+  for (const l of await store.botLaunches()) {
+    if (l.chainId !== chainId) continue;
+    out.set(getAddress(l.token), { token: getAddress(l.token), source: "BOT", launch: l, launchTxHash: l.launchTxHash });
+  }
+  // INDEXER_DEV_TOKENS are Robinhood addresses (local testing).
+  if (key === "robinhood") for (const d of devTokensFromEnv()) if (!out.has(d.token)) out.set(d.token, { token: d.token, source: "DEV", launch: null, launchTxHash: d.launchTxHash });
   return [...out.values()];
 }
 
@@ -107,9 +112,9 @@ async function imageFromMetadata(uri: string): Promise<string | null> {
   }
 }
 
-async function quoteInfo(client: PublicClient, quote: Address): Promise<{ symbol: string; decimals: number }> {
+async function quoteInfo(client: PublicClient, quote: Address, key: ChainKey): Promise<{ symbol: string; decimals: number }> {
   if (quote === zeroAddress) return { symbol: "ETH", decimals: 18 };
-  const known = findQuote("robinhood", quote);
+  const known = findQuote(key, quote);
   if (known) return { symbol: known.symbol, decimals: known.decimals };
   const [symbol, decimals] = await Promise.all([
     client.readContract({ address: quote, abi: erc20Abi, functionName: "symbol" }),
@@ -119,18 +124,18 @@ async function quoteInfo(client: PublicClient, quote: Address): Promise<{ symbol
 }
 
 /** Make sure every tracked token has a Pool row; returns the full current pool set. */
-export async function ensurePools(client: PublicClient, store: Store, tracked: TrackedToken[]): Promise<PoolRecord[]> {
-  const existing = new Map((await store.listPools()).map((p) => [p.token, p] as const));
-  const factory = activeFactory("robinhood");
-  const hook = activeHook("robinhood");
-  const chain = o1Chain("robinhood");
-  const firstBlock = BigInt(activeSuite("robinhood").firstBlock);
+export async function ensurePools(client: PublicClient, store: Store, tracked: TrackedToken[], key: ChainKey = "robinhood"): Promise<PoolRecord[]> {
+  const existing = new Map((await store.listPools(chainByKey(key).id)).map((p) => [p.token, p] as const));
+  const factory = activeFactory(key);
+  const hook = activeHook(key);
+  const chain = o1Chain(key);
+  const firstBlock = BigInt(activeSuite(key).firstBlock);
 
   for (const t of tracked) {
     if (existing.has(t.token)) continue;
     try {
       const launched = t.launchTxHash ? await launchedFromReceipt(client, factory, t.launchTxHash, t.token) : await launchedByScan(client, factory, t.token, firstBlock);
-      const [meta, quote, block] = await Promise.all([tokenMetadata(client, t.token, t.launch), quoteInfo(client, getAddress(launched.args.quoteToken)), client.getBlock({ blockNumber: launched.blockNumber })]);
+      const [meta, quote, block] = await Promise.all([tokenMetadata(client, t.token, t.launch), quoteInfo(client, getAddress(launched.args.quoteToken), key), client.getBlock({ blockNumber: launched.blockNumber })]);
       const pool: PoolRecord = {
         token: t.token,
         poolId: launched.args.poolId,

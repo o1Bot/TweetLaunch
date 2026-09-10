@@ -1,7 +1,7 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
-import { robinhood } from "viem/chains";
+import { base, robinhood } from "viem/chains";
 import type { ReactNode } from "react";
 import { AutoSigner } from "@/components/AutoSigner";
 
@@ -26,7 +26,7 @@ export function Providers({ children }: { children: ReactNode }) {
         loginMethods: ["twitter"],
         embeddedWallets: { ethereum: { createOnLogin: "all-users" }, showWalletUIs: true },
         defaultChain: robinhood,
-        supportedChains: [robinhood],
+        supportedChains: [robinhood, base],
         appearance: {
           theme: "#151D29",
           accentColor: "#2F7BFF",

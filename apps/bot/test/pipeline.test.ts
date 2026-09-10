@@ -248,8 +248,7 @@ describe("processMention", () => {
     expect(planned).toMatchObject({ chain: "base" });
     expect(h.store.launches[0]).toMatchObject({ chainId: 8453, factory: activeFactory("base"), quoteSymbol: "ETH" });
     expect(h.x.replies[0]?.text).toContain("Base");
-    expect(h.x.replies[0]?.text).toContain("launch.o1.exchange/token/");
-    expect(h.x.replies[0]?.text).toContain("chain=8453");
+    expect(h.x.replies[0]?.text).toContain("https://o1bot.exchange/token/");
   });
 
   it("stays silent on ignore", async () => {

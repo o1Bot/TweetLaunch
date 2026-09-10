@@ -1,15 +1,17 @@
 import { getAddress, parseAbi, zeroAddress, type Address } from "viem";
 import { poolIdOf, poolKeyFor, stateViewAbi, v3FactoryAbi, v3PoolAbi, V3_FEE_TIERS, V4_FEE_TIERS } from "./v4";
 import { e18ToNumber, priceQuotePerTokenE18, tokenIsCurrency0 } from "@o1bot/market";
-import { findQuote, o1Chain, publicClient } from "@o1bot/shared";
+import { DEFAULT_CHAIN_KEY, findQuote, o1Chain, publicClient, type ChainKey } from "@o1bot/shared";
 
 /**
- * USD price of a paired asset, read from Robinhood Chain pools:
- *   ETH   → SwapX V3 WETH/USDG pool
- *   USDG  → 1
- *   stock → best SwapX V3 or hook-free V4 USDG/stock pool with liquidity
- * USDG is treated as one dollar. Cached for 60 seconds per asset.
+ * USD price of a paired asset, read from that chain's pools:
+ *   ETH    → V3 WETH/stable pool (SwapX on Robinhood, Uniswap V3 on Base)
+ *   stable → 1 (USDG on Robinhood, USDC on Base)
+ *   other  → best V3 or hook-free V4 stable/asset pool with liquidity
+ * Cached for 60 seconds per chain and asset.
  */
+
+const STABLE: Record<ChainKey, string> = { robinhood: "USDG", base: "USDC" };
 
 const TTL_MS = 60_000;
 const cache = new Map<string, { at: number; value: number | null }>();
@@ -18,19 +20,19 @@ const v3Slot0Abi = parseAbi([
   "function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)",
 ]);
 
-function addresses() {
-  const chain = o1Chain("robinhood");
+function addresses(key: ChainKey) {
+  const chain = o1Chain(key);
   const weth = chain.swapX.wrappedNativeToken;
   const v3Factory = chain.swapX.factoryV3;
-  const usdg = findQuote("robinhood", "USDG")?.address;
-  if (typeof weth !== "string" || typeof v3Factory !== "string" || !usdg) throw new Error("config/o1.json is missing swapX or USDG entries");
-  return { weth: getAddress(weth), v3Factory: getAddress(v3Factory), usdg, stateView: chain.uniswapV4.stateView };
+  const stable = findQuote(key, STABLE[key]);
+  if (typeof weth !== "string" || typeof v3Factory !== "string" || !stable) throw new Error(`config/o1.json is missing swapX or ${STABLE[key]} entries for ${key}`);
+  return { weth: getAddress(weth), v3Factory: getAddress(v3Factory), usdg: stable.address, stableDecimals: stable.decimals, stateView: chain.uniswapV4.stateView };
 }
 
-/** USDG per one unit of `asset` (18 decimals assumed for stocks and WETH). */
-async function usdgPerAsset(asset: Address, assetDecimals: number): Promise<number | null> {
-  const client = publicClient("robinhood");
-  const { v3Factory, usdg, stateView } = addresses();
+/** Dollars (the chain's stable) per one unit of `asset`. */
+async function usdgPerAsset(asset: Address, assetDecimals: number, key: ChainKey): Promise<number | null> {
+  const client = publicClient(key);
+  const { v3Factory, usdg, stableDecimals, stateView } = addresses(key);
   const isC0 = tokenIsCurrency0(asset, usdg);
 
   // SwapX V3 pools first: pick the tier with the most in-range liquidity.
@@ -52,7 +54,7 @@ async function usdgPerAsset(asset: Address, assetDecimals: number): Promise<numb
     }
     if (bestPool) {
       const slot0 = await client.readContract({ address: bestPool, abi: v3Slot0Abi, functionName: "slot0" });
-      return e18ToNumber(priceQuotePerTokenE18(slot0[0], isC0, 6, assetDecimals));
+      return e18ToNumber(priceQuotePerTokenE18(slot0[0], isC0, stableDecimals, assetDecimals));
     }
   }
 
@@ -63,7 +65,7 @@ async function usdgPerAsset(asset: Address, assetDecimals: number): Promise<numb
       const liquidity = await client.readContract({ address: stateView, abi: stateViewAbi, functionName: "getLiquidity", args: [id] });
       if (liquidity === 0n) continue;
       const slot0 = await client.readContract({ address: stateView, abi: stateViewAbi, functionName: "getSlot0", args: [id] });
-      return e18ToNumber(priceQuotePerTokenE18(slot0[0], isC0, 6, assetDecimals));
+      return e18ToNumber(priceQuotePerTokenE18(slot0[0], isC0, stableDecimals, assetDecimals));
     } catch {
       // try the next tier
     }
@@ -71,17 +73,17 @@ async function usdgPerAsset(asset: Address, assetDecimals: number): Promise<numb
   return null;
 }
 
-export async function quoteUsd(quoteAddress: string, quoteDecimals: number): Promise<number | null> {
-  const key = quoteAddress.toLowerCase();
+export async function quoteUsd(quoteAddress: string, quoteDecimals: number, chain: ChainKey = DEFAULT_CHAIN_KEY): Promise<number | null> {
+  const key = `${chain}:${quoteAddress.toLowerCase()}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
   let value: number | null = null;
   try {
-    const { weth, usdg } = addresses();
+    const { weth, usdg } = addresses(chain);
     const addr = getAddress(quoteAddress);
     if (addr === usdg) value = 1;
-    else if (addr === zeroAddress) value = await usdgPerAsset(weth, 18);
-    else value = await usdgPerAsset(addr, quoteDecimals);
+    else if (addr === zeroAddress) value = await usdgPerAsset(weth, 18, chain);
+    else value = await usdgPerAsset(addr, quoteDecimals, chain);
   } catch {
     value = null;
   }

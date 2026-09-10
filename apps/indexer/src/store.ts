@@ -48,6 +48,7 @@ export type SwapRecord = {
 
 export type BotLaunch = {
   launchId: string;
+  chainId: number;
   token: Address;
   launchTxHash: Hash;
   name: string;
@@ -58,7 +59,7 @@ export type BotLaunch = {
 
 export interface Store {
   getCursor(id: string): Promise<bigint | null>;
-  listPools(): Promise<PoolRecord[]>;
+  listPools(chainId?: number): Promise<PoolRecord[]>;
   upsertPool(pool: PoolRecord): Promise<void>;
   /** Launches the bot confirmed on chain; the only non-DEV source of tracked tokens. */
   botLaunches(): Promise<BotLaunch[]>;
@@ -74,8 +75,8 @@ export class PrismaStore implements Store {
     return row ? BigInt(row.blockNumber.toString()) : null;
   }
 
-  async listPools(): Promise<PoolRecord[]> {
-    const rows = await db().pool.findMany();
+  async listPools(chainId?: number): Promise<PoolRecord[]> {
+    const rows = await db().pool.findMany({ where: chainId === undefined ? {} : { chainId } });
     return rows.map((r) => ({
       token: r.token as Address,
       poolId: r.poolId as Hex,
@@ -130,10 +131,11 @@ export class PrismaStore implements Store {
   async botLaunches(): Promise<BotLaunch[]> {
     const rows = await db().launch.findMany({
       where: { status: { in: [...CONFIRMED_STATUSES] }, tokenAddress: { not: null }, launchTxHash: { not: null } },
-      select: { id: true, tokenAddress: true, launchTxHash: true, name: true, ticker: true, imageUri: true, metadataUri: true },
+      select: { id: true, chainId: true, tokenAddress: true, launchTxHash: true, name: true, ticker: true, imageUri: true, metadataUri: true },
     });
     return rows.map((r) => ({
       launchId: r.id,
+      chainId: r.chainId,
       token: r.tokenAddress as Address,
       launchTxHash: r.launchTxHash as Hash,
       name: r.name,
@@ -179,8 +181,8 @@ export class MemoryStore implements Store {
   async getCursor(id: string): Promise<bigint | null> {
     return this.cursors.get(id) ?? null;
   }
-  async listPools(): Promise<PoolRecord[]> {
-    return [...this.pools.values()];
+  async listPools(chainId?: number): Promise<PoolRecord[]> {
+    return [...this.pools.values()].filter((p) => chainId === undefined || p.chainId === chainId);
   }
   async upsertPool(p: PoolRecord): Promise<void> {
     this.pools.set(p.token, p);

@@ -1,5 +1,6 @@
 import { getAddress, isAddress } from "viem";
 import { db, dbConfigured } from "@o1bot/db";
+import { CHAIN_IDS, isChainKey } from "@/lib/chains-web";
 import { ipfsToHttp } from "@/lib/ipfs";
 
 export const runtime = "nodejs";
@@ -11,13 +12,16 @@ export const dynamic = "force-dynamic";
  * dev rows when they are shown), at most eight, symbol matches first.
  */
 export async function GET(req: Request) {
-  const q = (new URL(req.url).searchParams.get("q") ?? "").trim();
+  const url = new URL(req.url);
+  const q = (url.searchParams.get("q") ?? "").trim();
+  const chainParam = url.searchParams.get("chain");
+  const chainWhere = isChainKey(chainParam) ? { chainId: CHAIN_IDS[chainParam] } : {};
   if (!q || !dbConfigured()) return Response.json({ data: [] });
   const where = isAddress(q, { strict: false })
     ? { token: getAddress(q.toLowerCase()) }
     : { OR: [{ symbol: { contains: q, mode: "insensitive" as const } }, { name: { contains: q, mode: "insensitive" as const } }] };
   const rows = await db().pool.findMany({
-    where: { source: "BOT", ...where },
+    where: { source: "BOT", ...chainWhere, ...where },
     orderBy: { launchedAt: "desc" },
     take: 24,
     select: { token: true, symbol: true, name: true, imageUri: true, quoteSymbol: true },

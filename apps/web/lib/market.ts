@@ -2,6 +2,7 @@ import { getAddress, isAddress, zeroAddress } from "viem";
 import { db, dbConfigured, Prisma, type Pool } from "@o1bot/db";
 import { buildCandles, computeStats, TIMEFRAMES, type Candle, type Timeframe, type TokenStats } from "@o1bot/market";
 import { env } from "@o1bot/shared";
+import { CHAIN_IDS, chainKeyOf, type ChainKey } from "./chains-web";
 import { ipfsToHttp } from "./ipfs";
 import { readBurned } from "./burn";
 import { quoteUsd } from "./quote-usd";
@@ -17,14 +18,25 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const include = { launch: { include: { mention: true, creator: true } } } as const;
 type PoolWithLaunch = Prisma.PoolGetPayload<{ include: typeof include }>;
 
-function poolFilter(): Prisma.PoolWhereInput {
-  return env().SHOW_DEV_TOKENS ? {} : { source: "BOT" };
+function poolFilter(chain?: ChainKey): Prisma.PoolWhereInput {
+  return { ...(env().SHOW_DEV_TOKENS ? {} : { source: "BOT" }), ...(chain ? { chainId: CHAIN_IDS[chain] } : {}) };
 }
 
 function quoteKind(address: string, symbol: string): QuoteKind {
   if (address === zeroAddress) return "eth";
-  if (symbol.toUpperCase() === "USDG") return "usd";
+  if (symbol.toUpperCase() === "USDG" || symbol.toUpperCase() === "USDC") return "usd";
   return "stk";
+}
+
+/** Burned balances for pools that may sit on different chains: one multicall per chain. */
+async function burnedFor(pools: Pool[]): Promise<Map<string, bigint>> {
+  const out = new Map<string, bigint>();
+  for (const chain of ["robinhood", "base"] as const) {
+    const tokens = pools.filter((p) => chainKeyOf(p.chainId) === chain).map((p) => p.token);
+    if (tokens.length === 0) continue;
+    for (const [token, raw] of await readBurned(tokens, chain)) out.set(token, raw);
+  }
+  return out;
 }
 
 const toNum = (d: Prisma.Decimal | null | undefined): number | null => (d === null || d === undefined ? null : Number(d.toString()));
@@ -43,7 +55,7 @@ async function statsFor(pool: Pool, burnedRaw = 0n): Promise<PoolExtra> {
     db().swap.findFirst({ where: { token }, orderBy: [{ timestamp: "asc" }, { logIndex: "asc" }], select: { priceQuote: true } }),
     db().swap.aggregate({ where: { token }, _sum: { feeQuote: true, amountQuote: true }, _count: { _all: true } }),
   ]);
-  const usd = await quoteUsd(pool.quoteAddress, pool.quoteDecimals);
+  const usd = await quoteUsd(pool.quoteAddress, pool.quoteDecimals, chainKeyOf(pool.chainId));
   const supplyTokens = Number(pool.launchSupply.toString()) / 1e18;
   const burnedTokens = Math.min(supplyTokens, Number(burnedRaw) / 1e18);
   const circulatingTokens = supplyTokens - burnedTokens;
@@ -72,6 +84,8 @@ function postOf(pool: PoolWithLaunch): GenesisPost | null {
 function toRow(pool: PoolWithLaunch, extra: PoolExtra): TokenRow {
   return {
     token: pool.token,
+    chainId: pool.chainId,
+    chain: chainKeyOf(pool.chainId),
     name: pool.name,
     symbol: pool.symbol,
     imageUrl: ipfsToHttp(pool.imageUri),
@@ -91,10 +105,10 @@ function toRow(pool: PoolWithLaunch, extra: PoolExtra): TokenRow {
   };
 }
 
-export async function listBoardTokens(): Promise<TokenRow[]> {
+export async function listBoardTokens(chain?: ChainKey): Promise<TokenRow[]> {
   if (!dbConfigured()) return [];
-  const pools = await db().pool.findMany({ where: poolFilter(), include, orderBy: { launchedAt: "desc" } });
-  const burned = await readBurned(pools.map((p) => p.token));
+  const pools = await db().pool.findMany({ where: poolFilter(chain), include, orderBy: { launchedAt: "desc" } });
+  const burned = await burnedFor(pools);
   const rows = await Promise.all(pools.map(async (p) => toRow(p, await statsFor(p, burned.get(getAddress(p.token)) ?? 0n))));
   const vol = (r: TokenRow) => r.stats.volume24hUsd ?? r.stats.volume24hQuote;
   return rows.sort((a, b) => vol(b) - vol(a) || b.launchedAt.localeCompare(a.launchedAt));
@@ -125,7 +139,7 @@ export async function getTokenDetail(address: string): Promise<TokenDetail | nul
   const pool = await db().pool.findUnique({ where: { token }, include });
   if (!pool) return null;
   if (pool.source === "DEV" && !env().SHOW_DEV_TOKENS) return null;
-  const burned = await readBurned([token]);
+  const burned = await readBurned([token], chainKeyOf(pool.chainId));
   const [extra, trades] = await Promise.all([statsFor(pool, burned.get(token) ?? 0n), getTrades(token, 30)]);
   return {
     ...toRow(pool, extra),

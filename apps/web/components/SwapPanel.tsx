@@ -4,7 +4,8 @@ import { usePrivy, useSendTransaction, useWallets } from "@privy-io/react-auth";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi, maxUint256, type Address, type Hex } from "viem";
 import { symbolColor } from "@/lib/ipfs";
-import { ANTI_SNIPE_SECONDS, CHAIN_ID, encodeExactInputSwap, permit2Abi, type PoolKey } from "@/lib/v4-swap";
+import { chainKeyOf, EXPLORER } from "@/lib/chains-web";
+import { ANTI_SNIPE_SECONDS, encodeExactInputSwap, permit2Abi, routerLayoutFor, type PoolKey } from "@/lib/v4-swap";
 
 /**
  * Buy / sell through o1's launch pool. The quote API prepares the pool key,
@@ -39,14 +40,15 @@ type Quote = {
   quoteError?: string;
 };
 
-const EXPLORER = "https://robinhoodchain.blockscout.com";
 const MAX_UINT160 = (1n << 160n) - 1n;
 const QUICK: Record<"eth" | "usd" | "stk", string[]> = { eth: ["0.01", "0.05", "0.1", "0.5"], usd: ["10", "50", "100", "500"], stk: ["0.1", "0.5", "1", "5"] };
 const SLIPPAGES = [100, 300, 1000];
 
 const fmt = (v: string | null | undefined, max = 6) => (v === null || v === undefined ? "—" : Number(v).toLocaleString("en-US", { maximumFractionDigits: Number(v) > 1000 ? 0 : max }));
 
-export function SwapPanel({ token, symbol, quoteSymbol, quoteKind, launchedAt }: { token: string; symbol: string; quoteSymbol: string; quoteKind: "eth" | "usd" | "stk"; launchedAt: string }) {
+export function SwapPanel({ token, chainId = 4663, symbol, quoteSymbol, quoteKind, launchedAt }: { token: string; chainId?: number; symbol: string; quoteSymbol: string; quoteKind: "eth" | "usd" | "stk"; launchedAt: string }) {
+  const chainKey = chainKeyOf(chainId);
+  const explorer = EXPLORER[chainKey];
   const { ready, authenticated, login } = usePrivy();
   const { wallets } = useWallets();
   const { sendTransaction } = useSendTransaction();
@@ -105,7 +107,7 @@ export function SwapPanel({ token, symbol, quoteSymbol, quoteKind, launchedAt }:
   useEffect(() => {
     if (!tx || tx.status !== "pending") return;
     const id = setInterval(async () => {
-      const res = await fetch(`/api/tx/${tx.hash}`);
+      const res = await fetch(`/api/tx/${tx.hash}?chain=${chainKey}`);
       if (!res.ok) return;
       const json = (await res.json()) as { status: "pending" | "success" | "reverted" };
       if (json.status !== "pending") {
@@ -119,20 +121,20 @@ export function SwapPanel({ token, symbol, quoteSymbol, quoteKind, launchedAt }:
   const send = useCallback(
     async (label: string, to: Address, data: Hex, value: bigint) => {
       setStep(label);
-      const result = await sendTransaction({ to, data, value, chainId: CHAIN_ID });
+      const result = await sendTransaction({ to, data, value, chainId });
       const hash = typeof result === "string" ? result : ((result as { hash?: string }).hash ?? null);
       if (!hash) throw new Error("No transaction hash returned.");
       // Wait for the receipt before the next step.
       for (let i = 0; i < 60; i++) {
         await new Promise((r) => setTimeout(r, 2000));
-        const res = await fetch(`/api/tx/${hash}`);
+        const res = await fetch(`/api/tx/${hash}?chain=${chainKey}`);
         const json = (await res.json()) as { status: string };
         if (json.status === "success") return hash;
         if (json.status === "reverted") throw new Error(`${label} reverted on chain.`);
       }
       throw new Error(`${label} is taking too long; check the explorer.`);
     },
-    [sendTransaction],
+    [sendTransaction, chainId, chainKey],
   );
 
   const swap = useCallback(async () => {
@@ -156,9 +158,10 @@ export function SwapPanel({ token, symbol, quoteSymbol, quoteKind, launchedAt }:
         minAmountOut: BigInt(quote.minAmountOut),
         hookData: quote.hookData,
         deadline: BigInt(quote.deadline),
+        layout: routerLayoutFor(chainId),
       });
       setStep(side === "buy" ? "Buying…" : "Selling…");
-      const result = await sendTransaction({ to: enc.to, data: enc.data, value: enc.value, chainId: CHAIN_ID });
+      const result = await sendTransaction({ to: enc.to, data: enc.data, value: enc.value, chainId });
       const hash = typeof result === "string" ? result : ((result as { hash?: string }).hash ?? null);
       if (!hash) throw new Error("No transaction hash returned.");
       setTx({ hash, status: "pending" });
@@ -167,7 +170,7 @@ export function SwapPanel({ token, symbol, quoteSymbol, quoteKind, launchedAt }:
     } finally {
       setStep(null);
     }
-  }, [quote, wallet, side, symbol, quoteSymbol, send, sendTransaction]);
+  }, [quote, wallet, side, symbol, quoteSymbol, send, sendTransaction, chainId]);
 
   const feePct = quote ? quote.antiSnipe.feeBps / 100 : left > 0 ? Math.round(1 + (98 * left) / ANTI_SNIPE_SECONDS) : 1;
   const secondsLeft = quote?.antiSnipe.active ? quote.antiSnipe.secondsLeft : left;
@@ -280,7 +283,7 @@ export function SwapPanel({ token, symbol, quoteSymbol, quoteKind, launchedAt }:
       {tx && (
         <div className={`note ${tx.status === "success" ? "ok" : tx.status === "reverted" ? "warn" : ""}`}>
           {tx.status === "pending" ? "Waiting for confirmation…" : tx.status === "success" ? "Swap confirmed." : "Swap reverted."}{" "}
-          <a href={`${EXPLORER}/tx/${tx.hash}`} target="_blank" rel="noreferrer">
+          <a href={`${explorer}/tx/${tx.hash}`} target="_blank" rel="noreferrer">
             {tx.hash.slice(0, 10)}…
           </a>
         </div>

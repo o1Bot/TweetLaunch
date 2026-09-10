@@ -12,5 +12,5 @@ export async function GET(_req: Request, ctx: { params: Promise<{ address: strin
   const token = getAddress(address.toLowerCase());
   const known = await getTokenDetail(token);
   if (!known) return Response.json({ error: "not_found" }, { status: 404 });
-  return Response.json(await getHolders(token));
+  return Response.json(await getHolders(token, known.chainId));
 }

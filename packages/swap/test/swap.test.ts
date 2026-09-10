@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { concatHex, decodeAbiParameters, decodeFunctionData, encodeAbiParameters, encodeFunctionData, getAddress, zeroAddress, type Address, type Hex } from "viem";
-import { COMMAND_V4_SWAP, decodeExactInputSwap, decodeHookData, encodeExactInputSwap, encodeHookData, EXACT_INPUT_ACTIONS, launchPoolKey, universalRouterAbi } from "../src/index";
+import { COMMAND_V4_SWAP, decodeExactInputSwap, decodeHookData, encodeExactInputSwap, encodeHookData, EXACT_INPUT_ACTIONS, launchPoolKey, routerLayoutFor, universalRouterAbi } from "../src/index";
 
 const ROUTER: Address = getAddress("0x1111111111111111111111111111111111111111");
 const TOKEN: Address = getAddress("0x0ab6bf0ffa6d5c5aaa8fc94a8fb2f4ea2f4f5c01");
@@ -127,6 +127,29 @@ describe("encode / decode exact-input swap", () => {
     expect(BigInt(`0x${words[11]}`)).toBe(64n); // hookData length
     expect(`0x${words[12]}${words[13]}`).toBe(hookData);
     expect(decodeExactInputSwap(enc.data)?.hookData).toBe(hookData);
+  });
+
+  it("encodes the stock Uniswap struct for Base and decodes it only with that layout", () => {
+    expect(routerLayoutFor(4663)).toBe("robinhood");
+    expect(routerLayoutFor(8453)).toBe("stock");
+    const poolKey = launchPoolKey(TOKEN, zeroAddress, 200, HOOK);
+    const hookData = encodeHookData(REFERRER);
+    const enc = encodeExactInputSwap({ router: ROUTER, poolKey, zeroForOne: true, amountIn: 10n, minAmountOut: 1n, hookData, deadline: 1n, layout: "stock" });
+    const [, inputs] = decodeFunctionData({ abi: universalRouterAbi, data: enc.data }).args;
+    const [, params] = decodeAbiParameters([{ type: "bytes" }, { type: "bytes[]" }], inputs[0]!);
+    const words = params[0]!.slice(2).match(/.{64}/g)!;
+    // Struct at word 1: poolKey (5), zeroForOne, amountIn, amountOutMinimum, hookData offset, length, data.
+    expect(BigInt(`0x${words[9]}`)).toBe(BigInt(9 * 32)); // hookData offset, relative to the struct
+    expect(BigInt(`0x${words[10]}`)).toBe(64n);
+    expect(decodeExactInputSwap(enc.data, "stock")?.hookData).toBe(hookData);
+    expect(decodeExactInputSwap(enc.data, "stock")?.layout).toBe("stock");
+    // Decoded with the Robinhood layout the offset word reads as a price floor: refused.
+    expect(decodeExactInputSwap(enc.data, "robinhood")).toBeNull();
+    // A Robinhood encoding read with the stock layout comes back with EMPTY hook data (the price floor
+    // word is taken as the offset): exactly how the referral got lost on chain. The allow-list still
+    // refuses it because the referral is missing.
+    const rh = encodeExactInputSwap({ router: ROUTER, poolKey, zeroForOne: true, amountIn: 10n, minAmountOut: 1n, hookData, deadline: 1n });
+    expect(decodeExactInputSwap(rh.data, "stock")?.hookData).toBe("0x");
   });
 
   it("refuses the stock Uniswap struct and a non-zero price floor", () => {

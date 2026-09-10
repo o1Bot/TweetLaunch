@@ -17,6 +17,8 @@ export type GenesisPost = {
 
 export type TokenRow = {
   token: string;
+  chainId: number;
+  chain: "robinhood" | "base";
   name: string;
   symbol: string;
   imageUrl: string | null;

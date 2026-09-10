@@ -6,14 +6,13 @@ import { Chart } from "@/components/Chart";
 import { SwapPanel } from "@/components/SwapPanel";
 import { EXT_ICON, PAIR_CLASS, STOCK_ICON, TokenLogo, X_ICON } from "@/components/TokenLogo";
 import { TokenTabs } from "@/components/TokenTabs";
+import { CHAIN_LABEL, EXPLORER, o1TokenUrl } from "@/lib/chains-web";
 import { shortAddress, timeAgo } from "@/lib/ipfs";
 import { getTokenDetail } from "@/lib/market";
 import { fetchTokenMetadata } from "@/lib/metadata";
 
 export const dynamic = "force-dynamic";
 
-const EXPLORER = "https://robinhoodchain.blockscout.com";
-const O1_TOKEN_URL = (token: string) => `https://launch.o1.exchange/token/${token.toLowerCase()}?chain=4663`;
 
 export async function generateMetadata({ params }: { params: Promise<{ address: string }> }): Promise<Metadata> {
   const { address } = await params;
@@ -21,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ address: 
   if (!t) return { title: "Token not found — o1bot.exchange" };
   return {
     title: `${t.name} (${t.symbol}) — o1bot.exchange`,
-    description: `${t.symbol} paired with ${t.quoteSymbol} on Robinhood Chain, launched from a post${t.creator.xHandle ? ` by @${t.creator.xHandle}` : ""}.`,
+    description: `${t.symbol} paired with ${t.quoteSymbol} on ${CHAIN_LABEL[t.chain]}, launched from a post${t.creator.xHandle ? ` by @${t.creator.xHandle}` : ""}.`,
     openGraph: { title: `${t.name} (${t.symbol})`, images: [t.imageUrl ?? "/logo.png"] },
   };
 }
@@ -71,7 +70,7 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
                 {t.source === "DEV" && <span className="tag dev">dev</span>}
               </div>
               <div className="l2">
-                <a className="addr" href={`${EXPLORER}/token/${t.token}`} target="_blank" rel="noreferrer">
+                <a className="addr" href={`${EXPLORER[t.chain]}/token/${t.token}`} target="_blank" rel="noreferrer">
                   Token <b>{shortAddress(t.token)}</b> {EXT_ICON}
                 </a>
                 <span className="addr">
@@ -84,7 +83,7 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
                     <b>{shortAddress(t.creator.wallet)}</b>
                   )}
                 </span>
-                <a className="addr" href={O1_TOKEN_URL(t.token)} target="_blank" rel="noreferrer">
+                <a className="addr" href={o1TokenUrl(t.token, t.chain)} target="_blank" rel="noreferrer">
                   View on o1 {EXT_ICON}
                 </a>
               </div>
@@ -143,7 +142,7 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
                     Open post {EXT_ICON}
                   </a>
                 )}
-                <a href={`${EXPLORER}/tx/${t.launchTxHash}`} target="_blank" rel="noreferrer">
+                <a href={`${EXPLORER[t.chain]}/tx/${t.launchTxHash}`} target="_blank" rel="noreferrer">
                   Launch transaction {EXT_ICON}
                 </a>
               </div>
@@ -162,11 +161,11 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
 
           <Chart token={t.token} quoteSymbol={t.quoteSymbol} priceUsd={usd} change24hPct={t.stats.change24hPct} />
 
-          <TokenTabs token={t.token} symbol={t.symbol} quoteSymbol={t.quoteSymbol} initialTrades={t.trades} tradeCount={t.tradeCount} creatorWallet={t.creator.wallet} explorer={EXPLORER} />
+          <TokenTabs token={t.token} symbol={t.symbol} quoteSymbol={t.quoteSymbol} initialTrades={t.trades} tradeCount={t.tradeCount} creatorWallet={t.creator.wallet} explorer={EXPLORER[t.chain]} />
         </div>
 
         <aside>
-          <SwapPanel token={t.token} symbol={t.symbol} quoteSymbol={t.quoteSymbol} quoteKind={t.quoteKind} launchedAt={t.launchedAt} />
+          <SwapPanel token={t.token} chainId={t.chainId} symbol={t.symbol} quoteSymbol={t.quoteSymbol} quoteKind={t.quoteKind} launchedAt={t.launchedAt} />
           <div className="card2">
             <h3>Pool</h3>
             <div className="kv">

@@ -1744,3 +1744,46 @@ body {
 .data-delay b {
   font-weight: 600;
 }
+
+/* Chain switch in the header: Robinhood by default, Base on request. */
+.chainsw {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  margin-left: 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.chainsw button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chainsw button.on {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.chainsw button svg {
+  display: block;
+}
+@media (max-width: 560px) {
+  .chainsw {
+    margin-left: 8px;
+  }
+  .chainsw button span {
+    display: none;
+  }
+  .chainsw button {
+    padding: 5px 6px;
+  }
+}
