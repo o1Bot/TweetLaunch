@@ -1731,3 +1731,16 @@ body {
     gap: 14px;
   }
 }
+
+/* Delayed-data bar under the header, shown only while /api/health says the indexer is behind. */
+.data-delay {
+  padding: 8px 20px;
+  background: var(--amber-soft);
+  color: var(--amber);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  text-align: center;
+}
+.data-delay b {
+  font-weight: 600;
+}

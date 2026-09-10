@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { DataStatus } from "@/components/DataStatus";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Providers } from "./providers";
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <Providers>
           <SiteHeader />
+          <DataStatus />
           {children}
           <SiteFooter />
         </Providers>
