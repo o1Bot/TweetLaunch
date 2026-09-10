@@ -35,11 +35,21 @@ export type ScanConfig = {
 
 export const DEFAULT_SCAN: Omit<ScanConfig, "poolManager" | "hook"> = { rangeInit: 10_000n, rangeMin: 200n, rangeMax: 50_000n };
 
-function commentText(raw: Hex): string | null {
+/**
+ * The 32-byte comment from the hook's Trade event as text the database will
+ * take. Anyone can put any bytes there: a NUL in the middle of the word (not
+ * only as padding) made Postgres reject the whole batch with "invalid byte
+ * sequence for encoding UTF8: 0x00", which stalled the indexer on that block
+ * forever. Control characters are dropped wherever they sit, undecodable bytes
+ * (U+FFFD after decoding) are dropped too, and an empty result is null.
+ */
+export function commentText(raw: Hex): string | null {
   if (!raw || /^0x0*$/.test(raw)) return null;
   try {
-    const s = hexToString(raw, { size: 32 }).replace(/\0+$/, "").trim();
-    return s.length ? s : null;
+    const s = hexToString(raw, { size: 32 })
+      .replace(/[\u0000-\u001f\u007f\ufffd]/g, "")
+      .trim();
+    return s.length ? s.slice(0, 32) : null;
   } catch {
     return null;
   }
