@@ -52,16 +52,11 @@ describe("o1 registry snapshot (Robinhood)", () => {
     const cfg = o1Config();
     const live = {
       lastUpdatedAt: "now",
-      chains: [
-        {
-          chainId: cfg.chains.robinhood.chainId,
-          currentSuiteId: cfg.chains.robinhood.currentSuiteId,
-          suites: cfg.chains.robinhood.suites,
-        },
-      ],
+      chains: Object.values(cfg.chains).map((c) => ({ chainId: c.chainId, currentSuiteId: c.currentSuiteId, suites: c.suites })),
     };
     expect(await registryDrift(live)).toEqual([]);
     const rotated = { ...live, chains: live.chains.map((c) => ({ ...c, currentSuiteId: "something-new" })) };
-    expect((await registryDrift(rotated)).length).toBe(1);
+    // Every chain's suite was rotated, so every chain drifts.
+    expect((await registryDrift(rotated)).length).toBe(live.chains.length);
   });
 });

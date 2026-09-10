@@ -1,0 +1,92 @@
+{
+  "fetchedAt": "2026-09-10T19:48:19.755Z",
+  "source": "https://docs.o1.exchange/launchpad/reference/base-stock-quotes.json",
+  "o1LastUpdatedAt": "2026-09-05",
+  "o1LastVerifiedBlock": 50902528,
+  "chainId": 8453,
+  "factory": "0x1176122eb77AD6a2339322Cda7C4D7ea9BfA63dC",
+  "quoteDecimals": 8,
+  "configVersionAtSnapshot": "12",
+  "quotes": [
+    {
+      "symbol": "AAPL",
+      "name": "Apple Inc.",
+      "address": "0xb200000000000000000000C2e324d24d7eEcd1fb",
+      "decimals": 8,
+      "startTickToken0Frame": -412200,
+      "quoteRevision": "1"
+    },
+    {
+      "symbol": "AMZN",
+      "name": "Amazon.com Inc.",
+      "address": "0xb200000000000000000000d9192b6B456483C2E8",
+      "decimals": 8,
+      "startTickToken0Frame": -410200,
+      "quoteRevision": "1"
+    },
+    {
+      "symbol": "GOOGL",
+      "name": "Alphabet Inc.",
+      "address": "0xb2000000000000000000002D0BA3164cc74f58B7",
+      "decimals": 8,
+      "startTickToken0Frame": -413000,
+      "quoteRevision": "1"
+    },
+    {
+      "symbol": "META",
+      "name": "Meta Platforms Inc.",
+      "address": "0xb2000000000000000000008bC8786B856E61707C",
+      "decimals": 8,
+      "startTickToken0Frame": -418200,
+      "quoteRevision": "1"
+    },
+    {
+      "symbol": "MSFT",
+      "name": "Microsoft Corporation",
+      "address": "0xB200000000000000000000Ab99cFa739E253872B",
+      "decimals": 8,
+      "startTickToken0Frame": -417000,
+      "quoteRevision": "1"
+    },
+    {
+      "symbol": "MSTR",
+      "name": "Strategy Inc.",
+      "address": "0xb2000000000000000000004884b426556b92883d",
+      "decimals": 8,
+      "startTickToken0Frame": -404000,
+      "quoteRevision": "1"
+    },
+    {
+      "symbol": "NVDA",
+      "name": "NVIDIA Corporation",
+      "address": "0xb20000000000000000000078ee7ce2fE4908108C",
+      "decimals": 8,
+      "startTickToken0Frame": -408400,
+      "quoteRevision": "1"
+    },
+    {
+      "symbol": "SNDK",
+      "name": "Sandisk Corporation",
+      "address": "0xb200000000000000000000397293Cb8cda9a10c5",
+      "decimals": 8,
+      "startTickToken0Frame": -428000,
+      "quoteRevision": "1"
+    },
+    {
+      "symbol": "SPCX",
+      "name": "Space Exploration Technologies Corp.",
+      "address": "0xb2000000000000000000007b9fcbd005511aCBd5",
+      "decimals": 8,
+      "startTickToken0Frame": -404800,
+      "quoteRevision": "1"
+    },
+    {
+      "symbol": "TSLA",
+      "name": "Tesla Inc.",
+      "address": "0xb2000000000000000000001e800a7f5189430cD0",
+      "decimals": 8,
+      "startTickToken0Frame": -414000,
+      "quoteRevision": "1"
+    }
+  ]
+}

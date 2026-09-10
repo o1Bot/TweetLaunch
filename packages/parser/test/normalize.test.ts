@@ -60,9 +60,12 @@ describe("normalizeParseOutput", () => {
     expect(noQ.kind === "clarify" && noQ.question.length > 10).toBe(true);
   });
 
-  it("flags other chains and accepts an unstated chain", () => {
-    expect(normalizeParseOutput({ ...base, chain: "base" }, { hasImage: false })).toMatchObject({ kind: "unsupported_chain", chain: "base" });
+  it("accepts Robinhood, Base or an unstated chain and flags the rest", () => {
+    expect(normalizeParseOutput({ ...base, chain: "base" }, { hasImage: false })).toMatchObject({ kind: "launch", chain: "base" });
+    expect(normalizeParseOutput({ ...base, chain: "robinhood" }, { hasImage: false })).toMatchObject({ kind: "launch", chain: "robinhood" });
     expect(normalizeParseOutput({ ...base, chain: null }, { hasImage: false })).toMatchObject({ kind: "launch", chain: null });
+    expect(normalizeParseOutput({ ...base, chain: "other" }, { hasImage: false })).toMatchObject({ kind: "unsupported_chain", chain: "other" });
+    expect(normalizeParseOutput({ ...base, chain: "ethereum" }, { hasImage: false })).toMatchObject({ kind: "unsupported_chain", chain: "ethereum" });
   });
 
   it("maps help and ignore, dropping empty help replies", () => {

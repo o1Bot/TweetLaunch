@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getAddress, parseEther, type Address, type Hex } from "viem";
 import type { LaunchPlan, PlanResult } from "@o1bot/executor";
 import type { ParsedMention, ParseResult } from "@o1bot/parser";
-import { RESERVED_HANDLES } from "@o1bot/shared";
+import { activeFactory, RESERVED_HANDLES } from "@o1bot/shared";
 import type { LinkedUser, LinkStatus } from "@o1bot/wallet";
 import { FakeXClient, XPostError, type XMention } from "@o1bot/x";
 import type { BotConfig } from "../src/config";
@@ -227,10 +227,29 @@ describe("processMention", () => {
   });
 
   it("rejects other chains", async () => {
-    h.script.parse = { kind: "unsupported_chain", chain: "base", language: "en", reason: "asked for base" };
+    h.script.parse = { kind: "unsupported_chain", chain: "other", language: "en", reason: "asked for solana" };
     const out = await processMention(ALICE, h.deps);
     expect(out).toMatchObject({ outcome: "replied", kind: "unsupported_chain" });
     expect(h.x.replies[0]?.text).toContain("Robinhood");
+    expect(h.x.replies[0]?.text).toContain("Base");
+  });
+
+  it("launches on Base when the post says so: Base factory, chain id 8453, plan and links for Base", async () => {
+    h.script.parse = launchCmd({ chain: "base" });
+    let planned: { chain?: string } | null = null;
+    const basePlan = fakePlan();
+    if (basePlan.ok) basePlan.plan.chainId = 8453;
+    h.deps.plan = async (req) => {
+      planned = req;
+      return basePlan;
+    };
+    const out = await processMention(ALICE, h.deps);
+    expect(out.outcome).toBe("launched");
+    expect(planned).toMatchObject({ chain: "base" });
+    expect(h.store.launches[0]).toMatchObject({ chainId: 8453, factory: activeFactory("base"), quoteSymbol: "ETH" });
+    expect(h.x.replies[0]?.text).toContain("Base");
+    expect(h.x.replies[0]?.text).toContain("launch.o1.exchange/token/");
+    expect(h.x.replies[0]?.text).toContain("chain=8453");
   });
 
   it("stays silent on ignore", async () => {

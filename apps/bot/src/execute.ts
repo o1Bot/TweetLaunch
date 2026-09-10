@@ -1,6 +1,6 @@
 import { createWalletClient, fallback, getAddress, http, parseEventLogs, type Address, type Chain, type Hex, type PublicClient } from "viem";
-import { launchFactoryAbi, type LaunchPlan } from "@o1bot/executor";
-import { activeFeeEscrow, buildAllowlist, chainByKey, logger, publicClient, rpcUrls, type TxAllowlist } from "@o1bot/shared";
+import { factoryAbiFor, type LaunchPlan } from "@o1bot/executor";
+import { activeFeeEscrow, buildAllowlist, chainByKey, chainKeyById, DEFAULT_CHAIN_KEY, logger, publicClient, rpcUrls, type ChainKey, type TxAllowlist } from "@o1bot/shared";
 import { guardedAccount, type SignAudit } from "@o1bot/wallet";
 
 /**
@@ -33,8 +33,9 @@ export class ExecutionError extends Error {
   }
 }
 
-const KEY = "robinhood" as const;
 const RECEIPT_TIMEOUT_MS = 180_000;
+/** The launch chain behind a chain id; anything unknown is treated as Robinhood and fails the allow-list there. */
+const keyOf = (chainId: number): ChainKey => chainKeyById(chainId) ?? DEFAULT_CHAIN_KEY;
 
 /** The user's wallet behind the allow-list guard on any chain; every signature goes through `audit` first. */
 export async function walletClientOn(wallet: WalletRef, allowlist: TxAllowlist, audit: AuditSink, chain: Chain, urls: string[]) {
@@ -44,21 +45,25 @@ export async function walletClientOn(wallet: WalletRef, allowlist: TxAllowlist, 
 
 /** The same, on Robinhood. */
 export function walletClientFor(wallet: WalletRef, allowlist: TxAllowlist, audit: AuditSink) {
-  return walletClientOn(wallet, allowlist, audit, chainByKey(KEY), rpcUrls(KEY));
+  return walletClientOn(wallet, allowlist, audit, chainByKey(DEFAULT_CHAIN_KEY), rpcUrls(DEFAULT_CHAIN_KEY));
 }
 
+/** The wallet on the launch chain the plan was built for, allowed to touch that chain's factory and escrow only. */
 async function walletFor(wallet: WalletRef, factory: Address, chainId: number, audit: AuditSink) {
-  return walletClientFor(wallet, buildAllowlist({ chainId, factory, feeEscrow: activeFeeEscrow(KEY) }), audit);
+  const key = keyOf(chainId);
+  return walletClientOn(wallet, buildAllowlist({ chainId, factory, feeEscrow: activeFeeEscrow(key) }), audit, chainByKey(key), rpcUrls(key));
 }
 
 export async function executeLaunchPlan(plan: LaunchPlan, wallet: WalletRef, audit: AuditSink, opts: { client?: PublicClient } = {}): Promise<ExecutionResult> {
-  const client = opts.client ?? publicClient(KEY);
+  const key = keyOf(plan.chainId);
+  const client = opts.client ?? publicClient(key);
+  const abi = factoryAbiFor(key);
   const walletClient = await walletFor(wallet, plan.factory, plan.chainId, audit);
   // Gas limit and fee cap come from the plan, so the transaction can never
   // cost more than what the funding check verified against the balance.
   const common = {
     address: plan.factory,
-    abi: launchFactoryAbi,
+    abi,
     value: plan.call.value,
     gas: plan.simulation.gas,
     maxFeePerGas: plan.funding.maxFeePerGas,
@@ -79,7 +84,7 @@ export async function executeLaunchPlan(plan: LaunchPlan, wallet: WalletRef, aud
   const receipt = await client.waitForTransactionReceipt({ hash: txHash, timeout: RECEIPT_TIMEOUT_MS });
   if (receipt.status !== "success") throw new ExecutionError("launch transaction reverted on chain", txHash);
 
-  const launched = parseEventLogs({ abi: launchFactoryAbi, eventName: "Launched", logs: receipt.logs }).find((l) => getAddress(l.address) === getAddress(plan.factory));
+  const launched = parseEventLogs({ abi, eventName: "Launched", logs: receipt.logs }).find((l) => getAddress(l.address) === getAddress(plan.factory));
   if (!launched) throw new ExecutionError("launch confirmed but no Launched event was found in the receipt", txHash);
   const token = getAddress(launched.args.token);
   if (token !== plan.salt.token) {
@@ -95,14 +100,16 @@ export async function setCreatorFeeRecipient(
   audit: AuditSink,
   opts: { client?: PublicClient } = {},
 ): Promise<Hex> {
-  const client = opts.client ?? publicClient(KEY);
+  const key = keyOf(input.chainId);
+  const client = opts.client ?? publicClient(key);
+  const abi = factoryAbiFor(key);
   const args = [getAddress(input.token), getAddress(input.recipient)] as const;
   // Simulate first so a revert (wrong creator, unknown token) never costs gas.
-  await client.simulateContract({ address: input.factory, abi: launchFactoryAbi, functionName: "setCreatorFeeRecipient", args, account: wallet.address });
+  await client.simulateContract({ address: input.factory, abi, functionName: "setCreatorFeeRecipient", args, account: wallet.address });
   const walletClient = await walletFor(wallet, input.factory, input.chainId, audit);
   let txHash: Hex;
   try {
-    txHash = await walletClient.writeContract({ address: input.factory, abi: launchFactoryAbi, functionName: "setCreatorFeeRecipient", args });
+    txHash = await walletClient.writeContract({ address: input.factory, abi, functionName: "setCreatorFeeRecipient", args });
   } catch (err) {
     throw new ExecutionError(`fee recipient broadcast failed: ${err instanceof Error ? err.message : String(err)}`, null, err);
   }

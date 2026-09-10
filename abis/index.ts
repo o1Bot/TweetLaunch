@@ -3,3 +3,6 @@ export { launchFactoryAbi } from "./LaunchFactory.4663.0xcE9C48cFa068947f77738c8
 export { launchHookAbi } from "./LaunchHook.4663.0x0310cFEbE1D7A69f2414f6595bBe9d17c5342aCc";
 export { feeEscrowAbi } from "./FeeEscrow.4663.0xc5444b417a04a7E1B9C1E327c7D499803c14E5EF";
 export { launchTokenDeployerAbi } from "./LaunchTokenDeployer.4663.0xf86dfDb678D8E5d932100Ef479A59fa65a82a5Eb";
+export { baseLaunchFactoryAbi } from "./LaunchFactory.8453.0x1176122eb77AD6a2339322Cda7C4D7ea9BfA63dC";
+export { baseLaunchHookAbi } from "./LaunchHook.8453.0x1f91c998e7c2F4b690D75BDBf6502BDcD6e02AcC";
+export { baseFeeEscrowAbi } from "./FeeEscrow.8453.0xB3F11a3fb06A88059b7F7F423Ec0Dda506356866";

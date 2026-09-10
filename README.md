@@ -31,6 +31,10 @@ scripts/           maintenance scripts (o1 sync, ABI vendoring)
 | 5 | Front end: board, token page (chart, trades, holders, creator post, buy/sell), launch form, profile with fee claims | done |
 | 6 | Indexer (swaps, prices, candles) | done; needs a paid RPC and Postgres to run |
 
+### Chains
+
+Launches run on Robinhood Chain by default and on Base when the command ends with `on base` (added 2026-09-11). Both use o1's own factory for that chain, read fresh from o1's registry by `pnpm o1:sync`; `pnpm abi:vendor` vendors both chains' ABIs. The two differ in one thing: Robinhood mints an ERC-20 through a CREATE2 deployer, so the `01` salt is mined locally from `launchTokenBytecodeHash`, while Base mints through the B20 precompile, so candidates are checked with `getB20Address` in one Multicall3 round trip (`packages/executor/src/salt.ts`, validated against live Base launches). Base tokens live at `0xB20000...01` addresses. Base replies link to o1's token page until the indexer and token pages cover Base; trades from a post and the swap panel are Robinhood only for now.
+
 ## Quickstart
 
 ```bash

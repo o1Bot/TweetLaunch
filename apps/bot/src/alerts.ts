@@ -1,4 +1,4 @@
-import { env, logger } from "@o1bot/shared";
+import { env, logger, type ChainKey } from "@o1bot/shared";
 
 /**
  * Operator alerts: a Telegram message whenever something the user paid for
@@ -90,4 +90,4 @@ export function alerterFromEnv(): Alerter {
 }
 
 export const postUrl = (handle: string, tweetId: string) => `https://x.com/${handle}/status/${tweetId}`;
-export const txUrl = (hash: string) => `https://rh-scan.com/tx/${hash}`;
+export const txUrl = (hash: string, chain: ChainKey = "robinhood") => (chain === "base" ? `https://basescan.org/tx/${hash}` : `https://rh-scan.com/tx/${hash}`);

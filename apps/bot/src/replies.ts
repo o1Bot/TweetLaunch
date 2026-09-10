@@ -1,5 +1,5 @@
 import { formatEther } from "viem";
-import { fitsX, truncateForX } from "@o1bot/shared";
+import { fitsX, truncateForX, type ChainKey } from "@o1bot/shared";
 
 /**
  * English source text for every reply. The pipeline localizes these into the
@@ -16,6 +16,9 @@ export const TX_EXPLORER = "https://rh-scan.com/tx/";
 /** o1's token page: the chain goes in the query string, not the path. */
 export const O1_TOKEN_BASE = "https://launch.o1.exchange/token";
 export const O1_CHAIN_QUERY = "?chain=4663";
+const O1_CHAIN_ID: Record<ChainKey, number> = { robinhood: 4663, base: 8453 };
+/** "Robinhood Chain" or "Base", for sentences. */
+export const chainLabel = (chain: ChainKey | null | undefined): string => (chain === "base" ? "Base" : "Robinhood Chain");
 
 export function clampReply(text: string): string {
   return truncateForX(text);
@@ -28,8 +31,8 @@ export function formatEthCeil(wei: bigint, decimals = 4): string {
   return formatEther(rounded);
 }
 
-export function o1TokenUrl(token: string): string {
-  return `${O1_TOKEN_BASE}/${token.toLowerCase()}${O1_CHAIN_QUERY}`;
+export function o1TokenUrl(token: string, chain: ChainKey = "robinhood"): string {
+  return `${O1_TOKEN_BASE}/${token.toLowerCase()}?chain=${O1_CHAIN_ID[chain]}`;
 }
 
 export function tokenPageUrl(siteUrl: string, token: string): string {
@@ -38,6 +41,8 @@ export function tokenPageUrl(siteUrl: string, token: string): string {
 
 export type SuccessInput = {
   ticker: string;
+  /** Where the token launched; Robinhood when omitted. */
+  chain?: ChainKey;
   name: string;
   pair: string;
   token: string;
@@ -56,7 +61,7 @@ export type SuccessInput = {
  * text, and the localizer turns it into the post's language.
  */
 const SUCCESS_OPENERS: Array<(p: SuccessInput) => string> = [
-  (p) => `$${p.ticker} is live on Robinhood Chain, paired with ${p.pair}. Chart, trades and swap:`,
+  (p) => `$${p.ticker} is live on ${chainLabel(p.chain)}, paired with ${p.pair}. Chart, trades and swap:`,
   (p) => `Done. $${p.ticker} (${p.name}) just launched against ${p.pair}. Trade it here:`,
   (p) => `${p.name} is out. $${p.ticker} went live a moment ago on o1, paired with ${p.pair}. Watch it move:`,
   (p) => `Launched. $${p.ticker} is trading now, ${p.pair} pair, permanent liquidity. Everything about it:`,
@@ -65,9 +70,11 @@ const SUCCESS_OPENERS: Array<(p: SuccessInput) => string> = [
 ];
 
 export function successReply(p: SuccessInput): string {
-  const link = tokenPageUrl(p.siteUrl, p.token);
+  // Base tokens link to o1's page until o1bot's indexer and token pages cover Base.
+  const link = p.chain === "base" ? o1TokenUrl(p.token, "base") : tokenPageUrl(p.siteUrl, p.token);
   const index = Number.parseInt(p.token.slice(-4), 16) % SUCCESS_OPENERS.length;
-  const opener = SUCCESS_OPENERS[Number.isNaN(index) ? 0 : index]!(p);
+  // A Base launch always says so, since Robinhood is what people expect.
+  const opener = (p.chain === "base" ? SUCCESS_OPENERS.map((o) => o(p)).find((t) => t.includes("Base")) : undefined) ?? SUCCESS_OPENERS[Number.isNaN(index) ? 0 : index]!(p);
   const devBuy = p.devBuyEth ? `Dev buy of ${p.devBuyEth} ETH filled inside the launch.` : null;
   const fees = p.feesTo
     ? `Creator fees go to @${p.feesTo}, claimable after signing in with X at the link.`
@@ -93,9 +100,9 @@ export const replies = {
   notRegistered: (siteUrl: string) =>
     `Three steps first: 1) sign in with X at ${siteUrl} and allow signing, 2) send a little ETH on Robinhood Chain to the wallet it shows, 3) post the full launch command again. Then I launch from your wallet.`,
 
-  unsupportedChain: () => `Only Robinhood Chain is supported. Launches and trades run there; ETH can be bridged in from Base, Ethereum, Arbitrum or Optimism with "bridge 0.1 ETH from base".`,
+  unsupportedChain: () => `Launches run on Robinhood Chain by default, or on Base when the command ends with "on base". Trades run on Robinhood; ETH can be bridged in from Base, Ethereum, Arbitrum or Optimism with "bridge 0.1 ETH from base".`,
 
-  pairUnavailable: (pair: string, siteUrl: string) => `${pair} is not a pair on o1's Robinhood factory. Use ETH, USDG or a listed stock token. Pairs: ${siteUrl}/how-it-works`,
+  pairUnavailable: (pair: string, siteUrl: string, chainName = "Robinhood") => `${pair} is not a pair on o1's ${chainName} factory. Use ETH, USDG or a listed stock token. Pairs: ${siteUrl}/how-it-works`,
 
   tickerCollides: (ticker: string) => `$${ticker} is a stock token symbol on o1, so it cannot be a new ticker. Pick another one and post again.`,
 

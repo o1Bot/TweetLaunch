@@ -1,6 +1,9 @@
 import type { Address, PublicClient } from "viem";
 import { launchFactoryAbi, launchHookAbi } from "./abis";
 
+/** How a chain's factory mints the token: CREATE2 through a deployer (Robinhood, Monad) or Base's B20 precompile. */
+export type TokenMode = "erc20" | "b20";
+
 /**
  * Everything the factory would freeze into a new launch, read at ONE block so
  * the values are mutually consistent. Never build a transaction from the
@@ -14,7 +17,8 @@ export type FactoryState = {
   nativeLaunchFee: bigint;
   launchCreationEnabled: boolean;
   tokenAddressSuffix: number;
-  tokenDeployer: Address;
+  /** CREATE2 deployer on erc20 chains; null on Base, where the B20 precompile mints. */
+  tokenDeployer: Address | null;
   hook: Address;
   launchBuyAdapter: Address;
   platformFeeRecipient: Address;
@@ -23,7 +27,7 @@ export type FactoryState = {
   antiSnipeWindowSeconds: number;
 };
 
-export async function readFactoryState(client: PublicClient, factory: Address, blockNumber: bigint): Promise<FactoryState> {
+export async function readFactoryState(client: PublicClient, factory: Address, blockNumber: bigint, mode: TokenMode = "erc20"): Promise<FactoryState> {
   const c = { address: factory, abi: launchFactoryAbi } as const;
   const [
     configVersion,
@@ -32,7 +36,6 @@ export async function readFactoryState(client: PublicClient, factory: Address, b
     nativeLaunchFee,
     launchCreationEnabled,
     tokenAddressSuffix,
-    tokenDeployer,
     hook,
     platformFeeRecipient,
     baseFeeBps,
@@ -48,7 +51,6 @@ export async function readFactoryState(client: PublicClient, factory: Address, b
       { ...c, functionName: "nativeLaunchFee" },
       { ...c, functionName: "launchCreationEnabled" },
       { ...c, functionName: "TOKEN_ADDRESS_SUFFIX" },
-      { ...c, functionName: "tokenDeployer" },
       { ...c, functionName: "hook" },
       { ...c, functionName: "platformFeeRecipient" },
       { ...c, functionName: "baseFeeBps" },
@@ -56,7 +58,10 @@ export async function readFactoryState(client: PublicClient, factory: Address, b
       { ...c, functionName: "antiSnipeWindowSeconds" },
     ],
   });
-  const launchBuyAdapter = await client.readContract({ address: hook, abi: launchHookAbi, functionName: "launchBuyAdapter", blockNumber });
+  const [launchBuyAdapter, tokenDeployer] = await Promise.all([
+    client.readContract({ address: hook, abi: launchHookAbi, functionName: "launchBuyAdapter", blockNumber }),
+    mode === "erc20" ? client.readContract({ ...c, functionName: "tokenDeployer", blockNumber }) : Promise.resolve(null),
+  ]);
   return {
     blockNumber,
     configVersion,

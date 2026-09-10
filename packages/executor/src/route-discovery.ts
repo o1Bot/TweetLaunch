@@ -1,5 +1,5 @@
 import { getAddress, isAddress, zeroAddress, type Address, type PublicClient } from "viem";
-import { findQuote, logger, o1Chain, type O1Quote } from "@o1bot/shared";
+import { chainDisplayName, DEFAULT_CHAIN_KEY, findQuote, logger, o1Chain, type ChainKey, type O1Quote } from "@o1bot/shared";
 import { v3PoolStep, v4PoolStep, type RouteStep } from "./route";
 import { poolIdOf, poolKeyFor, stateViewAbi, v3FactoryAbi, v3PoolAbi, V3_FEE_TIERS, V4_FEE_TIERS } from "./v4";
 
@@ -28,14 +28,17 @@ const DEFAULT_MAX = 6;
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
 const cache = new Map<string, { at: number; candidates: RouteCandidate[] }>();
 
-function addressesFromConfig() {
-  const chain = o1Chain("robinhood");
+/** The dollar asset a two-hop route bridges through: USDG on Robinhood, USDC on Base. */
+const BRIDGE_STABLE: Record<ChainKey, string> = { robinhood: "USDG", base: "USDC" };
+
+function addressesFromConfig(key: ChainKey) {
+  const chain = o1Chain(key);
   const weth = chain.swapX.wrappedNativeToken;
   const v3Factory = chain.swapX.factoryV3;
-  if (typeof weth !== "string" || !isAddress(weth)) throw new Error("config/o1.json: swapX.wrappedNativeToken missing");
-  if (typeof v3Factory !== "string" || !isAddress(v3Factory)) throw new Error("config/o1.json: swapX.factoryV3 missing");
-  const usdg = findQuote("robinhood", "USDG");
-  return { weth: getAddress(weth), v3Factory: getAddress(v3Factory), stateView: chain.uniswapV4.stateView, usdg: usdg?.address ?? null };
+  if (typeof weth !== "string" || !isAddress(weth)) throw new Error(`config/o1.json: ${key} swapX.wrappedNativeToken missing`);
+  if (typeof v3Factory !== "string" || !isAddress(v3Factory)) throw new Error(`config/o1.json: ${key} swapX.factoryV3 missing`);
+  const stable = findQuote(key, BRIDGE_STABLE[key]);
+  return { weth: getAddress(weth), v3Factory: getAddress(v3Factory), stateView: chain.uniswapV4.stateView, usdg: stable?.address ?? null, stableSymbol: BRIDGE_STABLE[key] };
 }
 
 type V3Pool = { fee: number; pool: Address; liquidity: bigint };
@@ -76,13 +79,14 @@ async function v4PoolsWithLiquidity(client: PublicClient, stateView: Address, a:
 const byLiquidityDesc = (x: { liquidity: bigint }, y: { liquidity: bigint }) => (y.liquidity > x.liquidity ? 1 : y.liquidity < x.liquidity ? -1 : 0);
 
 /** Prefix routes (ETH → quote). Empty for ETH itself; empty list = no dev buy possible. */
-export async function discoverPrefixRoutes(client: PublicClient, quote: O1Quote, opts: DiscoveryOptions = {}): Promise<RouteCandidate[]> {
+export async function discoverPrefixRoutes(client: PublicClient, quote: O1Quote, opts: DiscoveryOptions = {}, key: ChainKey = DEFAULT_CHAIN_KEY): Promise<RouteCandidate[]> {
   if (quote.address === zeroAddress) return [{ label: "native", steps: [], liquidity: 2n ** 128n }];
   const ttl = opts.ttlMs ?? DEFAULT_TTL_MS;
-  const cached = cache.get(quote.address);
+  const cacheKey = `${key}:${quote.address}`;
+  const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.at < ttl) return cached.candidates;
 
-  const { weth, v3Factory, stateView, usdg } = addressesFromConfig();
+  const { weth, v3Factory, stateView, usdg, stableSymbol } = addressesFromConfig(key);
   const sym = quote.symbol;
   const out: RouteCandidate[] = [];
 
@@ -95,17 +99,17 @@ export async function discoverPrefixRoutes(client: PublicClient, quote: O1Quote,
       const first = v3PoolStep(weth, usdg, hop1.pool, hop1.fee);
       const [v3Bridge, v4Bridge] = await Promise.all([v3PoolsWithLiquidity(client, v3Factory, usdg, quote.address), v4PoolsWithLiquidity(client, stateView, usdg, quote.address)]);
       for (const p of v3Bridge) {
-        out.push({ label: `v3 WETH/USDG ${hop1.fee} → v3 USDG/${sym} ${p.fee}`, steps: [first, v3PoolStep(usdg, quote.address, p.pool, p.fee)], liquidity: p.liquidity });
+        out.push({ label: `v3 WETH/${stableSymbol} ${hop1.fee} → v3 ${stableSymbol}/${sym} ${p.fee}`, steps: [first, v3PoolStep(usdg, quote.address, p.pool, p.fee)], liquidity: p.liquidity });
       }
       for (const p of v4Bridge) {
-        out.push({ label: `v3 WETH/USDG ${hop1.fee} → v4 USDG/${sym} ${p.fee}`, steps: [first, v4PoolStep(usdg, quote.address, p.fee, p.tickSpacing)], liquidity: p.liquidity });
+        out.push({ label: `v3 WETH/${stableSymbol} ${hop1.fee} → v4 ${stableSymbol}/${sym} ${p.fee}`, steps: [first, v4PoolStep(usdg, quote.address, p.fee, p.tickSpacing)], liquidity: p.liquidity });
       }
     }
   }
 
   const candidates = out.sort(byLiquidityDesc).slice(0, opts.maxCandidates ?? DEFAULT_MAX);
-  logger.debug({ quote: sym, candidates: candidates.map((c) => c.label) }, "dev-buy route candidates");
-  cache.set(quote.address, { at: Date.now(), candidates });
+  logger.debug({ chain: chainDisplayName(key), quote: sym, candidates: candidates.map((c) => c.label) }, "dev-buy route candidates");
+  cache.set(cacheKey, { at: Date.now(), candidates });
   return candidates;
 }
 
