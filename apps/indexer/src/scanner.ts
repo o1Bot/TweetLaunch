@@ -40,16 +40,20 @@ export const DEFAULT_SCAN: Omit<ScanConfig, "poolManager" | "hook"> = { rangeIni
  * take. Anyone can put any bytes there: a NUL in the middle of the word (not
  * only as padding) made Postgres reject the whole batch with "invalid byte
  * sequence for encoding UTF8: 0x00", which stalled the indexer on that block
- * forever. Control characters are dropped wherever they sit, undecodable bytes
- * (U+FFFD after decoding) are dropped too, and an empty result is null.
+ * forever. Control characters are dropped wherever they sit; a word that is
+ * binary rather than text (leading zero bytes, or bytes that do not decode)
+ * is stored as null, as is an empty result.
  */
 export function commentText(raw: Hex): string | null {
   if (!raw || /^0x0*$/.test(raw)) return null;
+  // A word that starts with zero bytes is a number or an address in the comment slot, not text.
+  if (/^0x00/.test(raw)) return null;
   try {
-    const s = hexToString(raw, { size: 32 })
-      .replace(/[\u0000-\u001f\u007f\ufffd]/g, "")
-      .trim();
-    return s.length ? s.slice(0, 32) : null;
+    const s = hexToString(raw, { size: 32 });
+    // Undecodable bytes mean binary, not a comment.
+    if (s.includes("\ufffd")) return null;
+    const clean = s.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+    return clean.length ? clean.slice(0, 32) : null;
   } catch {
     return null;
   }
