@@ -11,7 +11,7 @@ import { dryRunBridgeChain } from "../src/bridge-chain";
 import type { BotConfig } from "../src/config";
 import { noO1Tokens } from "../src/o1-tokens";
 import { processMention, type PipelineDeps } from "../src/pipeline";
-import { buildBrief, drainSiteJobs, RESERVATION_TTL_MS, runSiteJob } from "../src/site-core";
+import { buildBrief, drainSiteJobs, recoverStaleJobs, RESERVATION_TTL_MS, runSiteJob, STALE_JOB_MS } from "../src/site-core";
 import { MemorySiteStore } from "../src/site-store";
 import { MemoryBotStore } from "../src/store";
 import { dryRunTradeChain } from "../src/trade-chain";
@@ -287,6 +287,25 @@ describe("the worker", () => {
     await drainSiteJobs(h.deps);
     expect(h.sites.sites[0]?.status).toBe("LIVE");
     expect(h.x.replies).toHaveLength(1);
+  });
+
+  it("puts a job a dead worker left running back in the queue once, then fails it and the site", async () => {
+    const site = h.sites.sites[0]!;
+    const first = (await h.sites.claimJob())!;
+    expect(first).toMatchObject({ status: "RUNNING", attempts: 1 });
+    // Not stale yet: nothing happens.
+    expect(await recoverStaleJobs(h.deps)).toEqual({ requeued: 0, failed: 0 });
+    h.sites.jobs[0]!.startedAt = new Date(NOW.getTime() - STALE_JOB_MS - 1);
+    expect(await recoverStaleJobs(h.deps)).toEqual({ requeued: 1, failed: 0 });
+    expect(h.sites.jobs[0]).toMatchObject({ status: "QUEUED", startedAt: null, attempts: 1 });
+    // Claimed again and lost again: failed for good, and the site with it (it never had a version).
+    await h.sites.claimJob();
+    h.sites.jobs[0]!.startedAt = new Date(NOW.getTime() - STALE_JOB_MS - 1);
+    expect(await recoverStaleJobs(h.deps)).toEqual({ requeued: 0, failed: 1 });
+    expect(h.sites.jobs[0]).toMatchObject({ status: "FAILED", attempts: 2 });
+    expect(h.sites.sites.find((s) => s.id === site.id)).toMatchObject({ status: "FAILED" });
+    // A normal drain afterwards finds nothing to do.
+    expect(await drainSiteJobs(h.deps)).toBe(0);
   });
 
   it("expires reservations that never got their launch, never one whose token exists", async () => {
