@@ -33,6 +33,10 @@ export type SiteCoreDeps = {
 
 /** Reservations that never saw a confirmed launch are freed after this long. */
 export const RESERVATION_TTL_MS = 30 * 60_000;
+/** A build takes a minute or two; a job RUNNING this long belongs to a worker that died (a deploy, most likely). */
+export const STALE_JOB_MS = 15 * 60_000;
+/** Claims a job may use before it is failed for good. */
+export const MAX_JOB_ATTEMPTS = 2;
 const PUBLIC_GATEWAY = "https://gateway.pinata.cloud/ipfs";
 
 type Logger = { info: (obj: object, msg: string) => void; warn: (obj: object, msg: string) => void; error: (obj: object, msg: string) => void };
@@ -158,6 +162,23 @@ async function notify(job: SiteJobRecord, site: SiteRecord, outcome: SiteJobOutc
   }
 }
 
+/**
+ * Jobs a dead worker left RUNNING: back to the queue once, then failed, with
+ * the site marked FAILED when it never had a version (so the creator can
+ * retry from the editor).
+ */
+export async function recoverStaleJobs(deps: SiteCoreDeps): Promise<{ requeued: number; failed: number }> {
+  const now = deps.now ?? (() => new Date());
+  const { requeued, failed } = await deps.sites.requeueStale(new Date(now().getTime() - STALE_JOB_MS), MAX_JOB_ATTEMPTS);
+  for (const { jobId, siteId } of failed) {
+    const site = await deps.sites.byId(siteId);
+    if (site && site.publishedN === null) await deps.sites.update(siteId, { status: "FAILED", error: "the build was interrupted twice" });
+    (deps.alerts ?? noAlerts).send({ kind: "site_failed", title: `Site build lost: ${site?.slug ?? siteId}`, key: `site-lost:${siteId}`, fields: [["Job", jobId], ["Site", site ? tokenSiteUrl(deps.config, site.slug) : siteId]] });
+  }
+  if (requeued.length || failed.length) logger.warn({ requeued, failed: failed.map((f) => f.jobId) }, "stale site jobs recovered");
+  return { requeued: requeued.length, failed: failed.length };
+}
+
 /** Run queued jobs one at a time, oldest first. Returns how many ran. */
 export async function drainSiteJobs(deps: SiteCoreDeps, max = 5): Promise<number> {
   let ran = 0;
@@ -189,6 +210,7 @@ export function startSiteJobPolling(deps: SiteCoreDeps, pollMs: number): SiteJob
     try {
       const freed = await deps.sites.expireReservations(new Date(now().getTime() - RESERVATION_TTL_MS));
       if (freed) logger.info({ freed }, "expired site reservations released");
+      await recoverStaleJobs(deps);
       await drainSiteJobs(deps);
     } catch (err) {
       logger.warn({ err: errMsg(err) }, "site job poll failed; retrying next tick");

@@ -39,6 +39,9 @@ export type SiteJobRecord = {
   versionN: number | null;
   error: string | null;
   createdById: string | null;
+  /** Times a worker claimed it. */
+  attempts: number;
+  startedAt: Date | null;
   createdAt: Date;
 };
 
@@ -86,6 +89,12 @@ export interface SiteStore {
   /** The oldest queued job (or the one named), moved to RUNNING atomically; null when there is none. */
   claimJob(jobId?: string): Promise<SiteJobRecord | null>;
   finishJob(jobId: string, result: { versionN: number } | { error: string }): Promise<void>;
+  /**
+   * Jobs a worker claimed before `before` and never finished (the worker died
+   * mid-build, a deploy for instance): back to the queue while they have
+   * attempts left, failed otherwise. Returns what was done.
+   */
+  requeueStale(before: Date, maxAttempts: number): Promise<{ requeued: string[]; failed: Array<{ jobId: string; siteId: string }> }>;
   /** Reservations older than `before` whose launch never confirmed (no token): deleted. Returns how many. */
   expireReservations(before: Date): Promise<number>;
 }
@@ -179,11 +188,27 @@ export class PrismaSiteStore implements SiteStore {
   async claimJob(jobId?: string) {
     const candidate = jobId ? await db().tokenSiteJob.findUnique({ where: { id: jobId } }) : await db().tokenSiteJob.findFirst({ where: { status: "QUEUED" }, orderBy: { createdAt: "asc" } });
     if (!candidate || candidate.status !== "QUEUED") return null;
-    const claimed = await db().tokenSiteJob.updateMany({ where: { id: candidate.id, status: "QUEUED" }, data: { status: "RUNNING", startedAt: new Date() } });
-    return claimed.count === 1 ? { ...candidate, status: "RUNNING" as const } : null;
+    const startedAt = new Date();
+    const claimed = await db().tokenSiteJob.updateMany({ where: { id: candidate.id, status: "QUEUED" }, data: { status: "RUNNING", startedAt, attempts: { increment: 1 } } });
+    return claimed.count === 1 ? { ...candidate, status: "RUNNING" as const, startedAt, attempts: candidate.attempts + 1 } : null;
   }
   async finishJob(jobId: string, result: { versionN: number } | { error: string }) {
     await db().tokenSiteJob.update({ where: { id: jobId }, data: "versionN" in result ? { status: "DONE", versionN: result.versionN, finishedAt: new Date() } : { status: "FAILED", error: result.error.slice(0, 1000), finishedAt: new Date() } });
+  }
+  async requeueStale(before: Date, maxAttempts: number) {
+    const stale = await db().tokenSiteJob.findMany({ where: { status: "RUNNING", startedAt: { lt: before } }, select: { id: true, siteId: true, attempts: true } });
+    const requeued: string[] = [];
+    const failed: Array<{ jobId: string; siteId: string }> = [];
+    for (const job of stale) {
+      if (job.attempts < maxAttempts) {
+        await db().tokenSiteJob.update({ where: { id: job.id }, data: { status: "QUEUED", startedAt: null } });
+        requeued.push(job.id);
+      } else {
+        await db().tokenSiteJob.update({ where: { id: job.id }, data: { status: "FAILED", error: `worker lost after ${job.attempts} attempts`, finishedAt: new Date() } });
+        failed.push({ jobId: job.id, siteId: job.siteId });
+      }
+    }
+    return { requeued, failed };
   }
   async expireReservations(before: Date) {
     const stale = await db().tokenSite.findMany({ where: { status: "RESERVED", token: null, createdAt: { lt: before } }, select: { id: true } });
@@ -268,7 +293,7 @@ export class MemorySiteStore implements SiteStore {
     return this.versions.find((v) => v.siteId === siteId && v.n === n) ?? null;
   }
   async createJob(j: NewSiteJob) {
-    const job: SiteJobRecord = { id: `j${++this.seq}`, siteId: j.siteId, instruction: j.instruction, baseN: j.baseN, mentionId: j.mentionId, status: "QUEUED", versionN: null, error: null, createdById: j.createdById, createdAt: this.now() };
+    const job: SiteJobRecord = { id: `j${++this.seq}`, siteId: j.siteId, instruction: j.instruction, baseN: j.baseN, mentionId: j.mentionId, status: "QUEUED", versionN: null, error: null, createdById: j.createdById, attempts: 0, startedAt: null, createdAt: this.now() };
     this.jobs.push(job);
     return job;
   }
@@ -276,6 +301,8 @@ export class MemorySiteStore implements SiteStore {
     const job = jobId ? this.jobs.find((j) => j.id === jobId && j.status === "QUEUED") : this.jobs.find((j) => j.status === "QUEUED");
     if (!job) return null;
     job.status = "RUNNING";
+    job.startedAt = this.now();
+    job.attempts++;
     return job;
   }
   async finishJob(jobId: string, result: { versionN: number } | { error: string }) {
@@ -283,6 +310,21 @@ export class MemorySiteStore implements SiteStore {
     if (!job) return;
     if ("versionN" in result) Object.assign(job, { status: "DONE", versionN: result.versionN });
     else Object.assign(job, { status: "FAILED", error: result.error });
+  }
+  async requeueStale(before: Date, maxAttempts: number) {
+    const requeued: string[] = [];
+    const failed: Array<{ jobId: string; siteId: string }> = [];
+    for (const job of this.jobs) {
+      if (job.status !== "RUNNING" || !job.startedAt || job.startedAt >= before) continue;
+      if (job.attempts < maxAttempts) {
+        Object.assign(job, { status: "QUEUED", startedAt: null });
+        requeued.push(job.id);
+      } else {
+        Object.assign(job, { status: "FAILED", error: `worker lost after ${job.attempts} attempts` });
+        failed.push({ jobId: job.id, siteId: job.siteId });
+      }
+    }
+    return { requeued, failed };
   }
   async expireReservations(before: Date) {
     const stale = this.sites.filter((s) => s.status === "RESERVED" && s.token === null && s.createdAt < before);

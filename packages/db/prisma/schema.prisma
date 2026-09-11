@@ -438,6 +438,8 @@ model TokenSiteJob {
   /// The version the revision starts from; null for the first build.
   baseN       Int?
   status      TokenSiteJobStatus @default(QUEUED)
+  /// How many times a worker claimed it; a job left RUNNING by a worker that died is re-queued once, then failed.
+  attempts    Int                @default(0)
   versionN    Int?
   error       String?
   createdById String?
