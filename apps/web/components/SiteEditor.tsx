@@ -117,6 +117,18 @@ export function SiteEditor({ slug }: { slug: string }) {
     msgsRef.current?.scrollTo({ top: msgsRef.current.scrollHeight });
   }, [view, job]);
 
+  // Seconds since the job was queued, so a long wait is visibly a wait and not a hang.
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!job || (job.status !== "QUEUED" && job.status !== "RUNNING")) {
+      setElapsed(0);
+      return;
+    }
+    const started = Date.now();
+    const t = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [job?.id, job?.status]);
+
   const send = useCallback(
     async (text: string) => {
       const t = text.trim();
@@ -258,7 +270,12 @@ export function SiteEditor({ slug }: { slug: string }) {
                 )}
               </div>
             ))}
-            {working && <div className="se-msg bot working">{job?.status === "RUNNING" ? "Writing the site… about a minute." : "Queued for the agent…"}</div>}
+            {working && (
+              <div className="se-msg bot working">
+                {job?.status !== "RUNNING" ? "Queued for the agent…" : view.versions.length ? "Applying your change… small changes take about half a minute, a new look takes two." : "Writing the site… one to two minutes."}
+                {elapsed > 0 && <span className="n">{elapsed}s</span>}
+              </div>
+            )}
           </div>
           <div className="se-compose">
             <div className="quick">

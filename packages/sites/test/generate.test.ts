@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { briefText, type SiteBrief } from "../src/brief";
-import { HTML_MAX_BYTES, postProcess, SiteGenerationError, systemPrompt, userMessage, type GeneratedSite } from "../src/generate";
+import { applyEdits, HTML_MAX_BYTES, postProcess, SiteGenerationError, systemPrompt, userMessage, type GeneratedSite } from "../src/generate";
 import { BLOCK_TAGS } from "../src/sanitize";
 
 const brief: SiteBrief = {
@@ -96,6 +96,29 @@ describe("postProcess", () => {
     expect(out.description.length).toBeLessThanOrEqual(160);
     expect(out.description).not.toContain("\n");
     expect(() => postProcess(generated({ html: "a".repeat(HTML_MAX_BYTES + 1) }))).toThrow(SiteGenerationError);
+  });
+});
+
+describe("applyEdits", () => {
+  const files = { html: `<h1 class="hero__name">Cash Cat</h1><p>To the moon.</p>`, css: `.hero{color:red}\n.hero__name{font-size:3rem}` };
+
+  it("applies unique edits in order, including deletions, across both files", () => {
+    const out = applyEdits(files, [
+      { file: "index.html", find: "Cash Cat", replace: "Cash Cat!" },
+      { file: "index.html", find: "<p>To the moon.</p>", replace: "" },
+      { file: "styles.css", find: "font-size:3rem", replace: "font-size:5rem" },
+    ]);
+    expect(out).toEqual({ ok: true, files: { html: `<h1 class="hero__name">Cash Cat!</h1>`, css: `.hero{color:red}\n.hero__name{font-size:5rem}` } });
+  });
+
+  it("refuses an edit whose find is empty, missing or not unique", () => {
+    expect(applyEdits(files, [{ file: "index.html", find: "", replace: "x" }])).toMatchObject({ ok: false, reason: "edit 1: empty find" });
+    expect(applyEdits(files, [{ file: "styles.css", find: "nope", replace: "x" }])).toMatchObject({ ok: false, reason: "edit 1 (styles.css): find matches 0 times" });
+    expect(applyEdits(files, [{ file: "styles.css", find: ".hero", replace: ".x" }])).toMatchObject({ ok: false, reason: "edit 1 (styles.css): find matches 2 times" });
+  });
+
+  it("treats replacement text literally", () => {
+    expect(applyEdits(files, [{ file: "index.html", find: "moon", replace: "$& $1 moon" }])).toMatchObject({ ok: true, files: { html: `<h1 class="hero__name">Cash Cat</h1><p>To the $& $1 moon.</p>` } });
   });
 });
 

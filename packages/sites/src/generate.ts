@@ -29,6 +29,64 @@ const Output = z.object({
 });
 export type GeneratedSite = z.infer<typeof Output>;
 
+/**
+ * Revisions: most instructions touch a few lines, so the model returns
+ * search-and-replace edits instead of the whole site (a tenth of the
+ * tokens, a fifth of the wait). Every `find` must occur exactly once in the
+ * current file; when one does not, or the model says the change is too big,
+ * the full rewrite runs instead.
+ */
+const Edit = z.object({
+  file: z.enum(["index.html", "styles.css"]),
+  find: z.string().describe("Text to replace, copied verbatim from the current file. It must occur exactly once: include enough context (a whole rule, tag or paragraph) to be unique, and nothing more."),
+  replace: z.string().describe("What takes its place; an empty string deletes the text."),
+});
+const Revision = z.object({
+  summary: z.string().describe("One sentence, in English, on what was changed. For logs and the editor's history."),
+  title: z.string().describe("The document title, unchanged unless the instruction asks for a new one."),
+  description: z.string().describe("Meta description for link previews, unchanged unless the instruction asks for a new one."),
+  rewrite: z.boolean().describe("true when the instruction needs a different site (a new layout, a new visual idea, most sections touched): then edits is empty and the whole site is written again in a separate step."),
+  edits: z.array(Edit).describe("The edits that apply the instruction, in order, each against the files as left by the previous ones. Empty when rewrite is true."),
+});
+export type SiteEdit = z.infer<typeof Edit>;
+export type SiteRevision = z.infer<typeof Revision>;
+const MAX_REVISION_TOKENS = 8_000;
+
+/** Apply edits in order; every `find` must match exactly once in the file it names. */
+export function applyEdits(files: SiteFiles, edits: SiteEdit[]): { ok: true; files: SiteFiles } | { ok: false; reason: string } {
+  const out = { html: files.html, css: files.css };
+  for (const [i, e] of edits.entries()) {
+    if (!e.find) return { ok: false, reason: `edit ${i + 1}: empty find` };
+    const key = e.file === "index.html" ? "html" : "css";
+    const count = out[key].split(e.find).length - 1;
+    if (count !== 1) return { ok: false, reason: `edit ${i + 1} (${e.file}): find matches ${count} times` };
+    out[key] = out[key].replace(e.find, () => e.replace);
+  }
+  return { ok: true, files: out };
+}
+
+function revisionMessage(input: GenerateInput & { current: SiteFiles; instruction: string }): string {
+  return [
+    "<brief>",
+    briefText(input.brief),
+    "</brief>",
+    "<current_files>",
+    "===FILE: index.html===",
+    input.current.html,
+    "===ENDFILE===",
+    "===FILE: styles.css===",
+    input.current.css,
+    "===ENDFILE===",
+    "</current_files>",
+    "<instruction>",
+    input.instruction.trim(),
+    "</instruction>",
+    "<mode>",
+    "Revision. Apply the instruction with the smallest set of search-and-replace edits against the current files: copy each find verbatim from the file, make it unique, change only what the instruction asks and keep everything else exactly as it is. The rules of the site still apply to what you write. If the instruction really needs a different site, set rewrite to true and return no edits.",
+    "</mode>",
+  ].join("\n");
+}
+
 export function systemPrompt(): string {
   return `You are the site builder of o1bot.exchange. A token was just launched on o1 Launchpad from a post on X, and you write its website: one page, finished, worth sharing. You are given a brief with everything that is known about the token. You return a body fragment and a stylesheet; o1bot wraps them in the document, adds the live numbers, and serves the page at the site address.
 
@@ -140,8 +198,46 @@ export function postProcess(out: GeneratedSite): GeneratedSite {
   return { ...out, html, css, title: out.title.trim().slice(0, 70), description: out.description.trim().replace(/\s+/g, " ").slice(0, 160), summary: out.summary.trim() };
 }
 
-export async function generateSite(input: GenerateInput, opts: { client?: Anthropic; model?: string } = {}): Promise<GeneratedSite & { model: string; usage: { input: number; output: number } }> {
+export type GenerateOutcome = GeneratedSite & { model: string; usage: { input: number; output: number }; mode: "build" | "edits" };
+
+/** A revision as edits; null when the model wants a rewrite, an edit does not apply, or the call fails (the caller falls back). */
+async function reviseSite(input: GenerateInput & { current: SiteFiles; instruction: string }, client: Anthropic, model: string): Promise<GenerateOutcome | null> {
+  try {
+    const response = await client.messages.parse({
+      model,
+      max_tokens: MAX_REVISION_TOKENS,
+      ...(/-4-\d/.test(model) ? { temperature: 0.3 } : {}),
+      system: [{ type: "text", text: systemPrompt(), cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: revisionMessage(input) }],
+      output_config: { format: zodOutputFormat(Revision) },
+    });
+    if (response.stop_reason !== "end_turn") return null;
+    const parsed = response.parsed_output as SiteRevision | null | undefined;
+    if (!parsed || parsed.rewrite || parsed.edits.length === 0) {
+      logger.info({ slug: input.brief.slug, rewrite: parsed?.rewrite ?? null, edits: parsed?.edits.length ?? 0 }, "revision needs a full rewrite");
+      return null;
+    }
+    const applied = applyEdits(input.current, parsed.edits);
+    if (!applied.ok) {
+      logger.warn({ slug: input.brief.slug, reason: applied.reason }, "revision edits did not apply; rewriting instead");
+      return null;
+    }
+    const out = postProcess({ summary: parsed.summary, title: parsed.title, description: parsed.description, html: applied.files.html, css: applied.files.css });
+    const usage = { input: response.usage.input_tokens, output: response.usage.output_tokens };
+    logger.info({ slug: input.brief.slug, model, usage, edits: parsed.edits.length }, "site revised with edits");
+    return { ...out, model, usage, mode: "edits" };
+  } catch (err) {
+    logger.warn({ slug: input.brief.slug, err: err instanceof Error ? err.message : String(err) }, "revision call failed; rewriting instead");
+    return null;
+  }
+}
+
+export async function generateSite(input: GenerateInput, opts: { client?: Anthropic; model?: string } = {}): Promise<GenerateOutcome> {
   const model = opts.model ?? env().SITES_MODEL ?? DEFAULT_SITES_MODEL;
+  if (input.current && input.instruction?.trim()) {
+    const revised = await reviseSite({ ...input, current: input.current, instruction: input.instruction }, opts.client ?? client(), model);
+    if (revised) return revised;
+  }
   let response: Awaited<ReturnType<Anthropic["messages"]["parse"]>>;
   try {
     response = await (opts.client ?? client()).messages.parse({
@@ -162,6 +258,6 @@ export async function generateSite(input: GenerateInput, opts: { client?: Anthro
   if (!parsed) throw new SiteGenerationError("no structured output");
   const out = postProcess(parsed);
   const usage = { input: response.usage.input_tokens, output: response.usage.output_tokens };
-  logger.info({ slug: input.brief.slug, model, usage, htmlBytes: Buffer.byteLength(out.html, "utf8"), cssBytes: Buffer.byteLength(out.css, "utf8") }, input.current ? "site revised" : "site generated");
-  return { ...out, model, usage };
+  logger.info({ slug: input.brief.slug, model, usage, htmlBytes: Buffer.byteLength(out.html, "utf8"), cssBytes: Buffer.byteLength(out.css, "utf8") }, input.current ? "site rewritten" : "site generated");
+  return { ...out, model, usage, mode: "build" };
 }
