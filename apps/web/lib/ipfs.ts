@@ -47,3 +47,15 @@ export function symbolColor(symbol: string): string {
   const hue = h % 360;
   return `hsl(${hue} 62% 46%)`;
 }
+
+/**
+ * `ipfs://CID` on the public gateway, for pages served on other origins
+ * (token sites on their subdomains) and for link previews fetched by X and
+ * others: the dedicated gateway is metered and can refuse, the public one
+ * answers anyone. A plain URL is returned unchanged.
+ */
+export function publicIpfsUrl(uri: string | null | undefined): string | null {
+  if (!uri) return null;
+  const path = uri.startsWith("ipfs://") ? uri.slice("ipfs://".length) : uri.match(/\/ipfs\/(.+)$/)?.[1];
+  return path ? `${trim(PUBLIC_GATEWAY)}/${path}` : uri;
+}
