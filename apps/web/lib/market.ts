@@ -6,6 +6,7 @@ import { CHAIN_IDS, chainKeyOf, type ChainKey } from "./chains-web";
 import { ipfsToHttp } from "./ipfs";
 import { readBurned } from "./burn";
 import { quoteUsd } from "./quote-usd";
+import { siteUrlFor } from "./site-domain";
 import type { Creator, GenesisPost, QuoteKind, TokenDetail, TokenRow, TradeRow } from "./types";
 
 /**
@@ -81,8 +82,9 @@ function postOf(pool: PoolWithLaunch): GenesisPost | null {
   return m ? { tweetId: m.tweetId, text: m.text, postedAt: m.postedAt ? m.postedAt.toISOString() : null } : null;
 }
 
-function toRow(pool: PoolWithLaunch, extra: PoolExtra): TokenRow {
+function toRow(pool: PoolWithLaunch, extra: PoolExtra, siteUrl: string | null = null): TokenRow {
   return {
+    siteUrl,
     token: pool.token,
     chainId: pool.chainId,
     chain: chainKeyOf(pool.chainId),
@@ -105,11 +107,18 @@ function toRow(pool: PoolWithLaunch, extra: PoolExtra): TokenRow {
   };
 }
 
+/** Live sites by token address (lowercase), for the board badge and the token page link. */
+async function liveSitesFor(tokens: string[]): Promise<Map<string, string>> {
+  if (tokens.length === 0) return new Map();
+  const rows = await db().tokenSite.findMany({ where: { token: { in: tokens }, status: "LIVE" }, select: { token: true, slug: true } });
+  return new Map(rows.filter((r) => r.token).map((r) => [r.token!.toLowerCase(), siteUrlFor(r.slug)]));
+}
+
 export async function listBoardTokens(chain?: ChainKey): Promise<TokenRow[]> {
   if (!dbConfigured()) return [];
   const pools = await db().pool.findMany({ where: poolFilter(chain), include, orderBy: { launchedAt: "desc" } });
-  const burned = await burnedFor(pools);
-  const rows = await Promise.all(pools.map(async (p) => toRow(p, await statsFor(p, burned.get(getAddress(p.token)) ?? 0n))));
+  const [burned, sites] = await Promise.all([burnedFor(pools), liveSitesFor(pools.map((p) => p.token))]);
+  const rows = await Promise.all(pools.map(async (p) => toRow(p, await statsFor(p, burned.get(getAddress(p.token)) ?? 0n), sites.get(p.token.toLowerCase()) ?? null)));
   const vol = (r: TokenRow) => r.stats.volume24hUsd ?? r.stats.volume24hQuote;
   return rows.sort((a, b) => vol(b) - vol(a) || b.launchedAt.localeCompare(a.launchedAt));
 }
@@ -140,9 +149,9 @@ export async function getTokenDetail(address: string): Promise<TokenDetail | nul
   if (!pool) return null;
   if (pool.source === "DEV" && !env().SHOW_DEV_TOKENS) return null;
   const burned = await readBurned([token], chainKeyOf(pool.chainId));
-  const [extra, trades] = await Promise.all([statsFor(pool, burned.get(token) ?? 0n), getTrades(token, 30)]);
+  const [extra, trades, sites] = await Promise.all([statsFor(pool, burned.get(token) ?? 0n), getTrades(token, 30), liveSitesFor([token])]);
   return {
-    ...toRow(pool, extra),
+    ...toRow(pool, extra, sites.get(token.toLowerCase()) ?? null),
     poolId: pool.poolId,
     tickSpacing: pool.tickSpacing,
     hook: pool.hook,

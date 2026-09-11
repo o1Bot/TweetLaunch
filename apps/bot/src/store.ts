@@ -58,6 +58,8 @@ export type WebLaunchRequest = {
   telegram: string | null;
   xHandle: string | null;
   feesToHandle: string | null;
+  /** Subdomain label for a website the form asked for, already checked; null or absent when none. */
+  siteSlug?: string | null;
 };
 
 export type NewLaunch = {
@@ -100,7 +102,7 @@ export type LaunchPatch = {
 export type WebLaunchJob = {
   id: string;
   createdAt: Date;
-  creator: { xUserId: string; xHandle: string };
+  creator: { id: string; xUserId: string; xHandle: string };
   ticker: string;
   name: string;
   quoteAddress: string;
@@ -299,7 +301,7 @@ export class PrismaBotStore implements BotStore {
     const candidate = await db().launch.findFirst({
       where: { source: "WEB", status: "QUEUED" },
       orderBy: { createdAt: "asc" },
-      include: { creator: { select: { xUserId: true, xHandle: true } } },
+      include: { creator: { select: { id: true, xUserId: true, xHandle: true } } },
     });
     if (!candidate) return null;
     const claimed = await db().launch.updateMany({ where: { id: candidate.id, status: "QUEUED" }, data: { status: "SIMULATING" } });
@@ -320,6 +322,7 @@ export class PrismaBotStore implements BotStore {
         telegram: request.telegram ?? null,
         xHandle: request.xHandle ?? null,
         feesToHandle: request.feesToHandle ?? null,
+        siteSlug: request.siteSlug ?? null,
       },
       imageData: candidate.imageData ? new Uint8Array(candidate.imageData) : null,
     };
@@ -487,7 +490,7 @@ export class MemoryBotStore implements BotStore {
     return {
       id: row.id,
       createdAt: row.createdAt,
-      creator: { xUserId: creator?.xUserId ?? "", xHandle: creator?.xHandle ?? "" },
+      creator: { id: row.creatorUserId, xUserId: creator?.xUserId ?? "", xHandle: creator?.xHandle ?? "" },
       ticker: row.ticker,
       name: row.name,
       quoteAddress: row.quoteAddress,

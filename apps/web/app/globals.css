@@ -2054,3 +2054,213 @@ body {
     max-height: 52vh;
   }
 }
+
+/* Sites gallery (/sites): every live token site, framed and scaled down. */
+.sites-head {
+  padding: 40px 0 28px;
+  max-width: 720px;
+}
+.sites-head h1 {
+  font-family: var(--font-sora), "Sora", sans-serif;
+  font-size: clamp(30px, 5vw, 44px);
+  letter-spacing: -0.02em;
+  margin: 0 0 12px;
+}
+.sites-head p {
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1.55;
+  margin: 0 0 18px;
+}
+.sites-head em {
+  font-style: normal;
+  color: var(--ink);
+  font-weight: 600;
+}
+.sites-cta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sites-empty {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--ink-3);
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+}
+.sites-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+  padding-bottom: 48px;
+}
+.site-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.site-shot {
+  display: block;
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+/* The frame is rendered at desktop width and shrunk to the card: 1 / 0.3 = 333.334%. */
+.site-shot iframe {
+  width: 333.334%;
+  height: 333.334%;
+  border: 0;
+  transform: scale(0.3);
+  transform-origin: 0 0;
+  pointer-events: none;
+  background: #fff;
+}
+.site-shot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.site-meta {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+}
+.site-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: #fff;
+  overflow: hidden;
+}
+.site-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.site-name {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.site-name b {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.site-name em {
+  font-style: normal;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.site-name span {
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.site-actions {
+  display: flex;
+  gap: 6px;
+}
+.site-actions .btn-s {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+@media (max-width: 560px) {
+  .site-meta {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+  .site-actions {
+    grid-column: 2;
+  }
+}
+
+/* A launch's site on the profile and the launch form. */
+.site-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.site-line a,
+.site-line button {
+  color: var(--blue);
+  font-weight: 600;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.site-line a:hover,
+.site-line button:hover {
+  text-decoration: underline;
+}
+.site-line button:disabled {
+  color: var(--ink-3);
+  cursor: default;
+  text-decoration: none;
+}
+.site-line .pill {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.site-line .pill.on {
+  background: var(--up-soft);
+  color: var(--up);
+}
+.site-line .pill.warn {
+  background: var(--down-soft, var(--panel-2));
+  color: var(--down, var(--ink-2));
+}
+.launch-site {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.launch-site .check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.launch-site .check input {
+  margin-top: 3px;
+  width: auto;
+}
+.launch-site .slug {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.launch-site .slug input {
+  flex: 1;
+  min-width: 0;
+}
+.launch-site .slug span {
+  color: var(--ink-3);
+  font-size: 13px;
+  white-space: nowrap;
+}

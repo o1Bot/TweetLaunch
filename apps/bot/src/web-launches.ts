@@ -1,11 +1,13 @@
 import { noAlerts } from "./alerts";
 import type { Address } from "viem";
-import { findQuote, logger, tickerCollidesWithStock } from "@o1bot/shared";
+import { chainByKey, findQuote, logger, tickerCollidesWithStock } from "@o1bot/shared";
+import { checkSlug } from "@o1bot/sites";
 import type { LinkedUser } from "@o1bot/wallet";
 import type { WalletRef } from "./execute";
 import { runLaunch } from "./launch-core";
 import type { PipelineDeps } from "./pipeline";
 import { formatEthCeil, replies } from "./replies";
+import { tokenSiteUrl } from "./site-core";
 import type { WebLaunchJob } from "./store";
 import { checkDevBuy, checkFeesToHandle, checkRate, startOfUtcDay } from "./validator";
 
@@ -86,6 +88,18 @@ export async function processWebLaunch(job: WebLaunchJob, deps: PipelineDeps): P
     }
   }
 
+  // 4b. A website on a subdomain, as for a post: reserve the name before anything is signed, so
+  // the metadata can point at it and no other launch can take it in the meantime.
+  let site: { id: string; slug: string; url: string } | null = null;
+  if (job.request.siteSlug) {
+    const check = checkSlug(job.request.siteSlug);
+    if (!check.ok) return reject(`site slug ${check.reason}: ${job.request.siteSlug}`, replies.siteInvalid(check.slug || job.request.siteSlug, check.reason));
+    const reserved = await deps.sites.reserve({ slug: check.slug, chainId: chainByKey(CHAIN_KEY).id, ownerId: job.creator.id, launchId: job.id });
+    if (!reserved.ok) return reject(`site slug taken: ${check.slug}`, replies.siteTakenForm(check.slug, config.sitesRootDomain));
+    site = { id: reserved.site.id, slug: check.slug, url: tokenSiteUrl(config, check.slug) };
+    log.info({ slug: check.slug, url: site.url }, "site subdomain reserved");
+  }
+
   // 5. Shared core: metadata, plan, funding, dry run or sign + confirm + fee recipient.
   const result = await runLaunch(
     {
@@ -98,16 +112,28 @@ export async function processWebLaunch(job: WebLaunchJob, deps: PipelineDeps): P
       devBuyWei: devBuy.wei,
       devBuyNative: job.request.devBuyNative,
       description: job.request.description,
-      website: job.request.website,
+      // The token's own site is its website unless the creator gave another.
+      website: job.request.website ?? site?.url ?? null,
       telegram: job.request.telegram,
       xHandle: job.request.xHandle,
       image: { bytes: job.imageData },
       origin: { kind: "web" },
       recipient,
+      tokenSiteUrl: site?.url ?? null,
     },
     deps,
     log,
   );
+
+  // A launch that did not happen frees its subdomain; one that did gets its site built by the worker.
+  if (site && (!result.ok || result.dryRun)) {
+    await deps.sites.release(site.id);
+  } else if (site && result.ok) {
+    await deps.sites.update(site.id, { token: result.token });
+    await deps.sites.createJob({ siteId: site.id, instruction: null, baseN: null, mentionId: null, createdById: job.creator.id });
+    log.info({ siteId: site.id, slug: site.slug }, "site build queued");
+  }
+
   if (!result.ok) return { id: job.id, outcome: result.outcome, token: null, message: result.userText };
   if (result.dryRun) return { id: job.id, outcome: "dry_run", token: result.token, message: result.userText };
   return { id: job.id, outcome: "launched", token: result.token, message: result.userText };

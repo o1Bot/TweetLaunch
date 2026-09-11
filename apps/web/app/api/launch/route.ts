@@ -7,7 +7,9 @@ const UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
 import { parseDecimalToRaw } from "@o1bot/market";
 import { cleanDescription, cleanTelegram, cleanWebsite, cleanXHandle, NAME_MAX, TICKER_RE } from "@o1bot/parser";
 import { activeFactory, env, findQuote, isReservedHandle, logger, normalizeHandle, RESERVED_HANDLES, tickerCollidesWithStock } from "@o1bot/shared";
+import { checkSlug, slugFromTicker } from "@o1bot/sites";
 import { linkStatus, userFromRequest } from "@o1bot/wallet";
+import { SITES_ROOT_DOMAIN } from "@/lib/site-domain";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,6 +79,17 @@ export async function POST(req: Request) {
   const xHandle = cleanXHandle(xRaw);
   if (xRaw && !xHandle) return bad("x must be a handle or an x.com profile link");
 
+  // A website on the sandbox domain: the name is checked here and reserved by the worker right before the launch.
+  let siteSlug: string | null = null;
+  if (text(form, "site")) {
+    const slugRaw = text(form, "siteSlug");
+    const check = slugRaw ? checkSlug(slugRaw) : slugFromTicker(ticker);
+    if (!check.ok) return bad(check.reason === "reserved" ? `${check.slug} cannot be a site name; pick another` : "a site name is 3 to 32 lowercase letters, digits and dashes");
+    const held = await db().tokenSite.findUnique({ where: { slug: check.slug }, select: { status: true } });
+    if (held && held.status !== "RELEASED") return bad(`${check.slug}.${SITES_ROOT_DOMAIN} is already taken; pick another site name`);
+    siteSlug = check.slug;
+  }
+
   const feesRaw = text(form, "feesToHandle");
   let feesToHandle: string | null = null;
   if (feesRaw) {
@@ -144,12 +157,12 @@ export async function POST(req: Request) {
       name,
       devBuyWei: devBuyWei === null ? null : devBuyWei.toString(),
       status: "QUEUED",
-      request: { devBuyNative, description, website, telegram, xHandle, feesToHandle },
+      request: { devBuyNative, description, website, telegram, xHandle, feesToHandle, siteSlug },
       imageData: imageData ? Buffer.from(imageData) : null,
       imageMime,
     },
     select: { id: true },
   });
-  logger.info({ launchId: launch.id, xUserId: user.xUserId, ticker, pair: quote.symbol, devBuy: devBuyNative }, "web launch queued");
+  logger.info({ launchId: launch.id, xUserId: user.xUserId, ticker, pair: quote.symbol, devBuy: devBuyNative, siteSlug }, "web launch queued");
   return Response.json({ id: launch.id });
 }

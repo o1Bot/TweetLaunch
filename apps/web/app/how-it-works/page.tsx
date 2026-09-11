@@ -62,6 +62,10 @@ export default function HowItWorksPage() {
         <p>
           End the launch command with <em>site</em> (or <em>site yourname</em>) and the bot also builds a one-page website for the token at <em>yourname.o1bot.app</em>: your story, how to buy, live price, holders and a buy button. This part is in beta: designs vary, and a build can take a few minutes. It replies with the link when the site is up, usually within two minutes, and you keep editing it at <em>{SITE_NAME}/site/yourname</em>: describe a change in plain words, preview it, publish it. The creator of a token that already exists can ask later with <em>build a site for $TICKER</em>.
         </p>
+        <p>
+          The same works without a post: tick <em>Also build a website</em> on the <Link href="/launch">launch form</Link>, or press <em>Build a website</em> next to one of your live tokens on your{" "}
+          <Link href="/me">profile</Link>. Every live site is listed on the <Link href="/sites">Sites</Link> page and linked from its token page.
+        </p>
 
         <h2>What the bot does behind the scenes</h2>
         <ul>

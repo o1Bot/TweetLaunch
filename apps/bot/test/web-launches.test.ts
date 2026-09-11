@@ -78,7 +78,7 @@ function harness(over: Partial<BotConfig> = {}) {
   const store = new MemoryBotStore();
   store.now = () => new Date("2026-09-08T10:00:00Z");
   const x = new FakeXClient();
-  const state = { link: linked() as LinkStatus, plan: fakePlan(), executed: 0, metadataImageBytes: null as Uint8Array | null };
+  const state = { link: linked() as LinkStatus, plan: fakePlan(), executed: 0, metadataImageBytes: null as Uint8Array | null, metadataWebsite: null as string | null };
   const deps: PipelineDeps = {
     store,
     x,
@@ -93,6 +93,7 @@ function harness(over: Partial<BotConfig> = {}) {
     },
     prepareMetadata: async (input) => {
       state.metadataImageBytes = input.imageBytes ?? null;
+      state.metadataWebsite = input.website ?? null;
       return { uri: `ipfs://meta/${input.symbol}`, imageUri: `ipfs://img/${input.symbol}`, imageSource: input.imageBytes ? "tweet" : "placeholder", imageRejectReason: null, json: {}, pinnedBy: "o1bot" };
     },
     plan: async () => state.plan,
@@ -188,6 +189,44 @@ describe("web launches", () => {
     expect(row.status).toBe("DRY_RUN");
     expect(row.tokenAddress).toBe(TOKEN);
     expect(h.state.executed).toBe(0);
+  });
+
+  describe("with a website", () => {
+    const withSite = { request: { devBuyNative: null, description: null, website: null, telegram: null, xHandle: null, feesToHandle: null, siteSlug: "cashcat" } };
+
+    it("reserves the subdomain, makes it the token's website and queues the build", async () => {
+      const h = harness();
+      const { id } = await queueWebLaunch(h.store, withSite);
+      await drainWebLaunches(h.deps);
+      const row = h.store.launches[0]!;
+      expect(row.status).toBe("CONFIRMED");
+      const site = await h.deps.sites.bySlug("cashcat");
+      expect(site).toMatchObject({ launchId: id, token: TOKEN, chainId: 4663 });
+      expect(h.state.metadataWebsite).toBe("https://cashcat.o1bot.exchange");
+      expect(row.userMessage).toContain("https://cashcat.o1bot.exchange");
+      expect((h.deps.sites as MemorySiteStore).jobs).toMatchObject([{ siteId: site!.id, instruction: null, mentionId: null }]);
+    });
+
+    it("keeps a website the creator gave and frees the subdomain after a dry run", async () => {
+      const h = harness({ dryRun: true });
+      await queueWebLaunch(h.store, { request: { ...withSite.request, website: "https://cashcat.xyz" } });
+      await drainWebLaunches(h.deps);
+      expect(h.store.launches[0]!.status).toBe("DRY_RUN");
+      expect(h.state.metadataWebsite).toBe("https://cashcat.xyz");
+      expect(await h.deps.sites.bySlug("cashcat")).toBeNull();
+      expect((h.deps.sites as MemorySiteStore).jobs).toHaveLength(0);
+    });
+
+    it("fails the launch before signing when the subdomain is taken", async () => {
+      const h = harness();
+      await h.deps.sites.reserve({ slug: "cashcat", chainId: 4663, ownerId: "someone-else" });
+      await queueWebLaunch(h.store, withSite);
+      await drainWebLaunches(h.deps);
+      const row = h.store.launches[0]!;
+      expect(row.status).toBe("FAILED");
+      expect(row.userMessage).toContain("cashcat.o1bot.exchange is already taken");
+      expect(h.state.executed).toBe(0);
+    });
   });
 
   it("applies the cooldown between a launch and the next web request", async () => {

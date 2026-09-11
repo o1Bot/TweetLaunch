@@ -66,6 +66,8 @@ export type SuccessInput = {
   feesToFailed?: string | null;
   /** The token site being built for this launch. */
   site?: string | null;
+  /** True for a launch from the web form: there is no post to reply under, the profile shows the site instead. */
+  web?: boolean;
 };
 
 /**
@@ -96,7 +98,7 @@ export function successReply(p: SuccessInput): string {
       ? `The fee redirect to @${p.feesToFailed} failed, so creator fees stay with you for now.`
       : null;
   const feesShort = p.feesTo ? `Creator fees go to @${p.feesTo}.` : fees;
-  const site = p.site ? `Its website is being built at ${p.site}; I reply here when it is up.` : null;
+  const site = p.site ? `Its website is being built at ${p.site}; ${p.web ? "your profile shows it when it is up" : "I reply here when it is up"}.` : null;
   const siteShort = p.site ? `Site coming: ${p.site}` : null;
 
   const variants: string[][] = [
@@ -237,6 +239,8 @@ export const replies = {
       : `"${slug}" cannot be a subdomain: 3 to 32 letters, digits or hyphens, like "site catcoin". Post again.`,
 
   siteTaken: (slug: string, rootDomain: string) => `${slug}.${rootDomain} is already taken. Post again with another name, for example "site ${slug}coin".`,
+  /** The same, for the web form: nothing to post again. */
+  siteTakenForm: (slug: string, rootDomain: string) => `${slug}.${rootDomain} is already taken. Launch again with another site name, for example "${slug}coin".`,
 
   siteQueued: (ticker: string, url: string) => `On it. The site for $${ticker} is being built at ${url} (beta); I reply here when it is live, usually within a few minutes.`,
 
