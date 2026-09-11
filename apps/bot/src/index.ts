@@ -6,7 +6,7 @@ import { formatEther, getAddress, isAddress, keccak256, toHex, type Address } fr
 import { dbConfigured } from "@o1bot/db";
 import { planLaunch, prepareTokenMetadata, type LaunchRequest, type PreparedMetadata, type TokenMetadataInput } from "@o1bot/executor";
 import { composeAnswer, localizeReply, parseMention } from "@o1bot/parser";
-import { activeFactory, activeFeeEscrow, cryptoQuotes, env, logger, o1Chain, o1Config, registryDrift, stockQuotes } from "@o1bot/shared";
+import { activeFactory, activeFeeEscrow, cryptoQuotes, env, logger, o1Chain, o1Config, registryDrift, rpcConfigured, stockQuotes } from "@o1bot/shared";
 import { generateSite } from "@o1bot/sites";
 import { ensureWalletForXUser, findUserByXUserId, linkStatus, type EnsureWalletInput, type LinkedUser, type LinkStatus } from "@o1bot/wallet";
 import { FakeXClient, HttpXClient, type XClient, type XMention } from "@o1bot/x";
@@ -113,7 +113,7 @@ function buildDeps(cfg: BotConfig, args: CliArgs, store: BotStore, x: XClient): 
   const privyConfigured = Boolean(e.PRIVY_APP_ID && e.PRIVY_APP_SECRET);
   const pinataConfigured = Boolean(e.PINATA_JWT);
   // Trades need a chain to quote and sign against; without one (DB-less dry runs) a stand-in answers with fixed prices.
-  const rpcConfigured = Boolean(e.RPC_ROBINHOOD) || !cfg.dryRun;
+  const robinhoodRpcConfigured = Boolean(e.RPC_ROBINHOOD) || !cfg.dryRun;
 
   const need = (what: string, envVar: string) => {
     if (!cfg.dryRun) throw new Error(`${envVar} is required when DRY_RUN=false (${what})`);
@@ -166,9 +166,9 @@ function buildDeps(cfg: BotConfig, args: CliArgs, store: BotStore, x: XClient): 
     plan: (req: LaunchRequest) => planLaunch(req, { fundSimulation: true }),
     execute: (plan, wallet, audit) => executeLaunchPlan(plan, wallet, audit),
     setFeeRecipient: (input, wallet, audit) => setCreatorFeeRecipient(input, wallet, audit),
-    trade: rpcConfigured ? liveTradeChain() : dryRunTradeChain(),
+    trade: robinhoodRpcConfigured ? liveTradeChain() : dryRunTradeChain(),
     o1Tokens: liveO1Tokens(),
-    bridge: rpcConfigured ? liveBridgeChain() : dryRunBridgeChain(),
+    bridge: robinhoodRpcConfigured ? liveBridgeChain() : dryRunBridgeChain(),
     relay: liveRelay(),
     // Questions from posts read the same tables the web reads; without a database they get empty figures.
     askData: dbConfigured() ? liveAskData() : new MemoryAskData(),
@@ -192,6 +192,7 @@ async function main() {
       factory: activeFactory("robinhood"),
       feeEscrow: activeFeeEscrow("robinhood"),
       base: { factory: activeFactory("base"), feeEscrow: activeFeeEscrow("base"), cryptoPairs: cryptoQuotes("base").map((q) => q.symbol), stockPairs: stockQuotes("base").length },
+      arc: { open: rpcConfigured("arc"), factory: activeFactory("arc"), feeEscrow: activeFeeEscrow("arc"), nativeLaunchFee: o1Chain("arc").snapshot.nativeLaunchFeeDisplay, maxDevBuy: `${e.MAX_DEV_BUY_USDC} USDC` },
       nativeLaunchFee: `${formatEther(BigInt(chain.snapshot.nativeLaunchFeeRaw))} ETH (snapshot)`,
       cryptoPairs: cryptoQuotes("robinhood").map((q) => q.symbol),
       stockPairs: stockQuotes("robinhood").length,

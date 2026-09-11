@@ -1,6 +1,6 @@
 import { db, dbConfigured, type Prisma, type TokenSite, type TokenSiteVersion } from "@o1bot/db";
 import { filesFromList, renderSite, type LiveData, type SiteFile, type SiteFiles, type SiteMeta } from "@o1bot/sites";
-import { chainKeyOf, EXPLORER } from "./chains-web";
+import { CHAIN_LABEL, chainKeyOf, EXPLORER, type ChainKey } from "./chains-web";
 import { getHolders } from "./holders";
 import { ipfsToHttp } from "./ipfs";
 import { getTokenDetail } from "./market";
@@ -49,7 +49,7 @@ export async function lookupSite(slug: string): Promise<SiteLookup> {
   return { state: "live", site, version, files: filesFromList(version.files as SiteFile[]) };
 }
 
-const chainLabel = (chain: "robinhood" | "base") => (chain === "base" ? "Base" : "Robinhood Chain");
+const chainLabel = (chain: ChainKey) => CHAIN_LABEL[chain];
 
 /** Links the creator gave on the web form, kept on the launch row. */
 function requestLinks(request: unknown): { website: string | null; telegram: string | null; x: string | null } {

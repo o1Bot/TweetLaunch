@@ -444,7 +444,7 @@ export function Profile() {
                       </b>
                     )}
                     <span>
-                      {l.quoteSymbol} pool{l.chainId === 8453 ? " on Base" : ""} · from {l.source === "WEB" ? "the web" : "a post"} · {when(l.createdAt)}
+                      {l.quoteSymbol} pool{l.chainId === 8453 ? " on Base" : l.chainId === 5042 ? " on Arc" : ""} · from {l.source === "WEB" ? "the web" : "a post"} · {when(l.createdAt)}
                       {l.role === "fee_recipient" ? " · fees directed to you" : ""}
                       {l.status === "FAILED" && l.userMessage ? ` · ${l.userMessage}` : ""}
                     </span>

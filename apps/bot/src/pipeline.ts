@@ -1,7 +1,7 @@
 import { getAddress, type Address, type Hex } from "viem";
 import type { LaunchPlan, LaunchRequest, PlanResult, PreparedMetadata, TokenMetadataInput } from "@o1bot/executor";
 import { ParserError, type ComposeInput, type LaunchCommand, type MentionInput, type ParsedMention } from "@o1bot/parser";
-import { activeFactory, chainByKey, chainDisplayName, DEFAULT_CHAIN_KEY, findQuote, logger, tickerCollidesWithStock } from "@o1bot/shared";
+import { activeFactory, chainByKey, chainDisplayName, cryptoQuotes, DEFAULT_CHAIN_KEY, findQuote, logger, nativeBuyScale, nativeSymbol, rpcConfigured, stockQuotes, tickerCollidesWithStock, type ChainKey } from "@o1bot/shared";
 import { checkSlug, slugFromTicker } from "@o1bot/sites";
 import type { EnsureWalletInput, LinkedUser, LinkStatus } from "@o1bot/wallet";
 import { stripLeadingMentions, XPostError, type XClient, type XMention } from "@o1bot/x";
@@ -10,7 +10,7 @@ import type { AskData } from "./ask-data";
 import { handleAsk } from "./ask-handler";
 import type { BridgeChain } from "./bridge-core";
 import { handleBridge } from "./bridge-handler";
-import type { BotConfig } from "./config";
+import { maxDevBuyFor, type BotConfig } from "./config";
 import type { AuditSink, ExecutionResult, WalletRef } from "./execute";
 import { runLaunch } from "./launch-core";
 import { clampReply, formatEthCeil, replies, stripBareAddresses } from "./replies";
@@ -23,6 +23,12 @@ import type { BotStore, MentionStatusValue } from "./store";
 import type { TradeChain } from "./trade-core";
 import { handleTrade } from "./trade-handler";
 import { checkDevBuy, checkFeesToHandle, checkRate, startOfUtcDay } from "./validator";
+
+/** How the pairs of a chain are named in a rejection: the ETH chains list kinds, Arc has USDC alone. */
+function pairsHint(key: ChainKey): string {
+  const crypto = cryptoQuotes(key).map((q) => q.symbol);
+  return stockQuotes(key).length > 0 ? `${crypto.join(", ")} or a listed stock token` : crypto.join(" or ");
+}
 
 /**
  * One mention, end to end: dedupe → parse → validate → plan → (dry run |
@@ -277,16 +283,20 @@ async function handleLaunch(cmd: LaunchCommand, ctx: MentionContext): Promise<Pi
 
   // 6. Pair and ticker against the o1 snapshot (the plan re-checks them live).
   const key = cmd.chain ?? DEFAULT_CHAIN_KEY;
+  // A chain this deployment has no RPC for (Arc without RPC_ARC) is declined here, before any wallet work.
+  if (!rpcConfigured(key)) return rejected(replies.chainNotOpen(chainDisplayName(key)), `chain not open: ${key}`);
   const quote = findQuote(key, cmd.pair);
-  if (!quote) return rejected(replies.pairUnavailable(cmd.pair, config.siteUrl, chainDisplayName(key)), `pair not registered on ${key}: ${cmd.pair}`);
+  if (!quote) return rejected(replies.pairUnavailable(cmd.pair, config.siteUrl, chainDisplayName(key), pairsHint(key)), `pair not registered on ${key}: ${cmd.pair}`);
   if (tickerCollidesWithStock(key, cmd.ticker)) return rejected(replies.tickerCollides(cmd.ticker), `ticker collides with stock: ${cmd.ticker}`);
 
-  // 7. Dev buy amount within the bot's cap.
-  const devBuy = checkDevBuy(cmd.devBuyNative, config.maxDevBuyWei);
+  // 7. Dev buy amount within the bot's cap for the chain, in the chain's gas asset.
+  const native = nativeSymbol(key);
+  const devBuyCap = maxDevBuyFor(config, key);
+  const devBuy = checkDevBuy(cmd.devBuyNative, devBuyCap, { scale: nativeBuyScale(key) });
   if (!devBuy.ok) {
-    return devBuy.reason === "invalid"
-      ? rejected(replies.devBuyInvalid(), `dev buy invalid: ${cmd.devBuyNative}`)
-      : rejected(replies.devBuyTooLarge(formatEthCeil(config.maxDevBuyWei)), `dev buy above cap: ${cmd.devBuyNative}`);
+    if (devBuy.reason === "invalid") return rejected(replies.devBuyInvalid(native), `dev buy invalid: ${cmd.devBuyNative}`);
+    if (devBuy.reason === "too_precise") return rejected(replies.devBuyTooPrecise(native, 6), `dev buy too precise: ${cmd.devBuyNative}`);
+    return rejected(replies.devBuyTooLarge(formatEthCeil(devBuyCap), native), `dev buy above cap: ${cmd.devBuyNative}`);
   }
 
   // 8. `fees to @b`: resolve the handle to a stable X user id, then to a wallet.

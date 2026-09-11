@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getAddress, parseEther, type Address, type Hex } from "viem";
 import type { LaunchPlan, PlanResult } from "@o1bot/executor";
 import type { ParsedMention, ParseResult } from "@o1bot/parser";
-import { activeFactory, RESERVED_HANDLES } from "@o1bot/shared";
+import { activeFactory, RESERVED_HANDLES, resetEnvCache } from "@o1bot/shared";
 import type { LinkedUser, LinkStatus } from "@o1bot/wallet";
 import { FakeXClient, XPostError, type XMention } from "@o1bot/x";
 import type { BotConfig } from "../src/config";
@@ -69,6 +69,7 @@ function config(over: Partial<BotConfig> = {}): BotConfig {
     maxLaunchesPerDay: 5,
     maxRepliesPerDay: 8,
     maxDevBuyWei: parseEther("1"),
+    maxDevBuyArcWei: parseEther("200"),
     maxTradeWei: parseEther("0.5"),
     defaultUserTradeCapWei: parseEther("0.1"),
     tradeCooldownSeconds: 30,
@@ -241,6 +242,44 @@ describe("processMention", () => {
     expect(out).toMatchObject({ outcome: "replied", kind: "unsupported_chain" });
     expect(h.x.replies[0]?.text).toContain("Robinhood");
     expect(h.x.replies[0]?.text).toContain("Base");
+  });
+
+  it("launches on Arc when the post says so: Arc factory, chain id 5042, USDC pair, dev buy capped in USDC", async () => {
+    process.env.RPC_ARC = "https://arc.example.invalid";
+    resetEnvCache();
+    h.script.parse = launchCmd({ chain: "arc", pair: "USDC", devBuyNative: "5" });
+    let planned: { chain?: string; devBuyWei?: bigint } | null = null;
+    const arcPlan = fakePlan();
+    if (arcPlan.ok) arcPlan.plan.chainId = 5042;
+    h.deps.plan = async (req) => {
+      planned = req;
+      return arcPlan;
+    };
+    const out = await processMention(ALICE, h.deps);
+    expect(out.outcome).toBe("launched");
+    expect(planned).toMatchObject({ chain: "arc", devBuyWei: 5_000_000_000_000_000_000n });
+    expect(h.store.launches[0]).toMatchObject({ chainId: 5042, factory: activeFactory("arc"), quoteSymbol: "USDC" });
+    expect(h.x.replies[0]?.text).toContain("Arc");
+    expect(h.x.replies[0]?.text).toContain("5 USDC");
+    expect(h.x.replies[0]?.text).not.toContain("ETH");
+  });
+
+  it("refuses an Arc launch while the deployment has no Arc RPC, and caps Arc dev buys in USDC", async () => {
+    delete process.env.RPC_ARC;
+    resetEnvCache();
+    h.script.parse = launchCmd({ chain: "arc", pair: "USDC" });
+    const closed = await processMention(ALICE, h.deps);
+    expect(closed).toMatchObject({ outcome: "replied", kind: "rejected" });
+    expect(h.x.replies[0]?.text).toContain("Arc are not open yet");
+
+    process.env.RPC_ARC = "https://arc.example.invalid";
+    resetEnvCache();
+    h.script.parse = launchCmd({ chain: "arc", pair: "USDC", devBuyNative: "250" });
+    const capped = await processMention({ ...ALICE, id: "m-arc-cap" }, h.deps);
+    expect(capped).toMatchObject({ outcome: "replied", kind: "rejected" });
+    expect(h.x.replies[1]?.text).toContain("capped at 200 USDC");
+    delete process.env.RPC_ARC;
+    resetEnvCache();
   });
 
   it("launches on Base when the post says so: Base factory, chain id 8453, plan and links for Base", async () => {

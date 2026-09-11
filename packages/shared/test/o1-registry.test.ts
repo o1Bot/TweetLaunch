@@ -4,12 +4,15 @@ import {
   activeFeeEscrow,
   activeSuite,
   findQuote,
+  nativeBuyScale,
+  nativeQuoteAddress,
   o1Chain,
   o1Config,
   registryDrift,
   stockQuotes,
   suiteByFactory,
   tickerCollidesWithStock,
+  universalRouterOf,
 } from "../src/o1-registry";
 
 describe("o1 registry snapshot (Robinhood)", () => {
@@ -46,6 +49,23 @@ describe("o1 registry snapshot (Robinhood)", () => {
     expect(suiteByFactory(8453, factory)).toBeNull();
     expect(tickerCollidesWithStock("robinhood", "tsla")).toBe(true);
     expect(tickerCollidesWithStock("robinhood", "RUGRAT")).toBe(false);
+  });
+
+  it("knows Arc: ERC-20 mode, USDC as the only pair and as the native-equivalent quote, 1e12 buy scale", () => {
+    expect(o1Chain("arc").chainId).toBe(5042);
+    expect(o1Chain("arc").tokenMode).toBe("erc20");
+    expect(activeFactory("arc")).toBe("0xeE3E862Efde6DCd6DF5648AF0E2731B9D1dF4605");
+    expect(o1Chain("arc").snapshot.nativeLaunchFeeRaw).toBe("2000000000000000000");
+    expect(findQuote("arc", "usdc")?.decimals).toBe(6);
+    expect(findQuote("arc", "ETH")).toBeNull();
+    expect(stockQuotes("arc")).toEqual([]);
+    expect(tickerCollidesWithStock("arc", "TSLA")).toBe(false);
+    expect(nativeQuoteAddress("arc")).toBe("0x3600000000000000000000000000000000000000");
+    expect(nativeQuoteAddress("robinhood")).toBe("0x0000000000000000000000000000000000000000");
+    expect(nativeBuyScale("arc")).toBe(1_000_000_000_000n);
+    expect(nativeBuyScale("robinhood")).toBe(1n);
+    expect(() => universalRouterOf("arc")).toThrow(/no Universal Router/);
+    expect(universalRouterOf("robinhood").router).toMatch(/^0x/);
   });
 
   it("reports no drift against a registry that mirrors the snapshot", async () => {

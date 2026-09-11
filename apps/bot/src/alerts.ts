@@ -91,4 +91,5 @@ export function alerterFromEnv(): Alerter {
 }
 
 export const postUrl = (handle: string, tweetId: string) => `https://x.com/${handle}/status/${tweetId}`;
-export const txUrl = (hash: string, chain: ChainKey = "robinhood") => (chain === "base" ? `https://basescan.org/tx/${hash}` : `https://rh-scan.com/tx/${hash}`);
+const TX_EXPLORERS: Record<ChainKey, string> = { robinhood: "https://rh-scan.com/tx/", base: "https://basescan.org/tx/", arc: "https://arc-scan.org/tx/" };
+export const txUrl = (hash: string, chain: ChainKey = "robinhood") => `${TX_EXPLORERS[chain]}${hash}`;

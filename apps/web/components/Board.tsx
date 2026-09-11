@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { ChainKey } from "@/lib/chains-web";
 import type { TokenRow } from "@/lib/types";
 import { BoardTable } from "./BoardTable";
 
@@ -13,7 +14,7 @@ import { BoardTable } from "./BoardTable";
 type Filter = "all" | "new" | "eth" | "usd" | "stk";
 type Sort = "vol24" | "volAll" | "mcap" | "change" | "newest";
 
-const filtersFor = (chain: "robinhood" | "base"): Array<{ id: Filter; label: string }> => [
+const filtersFor = (chain: ChainKey): Array<{ id: Filter; label: string }> => [
   { id: "all", label: "All launches" },
   { id: "new", label: "New (24h)" },
   { id: "eth", label: "ETH pairs" },
@@ -34,7 +35,7 @@ const STORAGE_KEY = "o1bot:board";
 
 const usdOrQuote = (usd: number | null, quote: number | null) => usd ?? quote ?? 0;
 
-export function Board({ rows, chain = "robinhood" }: { rows: TokenRow[]; chain?: "robinhood" | "base" }) {
+export function Board({ rows, chain = "robinhood" }: { rows: TokenRow[]; chain?: ChainKey }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("vol24");
   const FILTERS = filtersFor(chain);

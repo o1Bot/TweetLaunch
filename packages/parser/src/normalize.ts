@@ -7,15 +7,19 @@ import type { AskTopic, MissingField, ParseOutput } from "./schema";
  * launch is well-formed. Pure, so it is unit-tested without the API.
  */
 
+/** Chains a launch can name: Robinhood (the default), Base and Arc. Trades and bridges have their own lists. */
+export type LaunchChain = "robinhood" | "base" | "arc";
+export const isLaunchChain = (value: unknown): value is LaunchChain => value === "robinhood" || value === "base" || value === "arc";
+
 export type LaunchCommand = {
   kind: "launch";
   ticker: string;
   name: string;
   /** Pair symbol as normalised (validator checks it against the live factory). */
   pair: string;
-  /** null = not stated, which means Robinhood; "base" only when the post says so. */
-  chain: "robinhood" | "base" | null;
-  /** Decimal ETH string exactly as the user wrote it, or null. */
+  /** null = not stated, which means Robinhood; "base" or "arc" only when the post says so. */
+  chain: LaunchChain | null;
+  /** Decimal amount in the chain's gas asset (ETH, USDC on Arc) exactly as the user wrote it, or null. */
   devBuyNative: string | null;
   feesToHandle: string | null;
   imageFromTweet: boolean;
@@ -89,7 +93,7 @@ export type AskCommand = {
   /** Topic token: 0x address exactly as written; null when the user gave a ticker. */
   tokenAddress: string | null;
   /** Chain the question is scoped to ("on base"); null = all chains, or the default where one is needed. */
-  chain: "robinhood" | "base" | null;
+  chain: LaunchChain | null;
   language: string;
   reason: string;
 };
@@ -298,7 +302,7 @@ function normalizeAsk(raw: ParseOutput, language: string, reason: string): Parse
   if (raw.topic === "token" && !tokenAddress && (!ticker || !TICKER_RE.test(ticker))) {
     return { kind: "clarify", question: (raw.question ?? "").trim() || ASK_TOKEN_QUESTION, missing: ["trade_token"], language, reason };
   }
-  const chain = raw.chain === "robinhood" || raw.chain === "base" ? raw.chain : null;
+  const chain = isLaunchChain(raw.chain) ? raw.chain : null;
   return { kind: "ask", topic: raw.topic, ticker: raw.topic === "token" ? ticker : null, tokenAddress: raw.topic === "token" ? tokenAddress : null, chain, language, reason };
 }
 
@@ -365,7 +369,8 @@ export function normalizeParseOutput(raw: ParseOutput, input: { hasImage: boolea
   const missing = new Set<MissingField>(raw.kind === "clarify" ? raw.missing.filter((m) => !TRADE_MISSING.has(m) && !BRIDGE_MISSING.has(m)) : []);
   const ticker = cleanTicker(raw.ticker);
   const name = cleanName(raw.name);
-  const pair = cleanPair(raw.pair);
+  // Arc has a single registered pair, so a launch there needs none stated.
+  const pair = cleanPair(raw.pair) ?? (raw.chain === "arc" ? "USDC" : null);
   const amount = cleanAmount(raw.devbuy_native);
   const feesRaw = (raw.fees_to_handle ?? "").trim();
   const feesTo = feesRaw ? normalizeHandle(feesRaw) : null;
@@ -382,7 +387,7 @@ export function normalizeParseOutput(raw: ParseOutput, input: { hasImage: boolea
     return { kind: "clarify", question, missing: list, language, reason };
   }
 
-  if (raw.chain !== null && raw.chain !== "robinhood" && raw.chain !== "base") {
+  if (raw.chain !== null && !isLaunchChain(raw.chain)) {
     return { kind: "unsupported_chain", chain: raw.chain, language, reason };
   }
 

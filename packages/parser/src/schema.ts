@@ -43,10 +43,10 @@ export const ParseOutputSchema = z.object({
     .nullable()
     .describe("Launch only. Paired asset symbol from the pair list: ETH, USDG or a stock symbol. Map a company name only when it is unambiguous. If the user named an asset that is not in the list, return it uppercased as written. null when not stated."),
   chain: z
-    .enum(["robinhood", "base", "ethereum", "arbitrum", "optimism", "other"])
+    .enum(["robinhood", "base", "arc", "ethereum", "arbitrum", "optimism", "other"])
     .nullable()
     .describe(
-      "Chain the user named. For a launch, the chain to launch on. For a trade or a bridge, the chain the ETH comes from (\"from base\", \"from arbitrum\"). robinhood for Robinhood Chain (aliases: rh, hood); ethereum for Ethereum mainnet (aliases: eth mainnet, mainnet, L1); arbitrum (arb, arbitrum one); optimism (op, op mainnet); other for any other chain. null when no chain was named. Never default.",
+      "Chain the user named. For a launch, the chain to launch on. For a trade or a bridge, the chain the ETH comes from (\"from base\", \"from arbitrum\"). robinhood for Robinhood Chain (aliases: rh, hood); arc for Arc (aliases: arc mainnet, arc network, circle arc); ethereum for Ethereum mainnet (aliases: eth mainnet, mainnet, L1); arbitrum (arb, arbitrum one); optimism (op, op mainnet); other for any other chain. null when no chain was named. Never default.",
     ),
   devbuy_native: z
     .string()

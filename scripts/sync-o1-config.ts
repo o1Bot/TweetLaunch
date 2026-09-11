@@ -33,10 +33,11 @@ const SOURCES = {
   baseStocks: `${DOCS}/launchpad/reference/base-stock-quotes.json`,
 } as const;
 
-/** Chains o1bot supports: Robinhood Chain (v1, 2026-09-07) and Base (2026-09-11). Monad is out of scope. */
-type SupportedKey = "robinhood" | "base";
-const SUPPORTED: Record<number, SupportedKey> = { 4663: "robinhood", 8453: "base" };
-const STOCK_SOURCES: Record<SupportedKey, string> = { robinhood: SOURCES.robinhoodStocks, base: SOURCES.baseStocks };
+/** Chains o1bot supports: Robinhood Chain (v1, 2026-09-07), Base (2026-09-11) and Arc (2026-09-12). Monad is out of scope. */
+type SupportedKey = "robinhood" | "base" | "arc";
+const SUPPORTED: Record<number, SupportedKey> = { 4663: "robinhood", 8453: "base", 5042: "arc" };
+/** Stock-token catalogs; Arc has no stock route, so its catalog is written empty from the deployment record. */
+const STOCK_SOURCES: Partial<Record<SupportedKey, string>> = { robinhood: SOURCES.robinhoodStocks, base: SOURCES.baseStocks };
 
 type Suite = {
   suiteId: string;
@@ -113,7 +114,7 @@ async function main() {
   ]);
 
   const fetchedAt = new Date().toISOString();
-  const stockCatalogs: Record<SupportedKey, StockCatalog> = { robinhood: rhStocks, base: baseStocks };
+  const stockCatalogs: Partial<Record<SupportedKey, StockCatalog>> = { robinhood: rhStocks, base: baseStocks };
   const chains: Record<string, unknown> = {};
 
   for (const reg of suites.chains) {
@@ -128,7 +129,16 @@ async function main() {
     if (current.contracts.factory?.toLowerCase() !== dep.contracts.factory?.toLowerCase()) {
       throw new Error(`factory mismatch between registry and deployments for chain ${reg.chainId}`);
     }
-    const stocks = stockCatalogs[key];
+    // A chain without a stock route gets an empty catalog tied to its active factory.
+    const stocks: StockCatalog = stockCatalogs[key] ?? {
+      lastUpdatedAt: deployments.lastUpdatedAt,
+      lastVerifiedBlock: dep.lastVerifiedBlock,
+      chainId: reg.chainId,
+      factory: current.contracts.factory,
+      quoteDecimals: dep.stockRoute?.quoteDecimals ?? 6,
+      configVersion: dep.standardRoute.configVersion,
+      quotes: [],
+    };
     if (stocks.chainId !== reg.chainId || stocks.factory.toLowerCase() !== current.contracts.factory.toLowerCase()) {
       throw new Error(`stock catalog for ${key} does not match the active factory`);
     }
@@ -139,7 +149,7 @@ async function main() {
       JSON.stringify(
         {
           fetchedAt,
-          source: STOCK_SOURCES[key],
+          source: STOCK_SOURCES[key] ?? null,
           o1LastUpdatedAt: stocks.lastUpdatedAt,
           o1LastVerifiedBlock: stocks.lastVerifiedBlock,
           chainId: stocks.chainId,

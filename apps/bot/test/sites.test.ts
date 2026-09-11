@@ -74,6 +74,7 @@ function config(over: Partial<BotConfig> = {}): BotConfig {
     maxLaunchesPerDay: 5,
     maxRepliesPerDay: 8,
     maxDevBuyWei: parseEther("1"),
+    maxDevBuyArcWei: parseEther("200"),
     maxTradeWei: parseEther("0.5"),
     defaultUserTradeCapWei: parseEther("0.1"),
     tradeCooldownSeconds: 30,

@@ -62,8 +62,12 @@ describe("normalizeParseOutput", () => {
     expect(noQ.kind === "clarify" && noQ.question.length > 10).toBe(true);
   });
 
-  it("accepts Robinhood, Base or an unstated chain and flags the rest", () => {
+  it("accepts Robinhood, Base, Arc or an unstated chain and flags the rest", () => {
     expect(normalizeParseOutput({ ...base, chain: "base" }, { hasImage: false })).toMatchObject({ kind: "launch", chain: "base" });
+    expect(normalizeParseOutput({ ...base, chain: "arc" }, { hasImage: false })).toMatchObject({ kind: "launch", chain: "arc" });
+    // Arc has one pair, so a launch there needs none stated; elsewhere a missing pair still asks.
+    expect(normalizeParseOutput({ ...base, chain: "arc", pair: null }, { hasImage: false })).toMatchObject({ kind: "launch", chain: "arc", pair: "USDC" });
+    expect(normalizeParseOutput({ ...base, chain: "base", pair: null }, { hasImage: false })).toMatchObject({ kind: "clarify", missing: ["pair"] });
     expect(normalizeParseOutput({ ...base, chain: "robinhood" }, { hasImage: false })).toMatchObject({ kind: "launch", chain: "robinhood" });
     expect(normalizeParseOutput({ ...base, chain: null }, { hasImage: false })).toMatchObject({ kind: "launch", chain: null });
     expect(normalizeParseOutput({ ...base, chain: "other" }, { hasImage: false })).toMatchObject({ kind: "unsupported_chain", chain: "other" });

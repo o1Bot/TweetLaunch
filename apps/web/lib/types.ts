@@ -1,4 +1,5 @@
 import type { TokenStats } from "@o1bot/market";
+import type { ChainKey } from "./chains-web";
 
 export type QuoteKind = "eth" | "usd" | "stk";
 
@@ -18,7 +19,7 @@ export type GenesisPost = {
 export type TokenRow = {
   token: string;
   chainId: number;
-  chain: "robinhood" | "base";
+  chain: ChainKey;
   name: string;
   symbol: string;
   imageUrl: string | null;

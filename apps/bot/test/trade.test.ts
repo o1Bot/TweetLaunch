@@ -99,6 +99,7 @@ function config(over: Partial<BotConfig> = {}): BotConfig {
     maxLaunchesPerDay: 5,
     maxRepliesPerDay: 8,
     maxDevBuyWei: parseEther("1"),
+    maxDevBuyArcWei: parseEther("200"),
     maxTradeWei: parseEther("0.5"),
     defaultUserTradeCapWei: parseEther("0.1"),
     // Several tests run more than one trade at the same fake instant; the cooldown test sets its own.

@@ -1,5 +1,5 @@
 import { formatEther, type Address } from "viem";
-import { CHAIN_KEYS, logger, publicClient, type ChainKey } from "@o1bot/shared";
+import { CHAIN_KEYS, logger, publicClient, rpcConfigured, type ChainKey } from "@o1bot/shared";
 
 export async function nativeBalance(key: ChainKey, address: Address): Promise<bigint> {
   return publicClient(key).getBalance({ address });
@@ -7,10 +7,10 @@ export async function nativeBalance(key: ChainKey, address: Address): Promise<bi
 
 export type ChainBalance = { chain: ChainKey; wei: string | null; eth: string | null; error: string | null };
 
-/** Native balance on every supported chain. An RPC failure yields null, never a throw. */
+/** Native balance on every supported chain that has an RPC. An RPC failure yields null, never a throw. */
 export async function balancesAllChains(address: Address): Promise<ChainBalance[]> {
   return Promise.all(
-    CHAIN_KEYS.map(async (chain) => {
+    CHAIN_KEYS.filter(rpcConfigured).map(async (chain) => {
       try {
         const wei = await nativeBalance(chain, address);
         return { chain, wei: wei.toString(), eth: formatEther(wei), error: null };

@@ -47,6 +47,11 @@ describe("checkDevBuy", () => {
   });
   it("rejects amounts above the cap", () => expect(checkDevBuy("1.0001", max)).toEqual({ ok: false, reason: "too_large" }));
   it("accepts exactly the cap", () => expect(checkDevBuy("1", max)).toEqual({ ok: true, wei: max }));
+  it("on Arc, rejects a USDC amount finer than six decimals and accepts a whole one", () => {
+    const scale = 1_000_000_000_000n;
+    expect(checkDevBuy("5.1234567", parseEther("200"), { scale })).toEqual({ ok: false, reason: "too_precise" });
+    expect(checkDevBuy("5.123456", parseEther("200"), { scale })).toEqual({ ok: true, wei: 5_123_456_000_000_000_000n });
+  });
 });
 
 describe("checkFeesToHandle", () => {
