@@ -10,6 +10,7 @@ import { depositForBuy, type BridgeChain, type BridgePlan } from "../src/bridge-
 import type { BotConfig } from "../src/config";
 import { processMention, type PipelineDeps } from "../src/pipeline";
 import type { RelayClient, RelayQuote, RelayStatus } from "../src/relay";
+import { MemoryAskData } from "../src/ask-data";
 import { MemoryBotStore, type TradableToken } from "../src/store";
 import type { TradeChain, TradePlan } from "../src/trade-core";
 
@@ -172,6 +173,7 @@ function harness(over: Partial<BotConfig> = {}): Harness {
     },
     trade,
     o1Tokens: { search: async () => [], byAddress: async () => null },
+    askData: new MemoryAskData(),
     bridge,
     relay,
     now: () => NOW,

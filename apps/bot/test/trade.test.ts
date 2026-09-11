@@ -11,6 +11,7 @@ import type { BotConfig } from "../src/config";
 import type { O1TokenSource } from "../src/o1-tokens";
 import { processMention, type PipelineDeps } from "../src/pipeline";
 import { formatEthCeil } from "../src/replies";
+import { MemoryAskData } from "../src/ask-data";
 import { MemoryBotStore, type TradableToken } from "../src/store";
 import { SWAP_GAS, type TradeChain, type TradePlan } from "../src/trade-core";
 
@@ -219,6 +220,7 @@ function harness(over: Partial<BotConfig> = {}): Harness {
     },
     trade,
     o1Tokens,
+    askData: new MemoryAskData(),
     bridge: dryRunBridgeChain(),
     relay: { quote: async () => { throw new Error("not used"); }, status: async () => ({ status: "unknown", fillTxHash: null }) },
     now: () => NOW,

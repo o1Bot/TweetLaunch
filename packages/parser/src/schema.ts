@@ -9,17 +9,31 @@ import { z } from "zod";
 export const MISSING_FIELDS = ["ticker", "name", "pair", "devbuy_amount", "fees_to_handle", "trade_side", "trade_token", "trade_amount", "bridge_chain"] as const;
 export type MissingField = (typeof MISSING_FIELDS)[number];
 
+/**
+ * What a data question is about. The bot looks the figures up after parsing;
+ * the model only names the subject. "none" for every other kind (a plain
+ * enum, not a nullable one: structured outputs cap the number of nullable
+ * fields and the schema sits at that cap).
+ */
+export const ASK_TOPICS = ["none", "stats", "top", "token", "wallet", "launches", "fees", "trades"] as const;
+export type AskTopic = Exclude<(typeof ASK_TOPICS)[number], "none">;
+
 export const ParseOutputSchema = z.object({
   kind: z
-    .enum(["launch", "trade", "bridge", "clarify", "help", "ignore"])
+    .enum(["launch", "trade", "bridge", "ask", "clarify", "help", "ignore"])
     .describe(
-      "launch: a complete launch command. trade: a complete buy or sell command for the poster's own wallet. bridge: a complete request to move ETH from another chain to the poster's own wallet on Robinhood. clarify: launch, trade or bridge intent but a required value is missing or ambiguous. help: a question about the bot, wallet, fees or pairs, or a request the bot cannot do. ignore: no actionable intent, spam or abuse.",
+      "launch: a complete launch command. trade: a complete buy or sell command for the poster's own wallet. bridge: a complete request to move ETH from another chain to the poster's own wallet on Robinhood. ask: a question for a figure the bot can look up (its statistics, a token's market data, the poster's own wallet, launches, fees or trades). clarify: launch, trade or bridge intent but a required value is missing or ambiguous. help: a question about how the bot, wallet, fees or pairs work, or a request the bot cannot do. ignore: no actionable intent, spam or abuse.",
     ),
   language: z.string().describe("BCP-47 language tag of the post, e.g. en, id, es, ja."),
+  topic: z
+    .enum(ASK_TOPICS)
+    .describe(
+      "For kind=ask, what the question is about: stats (how many tokens launched through the bot, trading volume, trade count), top (the most traded or trending tokens), token (one token's price, change, volume, market cap, holders, creator, address; put its ticker or address in ticker), wallet (the poster's own balances, holdings, deposit address), launches (the poster's own launches and how they are doing), fees (the poster's claimable and earned creator fees), trades (the poster's own trades from posts). none for every other kind.",
+    ),
   ticker: z
     .string()
     .nullable()
-    .describe("The token: for a launch its new ticker, for a trade the ticker of the token to trade, exactly as the user wrote it minus a leading $, uppercased. For a trade the user may give a 0x contract address instead; return it exactly as written. null when not stated."),
+    .describe("The token: for a launch its new ticker, for a trade or a token question the ticker of the token meant, exactly as the user wrote it minus a leading $, uppercased. The user may give a 0x contract address instead; return it exactly as written. null when not stated."),
   name: z
     .string()
     .nullable()

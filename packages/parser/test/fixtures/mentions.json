@@ -84,8 +84,9 @@
     "text": "@o1bot_exchange launch $ABC \"Abc\" pair ETH on base",
     "hasImage": false,
     "expect": {
-      "kind": "unsupported_chain",
-      "chain": "base"
+      "kind": "launch",
+      "chain": "base",
+      "pair": "ETH"
     }
   },
   {
@@ -847,6 +848,170 @@
     "expect": {
       "kind": "trade",
       "fromChain": null
+    }
+  },
+  {
+    "id": "ask-stats-en",
+    "text": "@o1bot_exchange how many tokens have been launched through you so far?",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "stats",
+      "chain": null
+    }
+  },
+  {
+    "id": "ask-volume-id",
+    "text": "@o1bot_exchange total volume di o1bot udah berapa sekarang?",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "stats",
+      "languageStartsWith": "id"
+    }
+  },
+  {
+    "id": "ask-stats-base-scope",
+    "text": "@o1bot_exchange how many tokens got launched on base through you?",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "stats",
+      "chain": "base"
+    }
+  },
+  {
+    "id": "ask-top-en",
+    "text": "@o1bot_exchange which of your tokens are the most traded today?",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "top"
+    }
+  },
+  {
+    "id": "ask-token-en",
+    "text": "@o1bot_exchange how is $CAT doing? price and mcap please",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "token",
+      "askTicker": "CAT",
+      "askAddress": null
+    }
+  },
+  {
+    "id": "ask-token-holders-id",
+    "text": "@o1bot_exchange holder $KOPI ada berapa sekarang?",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "token",
+      "askTicker": "KOPI",
+      "languageStartsWith": "id"
+    }
+  },
+  {
+    "id": "ask-token-by-address",
+    "text": "@o1bot_exchange stats for 0x0ab6bf0ffa6d5c5aaa8fc94a8fb2f4ea2f4f5c01?",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "token",
+      "askTicker": null,
+      "askAddress": "0x0ab6bf0ffa6d5c5aaa8fc94a8fb2f4ea2f4f5c01"
+    }
+  },
+  {
+    "id": "ask-token-unnamed",
+    "text": "@o1bot_exchange and how many holders does it have now?",
+    "hasImage": false,
+    "isReply": true,
+    "expect": {
+      "kindIn": [
+        "clarify",
+        "help"
+      ]
+    }
+  },
+  {
+    "id": "ask-wallet-id",
+    "text": "@o1bot_exchange saldo ETH gw berapa bro?",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "wallet",
+      "languageStartsWith": "id"
+    }
+  },
+  {
+    "id": "ask-wallet-deposit",
+    "text": "@o1bot_exchange what's my deposit address?",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "wallet"
+    }
+  },
+  {
+    "id": "ask-wallet-holdings",
+    "text": "@o1bot_exchange what do I hold right now, how's my bag looking",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "wallet"
+    }
+  },
+  {
+    "id": "ask-launches",
+    "text": "@o1bot_exchange how many tokens have I launched and how are they doing?",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "launches"
+    }
+  },
+  {
+    "id": "ask-fees-id",
+    "text": "@o1bot_exchange fee creator yang bisa gw claim udah berapa?",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "fees",
+      "languageStartsWith": "id"
+    }
+  },
+  {
+    "id": "ask-trades",
+    "text": "@o1bot_exchange did my last buy go through? show me my trades",
+    "hasImage": false,
+    "expect": {
+      "kind": "ask",
+      "topic": "trades"
+    }
+  },
+  {
+    "id": "ask-other-wallet-refused",
+    "text": "@o1bot_exchange how much ETH does @bob have in his o1bot wallet?",
+    "hasImage": false,
+    "expect": {
+      "kind": "help"
+    }
+  },
+  {
+    "id": "ask-how-fees-work-is-help",
+    "text": "@o1bot_exchange how do creator fees work on your launches?",
+    "hasImage": false,
+    "expect": {
+      "kind": "help"
+    }
+  },
+  {
+    "id": "ask-prediction-stays-ignored",
+    "text": "@o1bot_exchange will $CAT pump this week or nah",
+    "hasImage": false,
+    "expect": {
+      "kind": "ignore"
     }
   }
 ]

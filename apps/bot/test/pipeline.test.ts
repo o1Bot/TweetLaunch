@@ -9,6 +9,7 @@ import { FakeXClient, XPostError, type XMention } from "@o1bot/x";
 import type { BotConfig } from "../src/config";
 import type { WalletRef } from "../src/execute";
 import { processMention, type PipelineDeps } from "../src/pipeline";
+import { MemoryAskData } from "../src/ask-data";
 import { MemoryBotStore } from "../src/store";
 import { noO1Tokens } from "../src/o1-tokens";
 import { dryRunTradeChain } from "../src/trade-chain";
@@ -168,6 +169,7 @@ function harness(over: Partial<BotConfig> = {}): Harness {
     },
     trade: dryRunTradeChain(),
     o1Tokens: noO1Tokens,
+    askData: new MemoryAskData(),
     bridge: dryRunBridgeChain(),
     relay: { quote: async () => { throw new Error("not used"); }, status: async () => ({ status: "unknown", fillTxHash: null }) },
     now: () => new Date("2026-09-07T10:00:00Z"),

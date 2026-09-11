@@ -1,10 +1,12 @@
 import { getAddress, type Address, type Hex } from "viem";
 import type { LaunchPlan, LaunchRequest, PlanResult, PreparedMetadata, TokenMetadataInput } from "@o1bot/executor";
-import { ParserError, type LaunchCommand, type MentionInput, type ParsedMention } from "@o1bot/parser";
+import { ParserError, type ComposeInput, type LaunchCommand, type MentionInput, type ParsedMention } from "@o1bot/parser";
 import { activeFactory, chainByKey, chainDisplayName, DEFAULT_CHAIN_KEY, findQuote, logger, tickerCollidesWithStock } from "@o1bot/shared";
 import type { EnsureWalletInput, LinkedUser, LinkStatus } from "@o1bot/wallet";
 import { stripLeadingMentions, XPostError, type XClient, type XMention } from "@o1bot/x";
 import { noAlerts, postUrl, type Alerter } from "./alerts";
+import type { AskData } from "./ask-data";
+import { handleAsk } from "./ask-handler";
 import type { BridgeChain } from "./bridge-core";
 import { handleBridge } from "./bridge-handler";
 import type { BotConfig } from "./config";
@@ -50,6 +52,10 @@ export type PipelineDeps = {
   /** Origin-chain reads and the Relay deposit for a bridge from a post. */
   bridge: BridgeChain;
   relay: RelayClient;
+  /** Figures behind questions from posts: statistics, tokens, the poster's wallet, launches and trades. */
+  askData: AskData;
+  /** Phrases the answer to a question from the facts, in the post's language; null means "use the template". Absent in tests. */
+  compose?: (input: ComposeInput) => Promise<string | null>;
   /** Operator alerts; absent in tests and dry runs. */
   alerts?: Alerter;
   now?: () => Date;
@@ -58,7 +64,7 @@ export type PipelineDeps = {
 export type PipelineOutcome =
   | { outcome: "duplicate" }
   | { outcome: "ignored"; reason: string }
-  | { outcome: "replied"; kind: "help" | "clarify" | "unsupported_chain" | "not_registered" | "rejected"; reply: string | null }
+  | { outcome: "replied"; kind: "help" | "ask" | "clarify" | "unsupported_chain" | "not_registered" | "rejected"; reply: string | null }
   | { outcome: "dry_run"; launchId: string; token: Address; reply: string }
   | { outcome: "launched"; launchId: string; token: Address; txHash: Hex; feeRecipientTxHash: Hex | null; reply: string | null }
   | { outcome: "trade_dry_run"; tradeId: string; reply: string }
@@ -191,6 +197,8 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
       await setMention("REJECTED", { error: `unsupported chain: ${result.chain}` });
       return { outcome: "replied", kind: "unsupported_chain", reply: r.posted || config.dryRun ? r.text : null };
     }
+    case "ask":
+      return handleAsk(result, { mention, mentionId, deps, now, log, reply, setMention });
     case "launch":
       return handleLaunch(result, { mention, mentionId, deps, now, log, reply, setMention });
     case "trade":

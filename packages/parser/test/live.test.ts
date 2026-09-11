@@ -34,6 +34,10 @@ type Expect = {
   amountSymbol?: string | null;
   sellPortion?: { kind: "all" } | { kind: "percent"; value: number } | null;
   slippageBps?: number | null;
+  /** Questions (kind ask). */
+  topic?: string;
+  askTicker?: string | null;
+  askAddress?: string | null;
 };
 
 const hasKey = Boolean(process.env.ANTHROPIC_API_KEY);
@@ -71,6 +75,12 @@ describe.skipIf(!hasKey)("parser against the live model", () => {
       if (result.kind === "bridge") {
         if (e.fromChain !== undefined) expect(result.fromChain).toBe(e.fromChain);
         if (e.amount !== undefined) expect(result.amount).toBe(e.amount);
+      }
+      if (result.kind === "ask") {
+        if (e.topic !== undefined) expect(result.topic).toBe(e.topic);
+        if (e.chain !== undefined) expect(result.chain).toBe(e.chain);
+        if (e.askTicker !== undefined) expect(result.ticker).toBe(e.askTicker);
+        if (e.askAddress !== undefined) expect(result.tokenAddress?.toLowerCase() ?? null).toBe(e.askAddress?.toLowerCase() ?? null);
       }
       if (result.kind === "clarify" && e.missingIncludes) {
         for (const m of e.missingIncludes) expect(result.missing).toContain(m);
