@@ -1,5 +1,5 @@
-import { db, dbConfigured, type TokenSite, type TokenSiteVersion } from "@o1bot/db";
-import { filesFromList, type LiveData, type SiteFile, type SiteFiles, type SiteMeta } from "@o1bot/sites";
+import { db, dbConfigured, type Prisma, type TokenSite, type TokenSiteVersion } from "@o1bot/db";
+import { filesFromList, renderSite, type LiveData, type SiteFile, type SiteFiles, type SiteMeta } from "@o1bot/sites";
 import { chainKeyOf, EXPLORER } from "./chains-web";
 import { getHolders } from "./holders";
 import { publicIpfsUrl } from "./ipfs";
@@ -84,4 +84,87 @@ export async function liveDataFor(site: SiteRow): Promise<{ live: LiveData; meta
   const description = (metadata?.description ?? `$${symbol} on ${chainLabel(chain)}, launched through ${SITES_ROOT_DOMAIN}.`).replace(/\s+/g, " ").slice(0, 160);
   const meta: SiteMeta = { slug: site.slug, rootDomain: SITES_ROOT_DOMAIN, title: `${name} ($${symbol})`, description, lang: "en", ogImage: logoUrl };
   return { live, meta };
+}
+
+/* ── The editor: owner-only reads and writes ─────────────────────────── */
+
+/** Builds and revisions a site may ask the agent for per UTC day. */
+export const SITE_JOBS_PER_DAY = 30;
+
+const ownerInclude = { launch: { select: launchSelect }, owner: { select: { xUserId: true } } } as const;
+export type OwnerSiteRow = Prisma.TokenSiteGetPayload<{ include: typeof ownerInclude }>;
+
+export type OwnerSiteView = {
+  slug: string;
+  status: string;
+  url: string;
+  publishedN: number | null;
+  token: string | null;
+  chainId: number;
+  launch: { name: string; ticker: string; logoUrl: string | null } | null;
+  versions: Array<{ n: number; summary: string | null; prompt: string | null; createdAt: string }>;
+  jobs: Array<{ id: string; status: string; instruction: string | null; versionN: number | null; error: string | null; createdAt: string }>;
+  jobsToday: number;
+  jobsPerDay: number;
+};
+
+/** The site with this slug when the caller owns it; null otherwise (the API answers 404 either way). */
+export async function siteForOwner(slug: string, xUserId: string): Promise<OwnerSiteRow | null> {
+  if (!dbConfigured()) return null;
+  const site = await db().tokenSite.findUnique({ where: { slug }, include: ownerInclude });
+  if (!site || site.status === "RELEASED" || site.owner.xUserId !== xUserId) return null;
+  return site;
+}
+
+const startOfUtcDay = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+
+export async function ownerSiteView(site: OwnerSiteRow): Promise<OwnerSiteView> {
+  const [versions, jobs, jobsToday] = await Promise.all([
+    db().tokenSiteVersion.findMany({ where: { siteId: site.id }, orderBy: { n: "desc" }, select: { n: true, summary: true, prompt: true, createdAt: true } }),
+    db().tokenSiteJob.findMany({ where: { siteId: site.id }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, status: true, instruction: true, versionN: true, error: true, createdAt: true } }),
+    db().tokenSiteJob.count({ where: { siteId: site.id, createdAt: { gte: startOfUtcDay(new Date()) } } }),
+  ]);
+  return {
+    slug: site.slug,
+    status: site.status,
+    url: `https://${site.slug}.${SITES_ROOT_DOMAIN}`,
+    publishedN: site.publishedN,
+    token: site.token,
+    chainId: site.chainId,
+    launch: site.launch ? { name: site.launch.name, ticker: site.launch.ticker, logoUrl: publicIpfsUrl(site.launch.imageUri) } : null,
+    versions: versions.map((v) => ({ ...v, createdAt: v.createdAt.toISOString() })),
+    jobs: jobs.map((j) => ({ ...j, createdAt: j.createdAt.toISOString() })),
+    jobsToday,
+    jobsPerDay: SITE_JOBS_PER_DAY,
+  };
+}
+
+export type QueueResult = { ok: true; id: string } | { ok: false; reason: "limit" | "busy" | "no_version" };
+
+/** Ask the agent for a revision (or the first build again); the bot worker runs it. One job at a time per site. */
+export async function queueSiteJob(site: OwnerSiteRow, input: { instruction: string | null; baseN: number | null }): Promise<QueueResult> {
+  const [today, active] = await Promise.all([
+    db().tokenSiteJob.count({ where: { siteId: site.id, createdAt: { gte: startOfUtcDay(new Date()) } } }),
+    db().tokenSiteJob.count({ where: { siteId: site.id, status: { in: ["QUEUED", "RUNNING"] } } }),
+  ]);
+  if (today >= SITE_JOBS_PER_DAY) return { ok: false, reason: "limit" };
+  if (active > 0) return { ok: false, reason: "busy" };
+  if (input.baseN !== null && !(await db().tokenSiteVersion.findUnique({ where: { siteId_n: { siteId: site.id, n: input.baseN } }, select: { n: true } }))) return { ok: false, reason: "no_version" };
+  const job = await db().tokenSiteJob.create({ data: { siteId: site.id, instruction: input.instruction, baseN: input.baseN, createdById: site.ownerId } });
+  return { ok: true, id: job.id };
+}
+
+export async function publishSiteVersion(site: OwnerSiteRow, n: number): Promise<boolean> {
+  const version = await db().tokenSiteVersion.findUnique({ where: { siteId_n: { siteId: site.id, n } }, select: { n: true } });
+  if (!version) return false;
+  await db().tokenSite.update({ where: { id: site.id }, data: { publishedN: n, status: "LIVE", error: null } });
+  return true;
+}
+
+/** The document a version renders to, with the live numbers of the moment; what the editor previews. */
+export async function renderSiteVersion(site: OwnerSiteRow, n: number): Promise<string | null> {
+  const version = await db().tokenSiteVersion.findUnique({ where: { siteId_n: { siteId: site.id, n } } });
+  if (!version) return null;
+  const { live, meta } = await liveDataFor(site);
+  return renderSite(filesFromList(version.files as SiteFile[]), meta, live);
 }
