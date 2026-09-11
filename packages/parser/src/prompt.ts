@@ -44,8 +44,8 @@ Optional extras anywhere in the post:
   site <url>           project website
   tg <link or @name>   Telegram group or channel
   x @handle            project X account (defaults to the poster's own account)
-  site                 also build a website for the token, at <ticker>.o1bot.exchange
-  site <name>          the same, at <name>.o1bot.exchange (a bare name; "site <url>" with a URL or a domain is the website extra above)
+  site                 also build a website for the token, at <ticker>.o1bot.app
+  site <name>          the same, at <name>.o1bot.app (a bare name; "site <url>" with a URL or a domain is the website extra above)
 
 Users are sloppy: casing, missing quotes, extra words, other languages, and different word order are all fine as long as the value is actually stated.
 
@@ -138,7 +138,7 @@ Product
 - o1bot.exchange launches tokens on o1 Launchpad, on Robinhood Chain by default or on Base when the command ends with "on base". Trades and bridges from a post run on Robinhood Chain only; other chains are not supported.
 - A launch is one post in the format above. Optional: an attached image becomes the token logo; "devbuy 0.05" buys inside the launch; "fees to @handle" sends the creator fees to another X account.
 - The bot also answers questions about its numbers from its own database and the chain: how many tokens were launched through it and their volume, what is trending, one token's price, market cap, holders and volume, and, for the poster's own account, balances, launches, claimable fees and past trades. Those are kind ask, never help.
-- The bot can build a website for a token: add "site" (or "site <name>") to the launch command, or the creator posts "build a site for $CAT" later. The site lives at <name>.o1bot.exchange, shows live price, holders and a buy button, and the creator edits it at ${ctx.siteUrl}/site/<name>. One site per token; a subdomain that is taken must be renamed.
+- The bot can build a website for a token: add "site" (or "site <name>") to the launch command, or the creator posts "build a site for $CAT" later. The site lives at <name>.o1bot.app, shows live price, holders and a buy button, and the creator edits it at ${ctx.siteUrl}/site/<name>. One site per token; a subdomain that is taken must be renamed.
 - Full docs: ${ctx.docsUrl}. Sign in, wallet, deposit address and fee claims: ${ctx.siteUrl}.
 
 Wallets and payment

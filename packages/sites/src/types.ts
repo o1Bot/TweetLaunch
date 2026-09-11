@@ -34,8 +34,14 @@ export type SiteChain = "robinhood" | "base";
 
 export type SiteMeta = {
   slug: string;
-  /** Domain the site hangs under, e.g. "o1bot.exchange". */
+  /** Domain the sites hang under, e.g. "o1bot.app". */
   rootDomain: string;
+  /** The app's own origin (the board, token pages, the API), e.g. "https://o1bot.exchange". */
+  appUrl: string;
+  /** Where a visitor can report a site; null hides the link. */
+  reportEmail: string | null;
+  /** Hosts, besides the defaults, the site may link to: the creator's website. */
+  allowedLinkHosts: string[];
   title: string;
   description: string;
   /** BCP-47 tag for the document. */

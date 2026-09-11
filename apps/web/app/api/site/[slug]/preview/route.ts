@@ -1,6 +1,6 @@
 import { siteCsp } from "@o1bot/sites";
 import { userFromRequest } from "@o1bot/wallet";
-import { renderSiteVersion, siteForOwner, SITES_ROOT_DOMAIN } from "@/lib/sites";
+import { APP_ORIGIN, renderSiteVersion, siteForOwner, SITES_ROOT_DOMAIN } from "@/lib/sites";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,5 +20,5 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   if (!Number.isInteger(n) || n <= 0) return new Response("no version", { status: 404 });
   const html = await renderSiteVersion(site, n);
   if (html === null) return new Response("no such version", { status: 404 });
-  return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "content-security-policy": siteCsp(SITES_ROOT_DOMAIN), "cache-control": "no-store" } });
+  return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "content-security-policy": siteCsp({ rootDomain: SITES_ROOT_DOMAIN, appUrl: APP_ORIGIN }), "cache-control": "no-store" } });
 }

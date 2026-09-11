@@ -127,7 +127,15 @@ export function SiteEditor({ slug }: { slug: string }) {
         const res = await api("/jobs", { method: "POST", body: JSON.stringify({ instruction: t, baseN: selectedN }) });
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as { error?: string };
-          setError(body.error === "limit" ? `You have used today's ${view?.jobsPerDay ?? 30} changes; more tomorrow.` : body.error === "busy" ? "The agent is still working on the previous change." : `Could not queue the change (${body.error ?? res.status}).`);
+          setError(
+            body.error === "limit"
+              ? `You have used today's ${view?.jobsPerDay ?? 30} changes; more tomorrow.`
+              : body.error === "busy"
+                ? "The agent is still working on the previous change."
+                : body.error === "suspended"
+                  ? "This site was taken down and cannot be changed."
+                  : `Could not queue the change (${body.error ?? res.status}).`,
+          );
           return;
         }
         const { id } = (await res.json()) as { id: string };
@@ -201,7 +209,7 @@ export function SiteEditor({ slug }: { slug: string }) {
 
   const name = view.launch?.name ?? view.slug;
   const ticker = view.launch?.ticker ?? view.slug.toUpperCase();
-  const pill = view.status === "LIVE" ? "Live" : view.status === "GENERATING" ? "Building" : view.status === "FAILED" ? "Build failed" : "Reserved";
+  const pill = view.status === "LIVE" ? "Live" : view.status === "GENERATING" ? "Building" : view.status === "FAILED" ? "Build failed" : view.status === "SUSPENDED" ? "Taken down" : "Reserved";
   const canPublish = selectedN !== null && selectedN !== view.publishedN && !working;
 
   return (
@@ -313,7 +321,8 @@ export function SiteEditor({ slug }: { slug: string }) {
             </div>
           </div>
           <div className={`se-frame ${width}`}>
-            {preview ? <iframe title="Site preview" srcDoc={preview} sandbox="" /> : <div className="se-empty">{selectedN === null ? "The preview appears here once the first version exists." : "Loading preview…"}</div>}
+            {/* Scripts run, but in an opaque origin: no cookies, no storage, no access to this page. The document's own policy limits what they may fetch. */}
+            {preview ? <iframe title="Site preview" srcDoc={preview} sandbox="allow-scripts" /> : <div className="se-empty">{selectedN === null ? "The preview appears here once the first version exists." : "Loading preview…"}</div>}
           </div>
         </section>
       </div>

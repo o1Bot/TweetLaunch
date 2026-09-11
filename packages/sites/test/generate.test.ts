@@ -5,11 +5,13 @@ import { BLOCK_TAGS } from "../src/sanitize";
 
 const brief: SiteBrief = {
   slug: "cat",
-  rootDomain: "o1bot.exchange",
+  rootDomain: "o1bot.app",
+  apiOrigin: "https://o1bot.exchange",
   name: "Cash Cat",
   symbol: "CAT",
   chain: "robinhood",
   pairSymbol: "ETH",
+  tokenAddress: "0x0ab6bf0ffa6d5c5aaa8fc94a8fb2f4ea2f4f5c01",
   description: "The cat that pays its own rent.",
   originPost: 'launch $CAT "Cash Cat" pair ETH site',
   creatorHandle: "alice",
@@ -33,13 +35,17 @@ describe("briefText", () => {
     const text = briefText(brief);
     expect(text).toContain("Ticker: $CAT");
     expect(text).toContain("Chain: Robinhood Chain");
-    expect(text).toContain("https://cat.o1bot.exchange");
+    expect(text).toContain("https://cat.o1bot.app");
     expect(text).toContain('"The cat that pays its own rent."');
     expect(text).toContain("#f4c430, #111111");
     expect(text).toContain("Telegram none");
     expect(text).toContain("half of it goes to the creator");
-    expect(briefText({ ...brief, logoUrl: null, palette: null, originPost: null })).toContain("none; use typography");
-    expect(briefText({ ...brief, logoUrl: null, palette: null, originPost: null })).toContain("launched from the web form");
+    expect(text).toContain("Contract address: 0x0ab6bf0ffa6d5c5aaa8fc94a8fb2f4ea2f4f5c01");
+    expect(text).toContain("GET https://o1bot.exchange/api/token/0x0ab6bf0ffa6d5c5aaa8fc94a8fb2f4ea2f4f5c01/candles?tf=15m");
+    const bare = briefText({ ...brief, logoUrl: null, palette: null, originPost: null, tokenAddress: null });
+    expect(bare).toContain("none; use typography");
+    expect(bare).toContain("launched from the web form");
+    expect(bare).not.toContain("/api/token/");
   });
 });
 
@@ -94,10 +100,13 @@ describe("postProcess", () => {
 });
 
 describe("systemPrompt", () => {
-  it("names every block and forbids scripts", () => {
+  it("names every block, allows one inline script and forbids inputs, redirects and wallet prompts", () => {
     const p = systemPrompt();
     for (const tag of BLOCK_TAGS) expect(p).toContain(`<${tag}`);
-    expect(p).toContain("No JavaScript");
+    expect(p).toContain("one inline <script>");
+    expect(p).toContain("No <iframe>, <form>, <input>");
+    expect(p).toContain("may not: navigate or redirect");
+    expect(p).toContain("wallet connection");
     expect(p).not.toMatch(/—/);
   });
 });

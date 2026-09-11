@@ -11,7 +11,7 @@ import type { MemoryBotStore } from "./store";
  * subdomain even across workers.
  */
 
-export type SiteStatusValue = "RESERVED" | "GENERATING" | "LIVE" | "FAILED" | "RELEASED";
+export type SiteStatusValue = "RESERVED" | "GENERATING" | "LIVE" | "FAILED" | "RELEASED" | "SUSPENDED";
 export type SiteJobStatusValue = "QUEUED" | "RUNNING" | "DONE" | "FAILED";
 
 export type SiteRecord = {
