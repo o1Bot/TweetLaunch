@@ -84,8 +84,9 @@
     "text": "@o1bot_exchange launch $ABC \"Abc\" pair ETH on base",
     "hasImage": false,
     "expect": {
-      "kind": "unsupported_chain",
-      "chain": "base"
+      "kind": "launch",
+      "chain": "base",
+      "pair": "ETH"
     }
   },
   {
