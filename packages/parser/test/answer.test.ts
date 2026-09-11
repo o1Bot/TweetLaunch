@@ -17,7 +17,7 @@ describe("answerIsGrounded", () => {
   it("matches figures inside longer tokens and ignores trailing punctuation", () => {
     expect(answerIsGrounded("The newest one, $CAT, went live 3 hours ago by @alice.", facts)).toBe(true);
     expect(answerIsGrounded("Total: 85.", facts)).toBe(true);
-    expect(answerIsGrounded("Semua 85 token, volume $12.3K, 24 jam terakhir.", facts)).toBe(true);
+    expect(answerIsGrounded("Every one of the 85 tokens, $12.3K of volume in the last 24 hours.", facts)).toBe(true);
   });
 
   it("rejects an invented or reformatted number", () => {

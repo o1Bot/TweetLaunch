@@ -50,7 +50,7 @@ describe("normalizeParseOutput for questions", () => {
   it("asks which token when a token question names none or names it badly", () => {
     expect(norm({ topic: "token", ticker: null })).toEqual({ kind: "clarify", question: ASK_TOKEN_QUESTION, missing: ["trade_token"], language: "en", reason: "test" });
     expect(norm({ topic: "token", ticker: "not a ticker!" })).toMatchObject({ kind: "clarify", missing: ["trade_token"] });
-    expect(norm({ topic: "token", ticker: null, question: "Token yang mana?" })).toMatchObject({ kind: "clarify", question: "Token yang mana?" });
+    expect(norm({ topic: "token", ticker: null, question: "Which token exactly?" })).toMatchObject({ kind: "clarify", question: "Which token exactly?" });
   });
 
   it("treats ask without a topic as help when the model wrote a reply, else ignores it", () => {

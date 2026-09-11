@@ -55,8 +55,8 @@ describe("normalizeParseOutput", () => {
   });
 
   it("keeps the model's question when present and builds one otherwise", () => {
-    const withQ = normalizeParseOutput({ ...base, kind: "clarify", pair: null, missing: ["pair"], question: "Pair apa?" }, { hasImage: false });
-    expect(withQ).toMatchObject({ kind: "clarify", question: "Pair apa?" });
+    const withQ = normalizeParseOutput({ ...base, kind: "clarify", pair: null, missing: ["pair"], question: "Which pair?" }, { hasImage: false });
+    expect(withQ).toMatchObject({ kind: "clarify", question: "Which pair?" });
     const noQ = normalizeParseOutput({ ...base, pair: null }, { hasImage: false });
     expect(noQ.kind === "clarify" && noQ.question.length > 10).toBe(true);
   });

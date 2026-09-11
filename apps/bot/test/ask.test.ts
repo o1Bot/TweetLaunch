@@ -333,12 +333,12 @@ describe("questions answered from the data", () => {
   it("posts the composed answer when there is one, with the facts and the post's language", async () => {
     h = harness({ compose: true });
     h.askData.stats = { launches: { total: 85, robinhood: 85, base: 0 }, trades: 4321, volume24hUsd: 12300, volumeAllUsd: 1230000, latest: null };
-    h.composeResult = "85 token sejauh ini, volume 24 jam $12.3K.";
+    h.composeResult = "85 tokens so far, $12.3K traded in the last 24h.";
     h.script.parse = ask({ language: "id" });
-    await processMention(post("udah berapa token yang lu launch?"), h.deps);
-    expect(h.x.replies[0]?.text).toBe("85 token sejauh ini, volume 24 jam $12.3K.");
+    await processMention(post("how many tokens have you launched so far?"), h.deps);
+    expect(h.x.replies[0]?.text).toBe("85 tokens so far, $12.3K traded in the last 24h.");
     expect(h.composeCalls).toHaveLength(1);
-    expect(h.composeCalls[0]).toMatchObject({ post: "udah berapa token yang lu launch?", language: "id", botHandle: "o1bot_exchange", siteUrl: SITE });
+    expect(h.composeCalls[0]).toMatchObject({ post: "how many tokens have you launched so far?", language: "id", botHandle: "o1bot_exchange", siteUrl: SITE });
     expect(h.composeCalls[0]?.facts).toContain("Tokens launched through o1bot: 85 in total");
     expect(h.composeCalls[0]?.facts).toContain("$1.23M");
   });
@@ -348,7 +348,7 @@ describe("questions answered from the data", () => {
     h.store.prefs.set("111", { acceptFeeRedirects: true, replyLanguage: "en" });
     h.composeResult = null;
     h.script.parse = ask({ language: "id" });
-    await processMention(post("udah berapa token?"), h.deps);
+    await processMention(post("how many tokens so far?"), h.deps);
     expect(h.composeCalls[0]?.language).toBe("en");
     expect(h.x.replies[0]?.text).toContain("No token has been launched through o1bot yet");
   });
