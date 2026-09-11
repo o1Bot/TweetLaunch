@@ -237,7 +237,7 @@ describe("the worker", () => {
     const ran = await drainSiteJobs(h.deps);
     expect(ran).toBe(1);
     const brief = h.generated[0]?.brief;
-    expect(brief).toMatchObject({ slug: "cat", name: "Cash Cat", symbol: "CAT", chain: "robinhood", pairSymbol: "ETH", description: "The cat that pays its own rent.", creatorHandle: "alice", language: "en" });
+    expect(brief).toMatchObject({ slug: "cat", rootDomain: "o1bot.exchange", apiOrigin: SITE, name: "Cash Cat", symbol: "CAT", chain: "robinhood", pairSymbol: "ETH", tokenAddress: TOKEN, description: "The cat that pays its own rent.", creatorHandle: "alice", language: "en" });
     expect(brief?.originPost).toContain('launch $CAT "Cash Cat" pair ETH site');
     expect(brief?.socials).toEqual({ x: "https://x.com/alice", telegram: "https://t.me/cashcat", website: null });
     expect(brief?.logoUrl).toBe("https://gateway.pinata.cloud/ipfs/img/CAT");
@@ -338,6 +338,19 @@ describe("the site command", () => {
     out = await processMention(post("build a site for $CAT", { id: "7003" }), h.deps);
     expect(out).toMatchObject({ outcome: "replied", kind: "not_registered" });
     expect(h.sites.sites).toHaveLength(0);
+  });
+
+  it("keeps a suspended site down: no rebuild from a post, no job", async () => {
+    await processMention(post("build a site for $CAT", { id: "7001" }), h.deps);
+    await drainSiteJobs(h.deps);
+    h.sites.sites[0]!.status = "SUSPENDED";
+    const out = await processMention(post("build a site for $CAT", { id: "7002" }), h.deps);
+    expect(out).toMatchObject({ outcome: "replied", kind: "rejected" });
+    expect(h.x.replies[3]?.text).toContain("was taken down");
+    const job = await h.sites.createJob({ siteId: h.sites.sites[0]!.id, instruction: "try", baseN: null, mentionId: null, createdById: "u" });
+    const result = await runSiteJob((await h.sites.claimJob(job.id))!, h.deps, { info() {}, warn() {}, error() {} });
+    expect(result).toMatchObject({ ok: false, error: "site suspended" });
+    expect(h.sites.versions).toHaveLength(1);
   });
 
   it("points at an existing live site instead of building another", async () => {

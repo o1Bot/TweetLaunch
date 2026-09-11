@@ -9,10 +9,14 @@ import type { SiteChain } from "./types";
 export type SiteBrief = {
   slug: string;
   rootDomain: string;
+  /** The app's origin, where the read-only token API lives. */
+  apiOrigin: string;
   name: string;
   symbol: string;
   chain: SiteChain;
   pairSymbol: string;
+  /** Contract address once the launch confirmed; the API is keyed by it. */
+  tokenAddress: string | null;
   /** The creator's description from the launch, verbatim; null when none was given. */
   description: string | null;
   /** The post that launched the token, for its tone and any story it tells. */
@@ -43,8 +47,19 @@ export function briefText(b: SiteBrief): string {
     `Logo: ${b.logoUrl ? `${b.logoUrl} (square image; use it with <o1bot-logo>)` : "none; use typography, never a placeholder image"}`,
     `Colours found in the logo, most present first: ${b.palette?.length ? b.palette.join(", ") : "unknown; choose a palette that fits the name"}`,
     `Links: X ${b.socials.x ?? "none"}; Telegram ${b.socials.telegram ?? "none"}; Website ${b.socials.website ?? "none"}`,
+    `Contract address: ${b.tokenAddress ?? "not known yet (the address block shows it once it is)"}`,
+    `Token page with chart and swap: ${b.tokenAddress ? `${b.apiOrigin}/token/${b.tokenAddress}` : b.apiOrigin}`,
     `Language for all copy: ${b.language}`,
     "",
+    ...(b.tokenAddress
+      ? [
+          "Read-only JSON API a script on the page may call (CORS is open for this site; nothing else may be fetched):",
+          `- GET ${b.apiOrigin}/api/token/${b.tokenAddress} -> { data: { name, symbol, stats: { priceUsd, priceQuote, mcapUsd, volume24hUsd, volumeAllUsd, change24hPct }, tradeCount, quoteSymbol, launchedAt, trades: [{ time, side, amountToken, amountQuote, priceQuote }] } }; numbers may be null before the first trade.`,
+          `- GET ${b.apiOrigin}/api/token/${b.tokenAddress}/holders -> { total, holders: [{ address, balance, percent }] }`,
+          `- GET ${b.apiOrigin}/api/token/${b.tokenAddress}/candles?tf=15m -> { data: [{ t, o, h, l, c, v }], quoteSymbol } (t = bucket start in unix seconds, o/h/l/c = price in the paired asset, v = volume; tf: 1m, 5m, 15m, 1h, 4h, 1d)`,
+          "",
+        ]
+      : []),
     "Facts about every o1 Launchpad token (true for this one, may be stated, never embellished):",
     "- The entire supply went into a permanent Uniswap v4 pool at launch. No presale, no team allocation, no minting later.",
     "- Every trade pays a 1% swap fee; half of it goes to the creator, in the paired asset.",

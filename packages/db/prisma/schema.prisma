@@ -362,6 +362,8 @@ enum TokenSiteStatus {
   FAILED
   /// The launch failed or the reservation expired; the slug is free again.
   RELEASED
+  /// Taken down by the operator; the address shows a notice and the editor is closed.
+  SUSPENDED
 }
 
 /// A site the agent built for a token, served at <slug>.o1bot.exchange.

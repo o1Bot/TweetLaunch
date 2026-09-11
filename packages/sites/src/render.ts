@@ -5,10 +5,12 @@ import type { LiveData, SiteFiles, SiteMeta } from "./types";
 
 /**
  * Turns the agent's files into the document that is served: o1bot owns the
- * head (title, description, link preview, canonical URL, fonts, base styles),
- * sanitizes the body, and fills the o1bot blocks with the live numbers. The
- * same function renders the editor preview, so what the creator sees is what
- * visitors get.
+ * head (title, description, link preview, canonical URL, the policy, base
+ * styles), sanitizes the body, and fills the o1bot blocks with the live
+ * numbers. The same function renders the editor preview, so what the
+ * creator sees is what visitors get, policy included: the Content-Security-
+ * Policy goes into the document as a meta element as well as on the
+ * response, and a meta policy applies inside a preview frame too.
  */
 
 export function escapeHtml(s: string): string {
@@ -27,6 +29,14 @@ function usd(n: number | null): string {
 
 const count = (n: number | null) => (n === null ? "—" : n.toLocaleString("en-US"));
 const chainLabel = (chain: LiveData["chain"]) => (chain === "base" ? "Base" : "Robinhood Chain");
+const originOf = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+};
 
 /** Styles for the blocks. Namespaced, themeable through CSS variables the agent may set on :root. */
 export const BASE_CSS = `
@@ -53,11 +63,11 @@ type Block = (attrs: Record<string, string>, live: LiveData, meta: SiteMeta) => 
 const BLOCKS: Record<BlockTag, Block> = {
   "o1bot-stats": (_a, live) => {
     const delta = live.change24hPct === null ? "" : `<span class="o1bot-stat-delta ${live.change24hPct >= 0 ? "up" : "down"}">${escapeHtml(formatPct(live.change24hPct))} 24h</span>`;
-    const tile = (label: string, value: string, extra = "") => `<div class="o1bot-stat"><span class="o1bot-stat-label">${label}</span><span class="o1bot-stat-value">${value}</span>${extra}</div>`;
+    const tile = (key: string, label: string, value: string, extra = "") => `<div class="o1bot-stat" data-stat="${key}"><span class="o1bot-stat-label">${label}</span><span class="o1bot-stat-value">${value}</span>${extra}</div>`;
     if (live.status === "pending") {
-      return `<div class="o1bot-stats">${tile("Price", "soon")}${tile("Market cap", "soon")}${tile("Holders", "soon")}${tile("24h volume", "soon")}</div>`;
+      return `<div class="o1bot-stats">${tile("price", "Price", "soon")}${tile("mcap", "Market cap", "soon")}${tile("holders", "Holders", "soon")}${tile("volume", "24h volume", "soon")}</div>`;
     }
-    return `<div class="o1bot-stats">${tile("Price", escapeHtml(usd(live.priceUsd)), delta)}${tile("Market cap", escapeHtml(usd(live.mcapUsd)))}${tile("Holders", escapeHtml(count(live.holders)))}${tile("24h volume", escapeHtml(usd(live.volume24hUsd)))}</div>`;
+    return `<div class="o1bot-stats">${tile("price", "Price", escapeHtml(usd(live.priceUsd)), delta)}${tile("mcap", "Market cap", escapeHtml(usd(live.mcapUsd)))}${tile("holders", "Holders", escapeHtml(count(live.holders)))}${tile("volume", "24h volume", escapeHtml(usd(live.volume24hUsd)))}</div>`;
   },
   "o1bot-buy": (attrs, live) => {
     const label = attrs.label?.trim() || (live.status === "pending" ? `$${live.symbol} launches soon` : `Buy $${live.symbol}`);
@@ -65,7 +75,7 @@ const BLOCKS: Record<BlockTag, Block> = {
   },
   "o1bot-address": (_a, live) => {
     if (!live.token) return `<span class="o1bot-address">Contract address: published at launch</span>`;
-    const inner = `<code>${escapeHtml(live.token)}</code>`;
+    const inner = `<code data-address="${escapeHtml(live.token)}">${escapeHtml(live.token)}</code>`;
     return live.explorerUrl ? `<a class="o1bot-address" href="${escapeHtml(live.explorerUrl)}" target="_blank" rel="noopener noreferrer">${inner}</a>` : `<span class="o1bot-address">${inner}</span>`;
   },
   "o1bot-socials": (_a, live) => {
@@ -85,9 +95,10 @@ const BLOCKS: Record<BlockTag, Block> = {
     return `<img class="o1bot-logo" src="${escapeHtml(live.logoUrl)}" alt="${escapeHtml(live.name)} logo" width="${size}" height="${size}" loading="lazy" decoding="async">`;
   },
   "o1bot-footer": (_a, live, meta) => {
-    const home = `https://${meta.rootDomain}`;
+    const appHost = meta.appUrl.replace(/^https?:\/\//, "");
     const launched = live.status === "pending" ? "is launching" : "was launched";
-    return `<p class="o1bot-footer">$${escapeHtml(live.symbol)} ${launched} through <a href="${escapeHtml(home)}" target="_blank" rel="noopener noreferrer">${escapeHtml(meta.rootDomain)}</a> on ${chainLabel(live.chain)}. Nothing here is financial advice.</p>`;
+    const report = meta.reportEmail ? ` <a href="mailto:${escapeHtml(meta.reportEmail)}?subject=${encodeURIComponent(`Report site ${meta.slug}.${meta.rootDomain}`)}">Report this site</a>.` : "";
+    return `<p class="o1bot-footer">$${escapeHtml(live.symbol)} ${launched} through <a href="${escapeHtml(meta.appUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(appHost)}</a> on ${chainLabel(live.chain)}. This page was written by its creator with an AI agent; nothing here is financial advice.${report}</p>`;
   },
 };
 
@@ -103,12 +114,46 @@ export function renderBlocks(html: string, live: LiveData, meta: SiteMeta): stri
   return html.replace(new RegExp(`<(${names})(\\s[^>]*)?>[\\s\\S]*?</\\1>`, "gi"), (_m, tag: string, attrs = "") => BLOCKS[tag.toLowerCase() as BlockTag](parseAttrs(attrs), live, meta));
 }
 
+export type CspInput = { rootDomain: string; appUrl: string; imageOrigins?: Array<string | null | undefined> };
+
+/**
+ * What a site may do. Scripts: inline only, never from a URL. Requests:
+ * o1bot's own API and nothing else, so a page cannot send anything
+ * anywhere. Images: the logo gateways and the app. No frames, forms,
+ * objects, media or workers. `meta` leaves out the directives a <meta>
+ * policy cannot carry.
+ */
+export function siteCsp(input: CspInput, opts: { meta?: boolean } = {}): string {
+  const app = originOf(input.appUrl) ?? input.appUrl;
+  const images = [...new Set(["data:", app, "https://gateway.pinata.cloud", ...(input.imageOrigins ?? []).map(originOf).filter((o): o is string => o !== null)])];
+  const directives = [
+    "default-src 'none'",
+    "script-src 'unsafe-inline'",
+    "style-src 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src https://fonts.gstatic.com data:",
+    `img-src ${images.join(" ")}`,
+    `connect-src ${app}`,
+    "frame-src 'none'",
+    "object-src 'none'",
+    "media-src 'none'",
+    "worker-src 'none'",
+    "manifest-src 'none'",
+    "form-action 'none'",
+    "base-uri 'none'",
+    ...(opts.meta ? [] : [`frame-ancestors 'self' ${app}`]),
+    "upgrade-insecure-requests",
+  ];
+  return directives.join("; ");
+}
+
 export function renderSite(files: SiteFiles, meta: SiteMeta, live: LiveData): string {
-  const body = renderBlocks(sanitizeSiteHtml(files.html), live, meta);
+  const body = renderBlocks(sanitizeSiteHtml(files.html, { allowedLinkHosts: meta.allowedLinkHosts }), live, meta);
   const css = sanitizeSiteCss(files.css);
   const url = `${siteUrl(meta.slug, meta.rootDomain)}/`;
+  const csp = siteCsp({ rootDomain: meta.rootDomain, appUrl: meta.appUrl, imageOrigins: [live.logoUrl, meta.ogImage] }, { meta: true });
   const head = [
     `<meta charset="utf-8">`,
+    `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}">`,
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
     `<title>${escapeHtml(meta.title)}</title>`,
     `<meta name="description" content="${escapeHtml(meta.description)}">`,
@@ -129,36 +174,20 @@ export function renderSite(files: SiteFiles, meta: SiteMeta, live: LiveData): st
   return `<!doctype html>\n<html lang="${escapeHtml(meta.lang || "en")}">\n<head>\n${head}\n</head>\n<body>\n${body}\n</body>\n</html>\n`;
 }
 
-/**
- * Nothing on a token site may execute: no scripts at all, styles inline or
- * from Google Fonts, images from anywhere over https (the logo lives on an
- * IPFS gateway). The editor on the root domain may frame the live site.
- */
-export function siteCsp(rootDomain: string): string {
-  return [
-    "default-src 'none'",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src https://fonts.gstatic.com data:",
-    "img-src 'self' data: https:",
-    "base-uri 'none'",
-    "form-action 'none'",
-    `frame-ancestors 'self' https://${rootDomain} https://www.${rootDomain}`,
-    "upgrade-insecure-requests",
-  ].join("; ");
-}
-
-/** A minimal page for a slug that has no published site (reserved, generating, or unknown). */
-export function placeholderPage(slug: string, rootDomain: string, state: "reserved" | "generating" | "failed" | "unknown"): string {
-  const home = `https://${rootDomain}`;
+/** A minimal page for a slug that has no published site (reserved, generating, failed, suspended, unknown). */
+export function placeholderPage(slug: string, rootDomain: string, state: "reserved" | "generating" | "failed" | "suspended" | "unknown", appUrl = "https://o1bot.exchange"): string {
   const line =
     state === "unknown"
       ? "There is no site here."
-      : state === "failed"
-        ? "This site could not be built yet. Its creator can retry from the editor."
-        : "This site is being built. Check back in a minute.";
+      : state === "suspended"
+        ? "This site was taken down."
+        : state === "failed"
+          ? "This site could not be built yet. Its creator can retry from the editor."
+          : "This site is being built. Check back in a minute.";
+  const appHost = appUrl.replace(/^https?:\/\//, "");
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(slug)}.${escapeHtml(rootDomain)}</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0E141D;color:#e6edf6;font:16px/1.5 system-ui,sans-serif}main{max-width:420px;padding:32px;text-align:center}a{color:#7aa2ff}</style></head>
-<body><main><h1 style="font-size:1.25rem">${escapeHtml(slug)}.${escapeHtml(rootDomain)}</h1><p>${line}</p><p><a href="${escapeHtml(home)}">${escapeHtml(rootDomain)}</a></p></main></body></html>
+<body><main><h1 style="font-size:1.25rem">${escapeHtml(slug)}.${escapeHtml(rootDomain)}</h1><p>${line}</p><p><a href="${escapeHtml(appUrl)}">${escapeHtml(appHost)}</a></p></main></body></html>
 `;
 }

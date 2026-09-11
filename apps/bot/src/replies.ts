@@ -235,6 +235,8 @@ export const replies = {
 
   siteAlreadyLive: (ticker: string, url: string, editUrl: string) => `$${ticker} already has a site: ${url}\nEdit it at ${editUrl}`,
 
+  siteSuspended: (ticker: string) => `The site for $${ticker} was taken down and cannot be rebuilt from a post. Contact the o1bot team if you think that is a mistake.`,
+
   // Questions answered from the data (kind ask). The model normally phrases the answer from the
   // same facts; these are the English stand-ins when it cannot, and the address-free variants.
   askNotRegistered: (siteUrl: string) => `I only show numbers for wallets linked to o1bot, and this account has none yet. Sign in with X at ${siteUrl}, then ask again.`,

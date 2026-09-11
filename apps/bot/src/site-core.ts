@@ -66,10 +66,12 @@ export async function buildBrief(site: SiteRecord, info: SiteLaunchInfo, languag
   return {
     slug: site.slug,
     rootDomain: config.sitesRootDomain,
+    apiOrigin: config.siteUrl,
     name: info.name,
     symbol: info.ticker,
     chain: info.chainId === 8453 ? "base" : "robinhood",
     pairSymbol: info.quoteSymbol,
+    tokenAddress: site.token ?? info.tokenAddress,
     description: info.extras.description,
     originPost: info.originPost,
     creatorHandle: info.creator.xHandle || null,
@@ -106,6 +108,7 @@ export async function runSiteJob(job: SiteJobRecord, deps: SiteCoreDeps, log: Lo
   };
 
   try {
+    if (site.status === "SUSPENDED") return fail("site suspended");
     const info = site.launchId ? await sites.launchInfo(site.launchId) : site.token ? await sites.launchByToken(site.token) : null;
     if (!info) return fail("no launch behind this site");
     if (site.status !== "LIVE") await sites.update(site.id, { status: "GENERATING", error: null });

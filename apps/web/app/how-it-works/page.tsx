@@ -60,7 +60,7 @@ export default function HowItWorksPage() {
 
         <h2>A website for your token</h2>
         <p>
-          End the launch command with <em>site</em> (or <em>site yourname</em>) and the bot also builds a one-page website for the token at <em>yourname.{SITE_NAME}</em>: your story, how to buy, live price, holders and a buy button. It replies with the link when the site is up, usually within two minutes, and you keep editing it at <em>{SITE_NAME}/site/yourname</em>: describe a change in plain words, preview it, publish it. The creator of a token that already exists can ask later with <em>build a site for $TICKER</em>.
+          End the launch command with <em>site</em> (or <em>site yourname</em>) and the bot also builds a one-page website for the token at <em>yourname.o1bot.app</em>: your story, how to buy, live price, holders and a buy button. It replies with the link when the site is up, usually within two minutes, and you keep editing it at <em>{SITE_NAME}/site/yourname</em>: describe a change in plain words, preview it, publish it. The creator of a token that already exists can ask later with <em>build a site for $TICKER</em>.
         </p>
 
         <h2>What the bot does behind the scenes</h2>

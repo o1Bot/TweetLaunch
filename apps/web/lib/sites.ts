@@ -13,22 +13,35 @@ import { fetchTokenMetadata } from "./metadata";
  * disagree.
  */
 
-export const SITES_ROOT_DOMAIN = process.env.SITES_ROOT_DOMAIN ?? "o1bot.exchange";
-/** The app's own origin, for links back to the board, token pages and the editor. */
-export const APP_ORIGIN = (process.env.SITE_URL ?? `https://${SITES_ROOT_DOMAIN}`).replace(/\/$/, "");
+/** Sandbox domain the sites are served on; separate from the app on purpose. */
+export const SITES_ROOT_DOMAIN = process.env.SITES_ROOT_DOMAIN ?? "o1bot.app";
+/** The app's own origin, for links back to the board, token pages, the editor and the API. */
+export const APP_ORIGIN = (process.env.SITE_URL ?? "https://o1bot.exchange").replace(/\/$/, "");
+/** Where visitors report a site; shown in every footer. */
+const REPORT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "hello@o1bot.exchange";
+
+const hostOf = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+};
 
 const launchSelect = { name: true, ticker: true, imageUri: true, metadataUri: true, tokenAddress: true, quoteSymbol: true, request: true } as const;
 type SiteRow = TokenSite & { launch: { name: string; ticker: string; imageUri: string | null; metadataUri: string | null; tokenAddress: string | null; quoteSymbol: string; request: unknown } | null };
 
 export type SiteLookup =
   | { state: "unknown" }
-  | { state: "reserved" | "generating" | "failed" }
+  | { state: "reserved" | "generating" | "failed" | "suspended" }
   | { state: "live"; site: SiteRow; version: TokenSiteVersion; files: SiteFiles };
 
 export async function lookupSite(slug: string): Promise<SiteLookup> {
   if (!dbConfigured()) return { state: "unknown" };
   const site = await db().tokenSite.findUnique({ where: { slug }, include: { launch: { select: launchSelect } } });
   if (!site || site.status === "RELEASED") return { state: "unknown" };
+  if (site.status === "SUSPENDED") return { state: "suspended" };
   if (site.publishedN === null) return { state: site.status === "FAILED" ? "failed" : site.status === "GENERATING" ? "generating" : "reserved" };
   const version = await db().tokenSiteVersion.findUnique({ where: { siteId_n: { siteId: site.id, n: site.publishedN } } });
   if (!version) return { state: "generating" };
@@ -81,8 +94,18 @@ export async function liveDataFor(site: SiteRow): Promise<{ live: LiveData; meta
     socials: { x: metadata?.x ?? fromForm.x, telegram: metadata?.telegram ?? fromForm.telegram, website },
     launchedAt: detail?.launchedAt ?? null,
   };
-  const description = (metadata?.description ?? `$${symbol} on ${chainLabel(chain)}, launched through ${SITES_ROOT_DOMAIN}.`).replace(/\s+/g, " ").slice(0, 160);
-  const meta: SiteMeta = { slug: site.slug, rootDomain: SITES_ROOT_DOMAIN, title: `${name} ($${symbol})`, description, lang: "en", ogImage: logoUrl };
+  const description = (metadata?.description ?? `$${symbol} on ${chainLabel(chain)}, launched through ${APP_ORIGIN.replace(/^https?:\/\//, "")}.`).replace(/\s+/g, " ").slice(0, 160);
+  const meta: SiteMeta = {
+    slug: site.slug,
+    rootDomain: SITES_ROOT_DOMAIN,
+    appUrl: APP_ORIGIN,
+    reportEmail: REPORT_EMAIL,
+    allowedLinkHosts: [hostOf(website)].filter((h): h is string => h !== null),
+    title: `${name} ($${symbol})`,
+    description,
+    lang: "en",
+    ogImage: logoUrl,
+  };
   return { live, meta };
 }
 
@@ -139,10 +162,11 @@ export async function ownerSiteView(site: OwnerSiteRow): Promise<OwnerSiteView> 
   };
 }
 
-export type QueueResult = { ok: true; id: string } | { ok: false; reason: "limit" | "busy" | "no_version" };
+export type QueueResult = { ok: true; id: string } | { ok: false; reason: "limit" | "busy" | "no_version" | "suspended" };
 
 /** Ask the agent for a revision (or the first build again); the bot worker runs it. One job at a time per site. */
 export async function queueSiteJob(site: OwnerSiteRow, input: { instruction: string | null; baseN: number | null }): Promise<QueueResult> {
+  if (site.status === "SUSPENDED") return { ok: false, reason: "suspended" };
   const [today, active] = await Promise.all([
     db().tokenSiteJob.count({ where: { siteId: site.id, createdAt: { gte: startOfUtcDay(new Date()) } } }),
     db().tokenSiteJob.count({ where: { siteId: site.id, status: { in: ["QUEUED", "RUNNING"] } } }),
@@ -155,6 +179,7 @@ export async function queueSiteJob(site: OwnerSiteRow, input: { instruction: str
 }
 
 export async function publishSiteVersion(site: OwnerSiteRow, n: number): Promise<boolean> {
+  if (site.status === "SUSPENDED") return false;
   const version = await db().tokenSiteVersion.findUnique({ where: { siteId_n: { siteId: site.id, n } }, select: { n: true } });
   if (!version) return false;
   await db().tokenSite.update({ where: { id: site.id }, data: { publishedN: n, status: "LIVE", error: null } });
