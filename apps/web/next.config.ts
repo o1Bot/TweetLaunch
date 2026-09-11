@@ -20,8 +20,9 @@ for (;;) {
 const config: NextConfig = {
   // Workspace packages export TypeScript source; let Next compile them.
   transpilePackages: ["@o1bot/shared", "@o1bot/wallet", "@o1bot/db", "@o1bot/executor", "@o1bot/market", "@o1bot/parser", "@o1bot/swap", "@o1bot/sites"],
-  // Keep native/worker-thread packages out of the bundle.
-  serverExternalPackages: ["pino", "pino-pretty", "@prisma/client", "@prisma/adapter-pg", "pg", "sharp", "sanitize-html"],
+  // Keep native/worker-thread packages out of the bundle. Pure-JS dependencies of workspace packages
+  // (sanitize-html) must be bundled: they are not resolvable from apps/web at runtime on Vercel.
+  serverExternalPackages: ["pino", "pino-pretty", "@prisma/client", "@prisma/adapter-pg", "pg", "sharp"],
 };
 
 export default config;
