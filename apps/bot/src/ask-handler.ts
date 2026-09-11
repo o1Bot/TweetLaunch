@@ -291,7 +291,8 @@ export async function handleAsk(cmd: AskCommand, ctx: MentionContext): Promise<P
   const language = prefs.replyLanguage === "en" ? "en" : cmd.language;
   const composed = deps.compose ? await deps.compose({ post: stripLeadingMentions(mention.text), language, facts: built.facts, botHandle: config.botHandle, siteUrl }) : null;
   log.info({ topic: cmd.topic, composed: composed !== null }, "answering a question from the data");
-  const r = composed ? await reply(composed, { raw: true, safe: built.safe }) : await reply(built.fallback, { safe: built.safe });
+  // A composed answer may quote the contract address from the facts; the template is the address-free fallback.
+  const r = composed ? await reply(composed, { raw: true, safe: built.safe ?? built.fallback }) : await reply(built.fallback, { safe: built.safe });
   await setMention("DONE");
   return { outcome: "replied", kind: "ask", reply: r.posted || config.dryRun ? r.text : null };
 }

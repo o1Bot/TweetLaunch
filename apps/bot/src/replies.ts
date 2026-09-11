@@ -24,6 +24,19 @@ export function clampReply(text: string): string {
   return truncateForX(text);
 }
 
+/** How a token is named in a sentence: "$CAT", or, for an address, words that X will not block. */
+export const tokenRef = (asked: string): string => (/^0x[0-9a-fA-F]{40}$/.test(asked) ? "the token at that address" : `$${asked}`);
+
+/**
+ * X refuses posts carrying a bare crypto address from accounts younger than
+ * seven days (counted from the app's last authentication). Addresses inside
+ * URLs pass. When a reply has no address-free variant of its own, this
+ * makes one: every bare address becomes a pointer to the token page.
+ */
+export function stripBareAddresses(text: string): string {
+  return text.replace(/(^|[^\w/=.-])0x[0-9a-fA-F]{40}(?![\w/])/g, "$1the address on the token page");
+}
+
 /** ETH amount rounded UP to 4 decimals, so a user who sends exactly this is never short. */
 export function formatEthCeil(wei: bigint, decimals = 4): string {
   const unit = 10n ** BigInt(18 - decimals);
@@ -150,11 +163,18 @@ export const replies = {
   // Trades from a post. Replies name the token page and, when a choice is needed, the contract addresses.
   tradeDisabled: (siteUrl: string) => `Trading from posts is off for your account. Turn it on and set your per-trade cap at ${siteUrl}/me, then post again.`,
 
-  tradeUnknownToken: (ticker: string, siteUrl: string) => `I could not find $${ticker} on o1 Launchpad. Post again with its contract address, or pick one from the board at ${siteUrl}.`,
+  tradeUnknownToken: (asked: string, siteUrl: string) =>
+    /^0x/.test(asked)
+      ? `I could not find a token at that address on o1 Launchpad. Check it, or pick one from the board at ${siteUrl}.`
+      : `I could not find $${asked} on o1 Launchpad. Post again with its contract address, or pick one from the board at ${siteUrl}.`,
 
   tradeAmbiguous: (ticker: string, candidates: Array<{ name: string; token: string; liquidityUsd: number | null }>) => {
-    const lines = candidates.map((c) => `${c.name || ticker}: ${c.token}${c.liquidityUsd !== null ? ` ($${Math.round(c.liquidityUsd).toLocaleString("en-US")} liquidity)` : ""}`);
-    return `More than one $${ticker} on o1. Post again with the address of the one you mean:\n${lines.join("\n")}`;
+    const liquidity = (c: { liquidityUsd: number | null }) => (c.liquidityUsd !== null ? ` ($${Math.round(c.liquidityUsd).toLocaleString("en-US")} liquidity)` : "");
+    const lines = candidates.map((c) => `${c.name || ticker}: ${c.token}${liquidity(c)}`);
+    return {
+      text: `More than one $${ticker} on o1. Post again with the address of the one you mean:\n${lines.join("\n")}`,
+      safe: `More than one $${ticker} on o1 (${candidates.map((c) => `${c.name || ticker}${liquidity(c)}`).join(", ")}). Post again with the address of the one you mean; the token pages show it.`,
+    };
   },
 
   tradeNotO1Pool: (ticker: string, siteUrl: string) => `$${ticker} is not an o1 Launchpad pool I can verify on chain, so I will not trade it. The board at ${siteUrl} lists what I can.`,
@@ -224,9 +244,9 @@ export const replies = {
 
   siteFailed: (editUrl: string) => `The site could not be built this time. Retry from ${editUrl}, or post the site command again in a few minutes.`,
 
-  siteNotCreator: (asked: string) => `Only the creator of ${asked.startsWith("0x") ? asked : `$${asked}`} can ask for its site.`,
+  siteNotCreator: (ticker: string) => `Only the creator of $${ticker} can ask for its site.`,
 
-  siteUnknownToken: (asked: string, siteUrl: string) => `I could not find ${asked.startsWith("0x") ? asked : `$${asked}`} among the tokens launched through o1bot, and I only build sites for those. Board: ${siteUrl}`,
+  siteUnknownToken: (asked: string, siteUrl: string) => `I could not find ${tokenRef(asked)} among the tokens launched through o1bot, and I only build sites for those. Board: ${siteUrl}`,
 
   siteAmbiguous: (ticker: string, candidates: Array<{ name: string; token: string }>) => ({
     text: `You launched more than one $${ticker}. Post again with the address of the one you mean:\n${candidates.map((c) => `${c.name || ticker}: ${c.token}`).join("\n")}`,
@@ -255,7 +275,7 @@ export const replies = {
   askTop: (rows: Array<{ ticker: string; vol24: string; change: string }>, siteUrl: string) =>
     `Most traded through o1bot in the last 24h: ${rows.map((r, i) => `${i + 1}) $${r.ticker} ${r.vol24}, ${r.change}`).join("; ")}. Board: ${siteUrl}`,
 
-  askTokenUnknown: (asked: string, siteUrl: string) => `No ${asked.startsWith("0x") ? asked : `$${asked}`} was launched through o1bot, so I have no numbers for it. Every token the bot launched is on the board at ${siteUrl}.`,
+  askTokenUnknown: (asked: string, siteUrl: string) => `${/^0x/.test(asked) ? "The token at that address" : `No $${asked}`} was ${/^0x/.test(asked) ? "not " : ""}launched through o1bot, so I have no numbers for it. Every token the bot launched is on the board at ${siteUrl}.`,
 
   askTokenAmbiguous: (ticker: string, candidates: Array<{ name: string; token: string; vol24: string }>) => ({
     text: `More than one $${ticker} came through o1bot. Ask again with the address of the one you mean:\n${candidates.map((c) => `${c.name || ticker}: ${c.token} (${c.vol24} 24h)`).join("\n")}`,
