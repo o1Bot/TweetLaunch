@@ -203,4 +203,53 @@ export const replies = {
     const text = p.txHash ? `${line}\nTx: ${TX_EXPLORER}${p.txHash}\n${page}` : safe;
     return { text, safe };
   },
+
+  // Questions answered from the data (kind ask). The model normally phrases the answer from the
+  // same facts; these are the English stand-ins when it cannot, and the address-free variants.
+  askNotRegistered: (siteUrl: string) => `I only show numbers for wallets linked to o1bot, and this account has none yet. Sign in with X at ${siteUrl}, then ask again.`,
+
+  askUnavailable: (siteUrl: string) => `I could not read those numbers right now. The board at ${siteUrl} has them; ask me again in a minute.`,
+
+  askStats: (p: { total: number; robinhood: number; base: number; scope: string | null; vol24: string; volAll: string; trades: string; siteUrl: string }) =>
+    p.total === 0
+      ? `No token has been launched through o1bot${p.scope ? ` on ${p.scope}` : ""} yet. The first one will show up at ${p.siteUrl}`
+      : p.scope
+        ? `${p.total} tokens launched through o1bot on ${p.scope}, ${p.vol24} traded in the last 24h, ${p.volAll} all time across ${p.trades} trades. Board: ${p.siteUrl}`
+        : `${p.total} tokens launched through o1bot so far (${p.robinhood} on Robinhood Chain, ${p.base} on Base), ${p.vol24} traded in the last 24h, ${p.volAll} all time across ${p.trades} trades. Board: ${p.siteUrl}`,
+
+  askNoTokens: (siteUrl: string) => `No token has been launched through o1bot yet, so there is nothing to rank. The first one will show up at ${siteUrl}.`,
+
+  askTop: (rows: Array<{ ticker: string; vol24: string; change: string }>, siteUrl: string) =>
+    `Most traded through o1bot in the last 24h: ${rows.map((r, i) => `${i + 1}) $${r.ticker} ${r.vol24}, ${r.change}`).join("; ")}. Board: ${siteUrl}`,
+
+  askTokenUnknown: (asked: string, siteUrl: string) => `No ${asked.startsWith("0x") ? asked : `$${asked}`} was launched through o1bot, so I have no numbers for it. Every token the bot launched is on the board at ${siteUrl}.`,
+
+  askTokenAmbiguous: (ticker: string, candidates: Array<{ name: string; token: string; vol24: string }>) => ({
+    text: `More than one $${ticker} came through o1bot. Ask again with the address of the one you mean:\n${candidates.map((c) => `${c.name || ticker}: ${c.token} (${c.vol24} 24h)`).join("\n")}`,
+    safe: `More than one $${ticker} came through o1bot (${candidates.map((c) => c.name || ticker).join(", ")}). Ask again with the address of the one you mean; the board lists them.`,
+  }),
+
+  askToken: (p: { ticker: string; name: string; chain: string; price: string; priceUsd: string; change: string; vol24: string; mcap: string; holders: string | null; creator: string | null; page: string }) =>
+    `$${p.ticker} (${p.name}) on ${p.chain}: ${p.price} (${p.priceUsd}), ${p.change} in 24h, ${p.vol24} volume 24h, ${p.mcap} market cap${p.holders ? `, ${p.holders} holders` : ""}${p.creator ? `, launched by @${p.creator}` : ""}. ${p.page}`,
+
+  askWallet: (p: { address: string; eth: string; quotes: string | null; tokens: string | null; fees: string | null; siteUrl: string }) => {
+    const parts = [`ETH ${p.eth}`, p.quotes, p.tokens, p.fees].filter(Boolean).join("; ");
+    const safe = `Your o1bot wallet: ${parts}. Address, details and deposit: ${p.siteUrl}/me`;
+    const withAddress = `Your o1bot wallet ${p.address}: ${parts}. Details and deposit: ${p.siteUrl}/me`;
+    // The address is worth 42 characters; when the balances leave no room for it, the profile link carries it instead.
+    return { text: fitsX(withAddress) ? withAddress : safe, safe };
+  },
+
+  askLaunches: (p: { live: number; total: number; lines: string[]; siteUrl: string }) =>
+    p.live === 0
+      ? `No live launch from this account through o1bot yet${p.total ? ` (${p.total} attempted)` : ""}. Post the launch command and the first one shows up at ${p.siteUrl}/me`
+      : `${p.live} live ${p.live === 1 ? "launch" : "launches"} from your account: ${p.lines.join("; ")}. All of them: ${p.siteUrl}/me`,
+
+  askFees: (p: { claimable: string | null; earned: string | null; siteUrl: string }) =>
+    `Creator fees claimable now: ${p.claimable ?? "none yet"}. Earned so far: ${p.earned ?? "none yet"}. Claim from your own wallet at ${p.siteUrl}/me`,
+
+  askTrades: (p: { total: number; lines: string[]; siteUrl: string }) =>
+    p.total === 0
+      ? `No trade from a post on this account yet. Turn trading on at ${p.siteUrl}/me and post "buy 0.05 ETH of $CAT" for the first one.`
+      : `${p.total} ${p.total === 1 ? "trade" : "trades"} from posts so far. Latest: ${p.lines.join("; ")}. History: ${p.siteUrl}/me`,
 };

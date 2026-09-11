@@ -1,5 +1,5 @@
 import { isBridgeChainKey, normalizeHandle, type BridgeChainKey } from "@o1bot/shared";
-import type { MissingField, ParseOutput } from "./schema";
+import type { AskTopic, MissingField, ParseOutput } from "./schema";
 
 /**
  * Deterministic post-processing of the model output. The model is told the
@@ -62,6 +62,24 @@ export type BridgeCommand = {
   reason: string;
 };
 
+/**
+ * A question the bot answers from its own data: platform statistics, a
+ * token's market data, or the poster's own wallet, launches, fees or trades.
+ * The figures are fetched after parsing; nothing here is a value to act on.
+ */
+export type AskCommand = {
+  kind: "ask";
+  topic: AskTopic;
+  /** Topic token: ticker without $, uppercased; null when the user gave an address. */
+  ticker: string | null;
+  /** Topic token: 0x address exactly as written; null when the user gave a ticker. */
+  tokenAddress: string | null;
+  /** Chain the question is scoped to ("on base"); null = all chains, or the default where one is needed. */
+  chain: "robinhood" | "base" | null;
+  language: string;
+  reason: string;
+};
+
 /** o1 caps descriptions at 2000 UTF-8 bytes; a post cannot exceed that, but the model output could. */
 export const DESCRIPTION_MAX_BYTES = 2000;
 
@@ -108,6 +126,7 @@ export type ParseResult =
   | LaunchCommand
   | TradeCommand
   | BridgeCommand
+  | AskCommand
   | { kind: "clarify"; question: string; missing: MissingField[]; language: string; reason: string }
   | { kind: "unsupported_chain"; chain: string; language: string; reason: string }
   | { kind: "help"; reply: string; language: string; reason: string }
@@ -227,6 +246,25 @@ function normalizeTrade(raw: ParseOutput, language: string, reason: string): Par
   };
 }
 
+/** Which token was asked about? "Which token?" is asked when a token question names none. */
+export const ASK_TOKEN_QUESTION = "Which token do you mean? Give its ticker or address, for example: how is $CAT doing?";
+
+function normalizeAsk(raw: ParseOutput, language: string, reason: string): ParseResult {
+  // The model said "ask" without a subject: treat it like any other question.
+  if (raw.topic === "none") {
+    const reply = oneLinkOnly((raw.reply ?? "").trim()).slice(0, REPLY_MAX);
+    return reply ? { kind: "help", reply, language, reason } : { kind: "ignore", language, reason: `ask without topic (${reason})` };
+  }
+  const tokenRaw = (raw.ticker ?? "").trim();
+  const tokenAddress = ADDRESS_RE.test(tokenRaw) ? tokenRaw : null;
+  const ticker = tokenAddress ? null : cleanTicker(tokenRaw || null);
+  if (raw.topic === "token" && !tokenAddress && (!ticker || !TICKER_RE.test(ticker))) {
+    return { kind: "clarify", question: (raw.question ?? "").trim() || ASK_TOKEN_QUESTION, missing: ["trade_token"], language, reason };
+  }
+  const chain = raw.chain === "robinhood" || raw.chain === "base" ? raw.chain : null;
+  return { kind: "ask", topic: raw.topic, ticker: raw.topic === "token" ? ticker : null, tokenAddress: raw.topic === "token" ? tokenAddress : null, chain, language, reason };
+}
+
 function cleanTicker(raw: string | null): string | null {
   const t = (raw ?? "").trim().replace(/^\$/, "").toUpperCase();
   return t ? t : null;
@@ -273,6 +311,9 @@ export function normalizeParseOutput(raw: ParseOutput, input: { hasImage: boolea
     if (!reply) return { kind: "ignore", language, reason: `help without reply text (${reason})` };
     return { kind: "help", reply, language, reason };
   }
+
+  // A data question: the topic decides, the bot fetches the figures afterwards.
+  if (raw.kind === "ask") return normalizeAsk(raw, language, reason);
 
   // A bridge, or a clarify about one, is decided before trades: it has no side.
   const bridgeIntent = raw.kind === "bridge" || (raw.kind === "clarify" && raw.missing.includes("bridge_chain"));

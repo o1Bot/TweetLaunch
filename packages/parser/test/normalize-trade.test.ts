@@ -5,6 +5,7 @@ import type { ParseOutput } from "../src/schema";
 const base: ParseOutput = {
   kind: "trade",
   language: "en",
+  topic: "none",
   ticker: "cat",
   name: null,
   pair: null,

@@ -5,10 +5,11 @@ import "@o1bot/shared/load-env";
 import { formatEther, getAddress, isAddress, keccak256, toHex, type Address } from "viem";
 import { dbConfigured } from "@o1bot/db";
 import { planLaunch, prepareTokenMetadata, type LaunchRequest, type PreparedMetadata, type TokenMetadataInput } from "@o1bot/executor";
-import { localizeReply, parseMention } from "@o1bot/parser";
+import { composeAnswer, localizeReply, parseMention } from "@o1bot/parser";
 import { activeFactory, activeFeeEscrow, cryptoQuotes, env, logger, o1Chain, o1Config, registryDrift, stockQuotes } from "@o1bot/shared";
 import { ensureWalletForXUser, findUserByXUserId, linkStatus, type EnsureWalletInput, type LinkedUser, type LinkStatus } from "@o1bot/wallet";
 import { FakeXClient, HttpXClient, type XClient, type XMention } from "@o1bot/x";
+import { liveAskData, MemoryAskData } from "./ask-data";
 import { botConfig, type BotConfig } from "./config";
 import { executeLaunchPlan, setCreatorFeeRecipient } from "./execute";
 import { liveO1Tokens } from "./o1-tokens";
@@ -166,6 +167,9 @@ function buildDeps(cfg: BotConfig, args: CliArgs, store: BotStore, x: XClient): 
     o1Tokens: liveO1Tokens(),
     bridge: rpcConfigured ? liveBridgeChain() : dryRunBridgeChain(),
     relay: liveRelay(),
+    // Questions from posts read the same tables the web reads; without a database they get empty figures.
+    askData: dbConfigured() ? liveAskData() : new MemoryAskData(),
+    compose: (input) => composeAnswer(input),
     alerts: cfg.dryRun ? undefined : alerterFromEnv(),
   };
 }

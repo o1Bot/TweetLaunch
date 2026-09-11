@@ -53,6 +53,11 @@ export default function HowItWorksPage() {
           </div>
         </div>
 
+        <h2>Ask it things</h2>
+        <p>
+          The bot also answers questions from its own data, in any language: how many tokens it has launched and their volume, what is trending, how one token is doing (price, market cap, holders), and for your own account your balances, deposit address, launches, claimable fees and past trades. Mention it and ask in your own words. It only ever shows you your own wallet.
+        </p>
+
         <h2>What the bot does behind the scenes</h2>
         <ul>
           <li>Reads the post and asks one question if the ticker, name, or pair is missing. It never guesses.</li>

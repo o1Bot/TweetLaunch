@@ -5,6 +5,7 @@ import type { ParseOutput } from "../src/schema";
 const base: ParseOutput = {
   kind: "launch",
   language: "en",
+  topic: "none",
   ticker: "RUGRAT",
   name: "Rugrat",
   pair: "ETH",
