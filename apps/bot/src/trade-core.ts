@@ -98,7 +98,7 @@ export type TradeCoreInput = {
 export type TradeCoreDeps = { store: BotStore; config: BotConfig; trade: TradeChain; o1Tokens: O1TokenSource; alerts?: Alerter; now: () => Date };
 
 export type TradeCoreResult =
-  | { ok: false; outcome: "rejected"; error: string; userText: string }
+  | { ok: false; outcome: "rejected"; error: string; userText: string; safeText?: string }
   | { ok: false; outcome: "failed"; error: string; userText: string; tradeId: string | null }
   | { ok: true; dryRun: true; tradeId: string; userText: string }
   | { ok: true; dryRun: false; tradeId: string; txHash: Hex; userText: string; safeText: string };
@@ -135,7 +135,7 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
   const { store, config, trade, o1Tokens } = deps;
   const { cmd, wallet } = input;
   const siteUrl = config.siteUrl;
-  const rejected = (error: string, userText: string): TradeCoreResult => ({ ok: false, outcome: "rejected", error, userText });
+  const rejected = (error: string, userText: string, safeText?: string): TradeCoreResult => ({ ok: false, outcome: "rejected", error, userText, ...(safeText ? { safeText } : {}) });
   const label = cmd.ticker ?? (cmd.tokenAddress ? `${cmd.tokenAddress.slice(0, 6)}…` : "?");
 
   // 1. Opt-in and the user's own cap.
@@ -154,7 +154,8 @@ export async function runTrade(input: TradeCoreInput, deps: TradeCoreDeps, log: 
   if (matches.length === 0) return rejected(`unknown token ${label}`, replies.tradeUnknownToken(label, siteUrl));
   if (matches.length > 1) {
     const ranked = [...matches].sort((a, b) => (b.liquidityUsd ?? -1) - (a.liquidityUsd ?? -1)).slice(0, MAX_CANDIDATES_IN_REPLY);
-    return rejected(`ambiguous ticker ${label} (${matches.length} pools)`, replies.tradeAmbiguous(label, ranked));
+    const ambiguous = replies.tradeAmbiguous(label, ranked);
+    return rejected(`ambiguous ticker ${label} (${matches.length} pools)`, ambiguous.text, ambiguous.safe);
   }
   const pool: TradableToken = matches[0]!;
   const ticker = pool.symbol.toUpperCase();

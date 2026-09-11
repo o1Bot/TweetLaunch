@@ -35,7 +35,7 @@ export async function handleSite(cmd: SiteCommand, ctx: MentionContext): Promise
   const candidates: SiteLaunchInfo[] = cmd.tokenAddress ? [await sites.launchByToken(cmd.tokenAddress)].filter((l): l is SiteLaunchInfo => l !== null) : await sites.launchesByTicker(cmd.ticker ?? "");
   const own = candidates.filter((c) => c.creator.xUserId === mention.authorId);
   if (candidates.length === 0) return rejected(replies.siteUnknownToken(asked, siteUrl), `site: token not found: ${asked}`);
-  if (own.length === 0) return rejected(replies.siteNotCreator(asked), `site: poster is not the creator of ${asked}`);
+  if (own.length === 0) return rejected(replies.siteNotCreator(candidates[0]!.ticker), `site: poster is not the creator of ${asked}`);
   if (own.length > 1) {
     const fb = replies.siteAmbiguous(asked, own.map((c) => ({ name: c.name, token: c.tokenAddress ?? "" })));
     return rejected(fb.text, `site: ambiguous ticker ${asked}`, { safe: fb.safe });

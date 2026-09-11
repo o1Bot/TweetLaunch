@@ -68,9 +68,11 @@ describe("tradeSuccess", () => {
       { name: "Cash Cat", token: TOKEN, liquidityUsd: 12345.6 },
       { name: "Cat Coin", token: "0x9093f31188C0b5DaEA6c0270bf21FBbA24D80b01", liquidityUsd: null },
     ]);
-    expect(fitsX(amb)).toBe(true);
-    expect(amb).toContain(TOKEN);
-    expect(amb).toContain("$12,346 liquidity");
+    expect(fitsX(amb.text)).toBe(true);
+    expect(amb.text).toContain(TOKEN);
+    expect(amb.text).toContain("$12,346 liquidity");
+    expect(fitsX(amb.safe)).toBe(true);
+    expect(amb.safe).not.toContain(TOKEN);
   });
 });
 

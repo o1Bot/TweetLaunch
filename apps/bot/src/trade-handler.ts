@@ -70,7 +70,7 @@ export async function handleTrade(cmd: TradeCommand, ctx: MentionContext): Promi
   const result = await runTrade({ mentionId, tweetId: mention.id, userId: user.id, xUserId: mention.authorId, handle, wallet, cmd }, { store, config, trade: deps.trade, o1Tokens: deps.o1Tokens, alerts: deps.alerts, now }, log);
 
   if (!result.ok) {
-    const r = await reply(result.userText);
+    const r = await reply(result.userText, result.outcome === "rejected" && result.safeText ? { safe: result.safeText } : {});
     if (result.outcome === "rejected") {
       await setMention("REJECTED", { error: result.error });
       return { outcome: "replied", kind: "rejected", reply: r.posted || config.dryRun ? r.text : null };

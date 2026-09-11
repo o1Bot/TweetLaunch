@@ -110,11 +110,11 @@ const aliceWallet: WalletSummary = {
   totalUsd: 1362.6,
 };
 
-/** A fake X that refuses the first reply carrying a 0x address the way X does for young accounts. */
+/** A fake X that refuses replies carrying a bare 0x address (addresses inside URLs pass), the way X does for young authentications. */
 class AddressBlockingX extends FakeXClient {
   blocked = 0;
   override async postReply(text: string, inReplyTo: string): Promise<string> {
-    if (/0x[0-9a-fA-F]{40}/.test(text)) {
+    if (/(^|[^\w/=])0x[0-9a-fA-F]{40}/.test(text)) {
       this.blocked++;
       throw new XPostError("forbidden", 403, '{"detail":"Crypto addresses are prohibited"}');
     }
@@ -289,6 +289,30 @@ describe("questions answered from the data", () => {
     expect(x.replies).toHaveLength(1);
     expect(x.replies[0]?.text).not.toContain(ALICE_WALLET);
     expect(x.replies[0]?.text).toContain("Address, details and deposit");
+  });
+
+  it("falls back to the template when X refuses a composed answer that quotes the contract address", async () => {
+    const x = new AddressBlockingX();
+    h = harness({ x, compose: true });
+    h.askData.tokens = [cat];
+    h.script.parse = ask({ topic: "token", ticker: "CAT" });
+    h.composeResult = `The contract address of $CAT is ${CAT}.`;
+    const out = await processMention(post("what is the CA of $CAT?"), h.deps);
+    expect(out).toMatchObject({ outcome: "replied", kind: "ask" });
+    expect(x.blocked).toBe(1);
+    expect(x.replies).toHaveLength(1);
+    expect(x.replies[0]?.text).not.toContain(`${CAT}.`);
+    expect(x.replies[0]?.text).toContain(`${SITE}/token/${CAT}`);
+  });
+
+  it("strips bare addresses out of a refused reply that has no variant of its own", async () => {
+    const x = new AddressBlockingX();
+    h = harness({ x });
+    h.script.parse = { kind: "help", reply: `Sure, the contract is ${CAT} and the chart is at ${SITE}/token/${CAT}`, language: "en", reason: "test" };
+    const out = await processMention(post("what is the CA?"), h.deps);
+    expect(out).toMatchObject({ outcome: "replied", kind: "help" });
+    expect(x.blocked).toBe(1);
+    expect(x.replies[0]?.text).toBe(`Sure, the contract is the address on the token page and the chart is at ${SITE}/token/${CAT}`);
   });
 
   it("lists the poster's launches with their numbers, and the claimable and earned fees", async () => {

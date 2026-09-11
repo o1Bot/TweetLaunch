@@ -13,7 +13,7 @@ import { handleBridge } from "./bridge-handler";
 import type { BotConfig } from "./config";
 import type { AuditSink, ExecutionResult, WalletRef } from "./execute";
 import { runLaunch } from "./launch-core";
-import { clampReply, formatEthCeil, replies } from "./replies";
+import { clampReply, formatEthCeil, replies, stripBareAddresses } from "./replies";
 import type { O1TokenSource } from "./o1-tokens";
 import type { RelayClient } from "./relay";
 import { tokenSiteUrl, type SiteGenerator } from "./site-core";
@@ -142,15 +142,19 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
       await store.updateMention(mentionId, { replyTweetId: tweetId });
       return { text: localized, tweetId, posted: true, error: null };
     } catch (err) {
-      if (err instanceof XPostError && err.cryptoAddressBlocked && opts.safe) {
-        log.warn("X refused a crypto address in the reply; sending the address-free variant");
-        const safe = clampReply(await deps.localize(opts.safe, replyLanguage));
-        try {
-          const tweetId = await deps.x.postReply(safe, mention.id);
-          await store.updateMention(mentionId, { replyTweetId: tweetId });
-          return { text: safe, tweetId, posted: true, error: null };
-        } catch (err2) {
-          err = err2;
+      // X blocks bare crypto addresses from young authentications. Use the reply's own address-free
+      // variant when it has one; otherwise strip the addresses out of the text that was refused.
+      if (err instanceof XPostError && err.cryptoAddressBlocked) {
+        const safe = opts.safe ? clampReply(await deps.localize(opts.safe, replyLanguage)) : stripBareAddresses(localized);
+        if (safe !== localized) {
+          log.warn({ own: Boolean(opts.safe) }, "X refused a crypto address in the reply; sending the address-free variant");
+          try {
+            const tweetId = await deps.x.postReply(safe, mention.id);
+            await store.updateMention(mentionId, { replyTweetId: tweetId });
+            return { text: safe, tweetId, posted: true, error: null };
+          } catch (err2) {
+            err = err2;
+          }
         }
       }
       const error = `reply failed: ${errMessage(err)}`;
