@@ -2,7 +2,7 @@ import { db, dbConfigured, type Prisma, type TokenSite, type TokenSiteVersion } 
 import { filesFromList, renderSite, type LiveData, type SiteFile, type SiteFiles, type SiteMeta } from "@o1bot/sites";
 import { chainKeyOf, EXPLORER } from "./chains-web";
 import { getHolders } from "./holders";
-import { publicIpfsUrl } from "./ipfs";
+import { ipfsToHttp } from "./ipfs";
 import { getTokenDetail } from "./market";
 import { fetchTokenMetadata } from "./metadata";
 
@@ -51,8 +51,8 @@ export async function liveDataFor(site: SiteRow): Promise<{ live: LiveData; meta
   const detail = token ? await getTokenDetail(token).catch(() => null) : null;
   const name = detail?.name ?? site.launch?.name ?? site.slug;
   const symbol = detail?.symbol ?? site.launch?.ticker ?? site.slug.toUpperCase();
-  // Served on another origin and fetched by link-preview crawlers: the public gateway, not the metered one.
-  const logoUrl = publicIpfsUrl(detail?.imageUrl ?? site.launch?.imageUri) ?? null;
+  // The configured gateway, as on the token page: o1bot mirrors every launch pin into its own account.
+  const logoUrl = detail?.imageUrl ?? ipfsToHttp(site.launch?.imageUri) ?? null;
   const [holders, metadata] = await Promise.all([
     token ? getHolders(token, site.chainId).then((h) => h.total).catch(() => null) : Promise.resolve(null),
     fetchTokenMetadata(detail?.metadataUri ?? site.launch?.metadataUri).catch(() => null),
@@ -131,7 +131,7 @@ export async function ownerSiteView(site: OwnerSiteRow): Promise<OwnerSiteView> 
     publishedN: site.publishedN,
     token: site.token,
     chainId: site.chainId,
-    launch: site.launch ? { name: site.launch.name, ticker: site.launch.ticker, logoUrl: publicIpfsUrl(site.launch.imageUri) } : null,
+    launch: site.launch ? { name: site.launch.name, ticker: site.launch.ticker, logoUrl: ipfsToHttp(site.launch.imageUri) } : null,
     versions: versions.map((v) => ({ ...v, createdAt: v.createdAt.toISOString() })),
     jobs: jobs.map((j) => ({ ...j, createdAt: j.createdAt.toISOString() })),
     jobsToday,
