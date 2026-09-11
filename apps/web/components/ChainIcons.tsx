@@ -52,13 +52,9 @@ export function OptimismIcon({ size = 20, className }: P) {
   );
 }
 
+/** Robinhood's own mark (black feather on lime), served from /public so it stays pixel-faithful. */
 export function RobinhoodIcon({ size = 20, className }: P) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden="true">
-      <circle cx="16" cy="16" r="16" fill="#00C805" />
-      <path d="M22.6 8.4c-3.2-.5-6.5.8-8.7 3.3-1.9 2.1-2.8 4.9-2.6 7.7.1 1 .3 2 .8 2.9l-2.5 3.1 1.1.9 2.4-3c1 .7 2.2 1.1 3.5 1.1 1.5.1 3-.3 4.2-1.2 2.4-1.7 3.6-4.6 3.3-7.5-.2-2.6-1.3-4.9-1.5-7.3zm-2.3 11.9c-.9.9-2.2 1.4-3.5 1.3-.9 0-1.8-.3-2.5-.8l5.3-6.5-1.1-.9-5.2 6.4c-.3-.7-.5-1.4-.5-2.2-.1-2.1.6-4.1 2-5.6 1.4-1.6 3.5-2.5 5.6-2.4.3 1.7.9 3.3 1.2 5 .3 2-.3 4.2-1.3 5.7z" fill="#fff" />
-    </svg>
-  );
+  return <img src="/chains/robinhood.png" width={size} height={size} alt="" className={className} style={{ borderRadius: "50%", display: "block" }} aria-hidden="true" />;
 }
 
 export function UsdgIcon({ size = 20, className }: P) {
