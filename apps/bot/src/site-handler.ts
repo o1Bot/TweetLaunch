@@ -42,8 +42,9 @@ export async function handleSite(cmd: SiteCommand, ctx: MentionContext): Promise
   }
   const info = own[0]!;
 
-  // A site that exists already: point at it, or retry a build that failed.
+  // A site that exists already: point at it, or retry a build that failed. A suspended one stays down.
   const existing = await sites.byLaunch(info.launchId);
+  if (existing && existing.status === "SUSPENDED") return rejected(replies.siteSuspended(info.ticker), `site suspended: ${existing.slug}`);
   if (existing && existing.status === "LIVE") {
     const r = await reply(replies.siteAlreadyLive(info.ticker, tokenSiteUrl(config, existing.slug), siteEditorUrl(config, existing.slug)));
     await setMention("DONE");

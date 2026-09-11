@@ -1,24 +1,46 @@
 import sanitizeHtml from "sanitize-html";
 
 /**
- * The agent's HTML is served under o1bot's own domain, so nothing in it may
- * run: no scripts, no event handlers, no javascript: URLs, no frames, no
- * forms. This is the first line; the Content-Security-Policy on the response
- * (`siteCsp`) is the second. Inline styles and a subset of SVG are allowed,
- * since CSS cannot execute code and the CSP bounds what it can fetch. The
- * o1bot blocks (`<o1bot-stats>` and friends) pass through as empty custom
- * elements and are filled by the renderer afterwards.
+ * The agent's HTML is served on a sandbox domain of its own, so scripts may
+ * run: inline ones only, never from a URL. What the sanitizer still removes
+ * is everything that would let a page collect or move secrets: forms and
+ * text inputs (nothing to type into), frames, objects, event-handler
+ * attributes (handlers go in the script), links to hosts outside the
+ * allow-list, and any URL scheme other than http(s). The Content-Security-
+ * Policy on the response (`siteCsp`) is the second line: no external
+ * scripts, no requests anywhere but o1bot's own API, no images from
+ * anywhere but the logo gateways. The o1bot blocks (`<o1bot-stats>` and
+ * friends) pass through as empty custom elements and are filled by the
+ * renderer afterwards.
  */
 
 export const BLOCK_TAGS = ["o1bot-stats", "o1bot-buy", "o1bot-address", "o1bot-socials", "o1bot-logo", "o1bot-footer"] as const;
 export type BlockTag = (typeof BLOCK_TAGS)[number];
 
+/** Hosts a site may link to on its own; the brief's website host is added per site. */
+export const DEFAULT_LINK_HOSTS = [
+  "o1bot.exchange",
+  "o1bot.app",
+  "x.com",
+  "twitter.com",
+  "t.me",
+  "telegram.me",
+  "o1.exchange",
+  "launch.o1.exchange",
+  "docs.o1.exchange",
+  "robinhoodchain.blockscout.com",
+  "rh-scan.com",
+  "basescan.org",
+  "base.blockscout.com",
+  "github.com",
+] as const;
+
 const TEXT_TAGS = [
-  "a", "abbr", "address", "article", "aside", "b", "bdi", "bdo", "blockquote", "br", "caption", "cite", "code", "col", "colgroup",
+  "a", "abbr", "address", "article", "aside", "b", "bdi", "bdo", "blockquote", "br", "button", "canvas", "caption", "cite", "code", "col", "colgroup",
   "data", "dd", "del", "details", "dfn", "div", "dl", "dt", "em", "figcaption", "figure", "footer", "h1", "h2", "h3", "h4", "h5", "h6",
-  "header", "hgroup", "hr", "i", "ins", "kbd", "li", "main", "mark", "nav", "ol", "p", "picture", "pre", "q", "s", "samp", "section",
+  "header", "hgroup", "hr", "i", "ins", "kbd", "li", "main", "mark", "nav", "ol", "p", "picture", "pre", "progress", "q", "s", "samp", "section",
   "small", "span", "strong", "sub", "summary", "sup", "table", "tbody", "td", "tfoot", "th", "thead", "time", "tr", "u", "ul", "var", "wbr",
-  "img", "source",
+  "img", "source", "script", "style",
 ];
 const SVG_TAGS = ["svg", "g", "defs", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon", "text", "tspan", "linearGradient", "radialGradient", "stop", "clipPath", "mask", "symbol", "title", "desc"];
 
@@ -32,37 +54,69 @@ const SVG_ATTRS = [
 const ALLOWED_TAGS = [...TEXT_TAGS, ...SVG_TAGS, ...BLOCK_TAGS];
 
 const ALLOWED_ATTRS: sanitizeHtml.IOptions["allowedAttributes"] = {
-  "*": ["class", "id", "style", "title", "role", "aria-*", "data-*", "lang", "dir", "hidden"],
+  "*": ["class", "id", "style", "title", "role", "aria-*", "data-*", "lang", "dir", "hidden", "tabindex"],
   a: ["href", "target", "rel", "name"],
   img: ["src", "alt", "width", "height", "loading", "decoding", "srcset", "sizes"],
   source: ["srcset", "type", "media", "sizes"],
+  button: ["type", "disabled"],
+  canvas: ["width", "height"],
+  progress: ["value", "max"],
   time: ["datetime"],
   td: ["colspan", "rowspan"],
   th: ["colspan", "rowspan", "scope"],
+  /** Inline only: no src, no type tricks. */
+  script: [],
+  style: [],
   "o1bot-buy": ["label"],
   "o1bot-logo": ["size"],
   ...Object.fromEntries(SVG_TAGS.map((t) => [t, SVG_ATTRS])),
 };
 
-const OPTIONS: sanitizeHtml.IOptions = {
-  allowedTags: ALLOWED_TAGS,
-  allowedAttributes: ALLOWED_ATTRS,
-  allowedSchemes: ["http", "https", "mailto"],
-  allowedSchemesByTag: { img: ["https", "data"], source: ["https", "data"] },
-  allowProtocolRelative: false,
-  allowedIframeHostnames: [],
-  disallowedTagsMode: "discard",
-  // Tags whose content is dropped along with the tag.
-  nonTextTags: ["script", "style", "textarea", "option", "noscript", "iframe", "object", "embed", "template", "head", "title"],
-  // Every outbound link opens in a new tab without a referrer or window handle.
-  transformTags: {
-    a: (tagName, attribs) => {
-      const href = attribs.href ?? "";
-      const external = /^https?:\/\//i.test(href);
-      return { tagName, attribs: external ? { ...attribs, target: "_blank", rel: "noopener noreferrer" } : attribs };
-    },
-  },
+export type SanitizeOptions = {
+  /** Hosts (and their subdomains) a link may point at, on top of DEFAULT_LINK_HOSTS. */
+  allowedLinkHosts?: string[];
 };
+
+export function linkHostAllowed(href: string, extra: string[] = []): boolean {
+  if (/^#/.test(href) || /^\/[^/]/.test(href)) return true;
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+  const host = url.hostname.toLowerCase();
+  return [...DEFAULT_LINK_HOSTS, ...extra.map((h) => h.toLowerCase())].some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
+}
+
+function options(opts: SanitizeOptions): sanitizeHtml.IOptions {
+  const extra = opts.allowedLinkHosts ?? [];
+  return {
+    allowedTags: ALLOWED_TAGS,
+    allowedAttributes: ALLOWED_ATTRS,
+    allowedSchemes: ["http", "https"],
+    allowedSchemesByTag: { img: ["https", "data"], source: ["https", "data"] },
+    allowProtocolRelative: false,
+    allowedIframeHostnames: [],
+    allowVulnerableTags: true,
+    disallowedTagsMode: "discard",
+    // Tags whose content is dropped along with the tag.
+    nonTextTags: ["textarea", "option", "noscript", "iframe", "object", "embed", "template", "head", "title", "form", "input", "select"],
+    transformTags: {
+      // Outbound links open in a new tab without a referrer; links to hosts outside the allow-list lose their href.
+      a: (tagName, attribs) => {
+        const href = attribs.href ?? "";
+        if (href && !linkHostAllowed(href, extra)) {
+          const { href: _dropped, target: _t, rel: _r, ...rest } = attribs;
+          return { tagName, attribs: rest };
+        }
+        const external = /^https?:\/\//i.test(href);
+        return { tagName, attribs: external ? { ...attribs, target: "_blank", rel: "noopener noreferrer" } : attribs };
+      },
+    },
+  };
+}
 
 /** `<o1bot-buy/>` written as a void tag would swallow everything after it; make it an empty element first. */
 function normalizeBlocks(html: string): string {
@@ -70,8 +124,8 @@ function normalizeBlocks(html: string): string {
   return html.replace(new RegExp(`<(${names})(\\s[^>]*?)?\\s*/>`, "gi"), "<$1$2></$1>");
 }
 
-export function sanitizeSiteHtml(html: string): string {
-  return sanitizeHtml(normalizeBlocks(html), OPTIONS);
+export function sanitizeSiteHtml(html: string, opts: SanitizeOptions = {}): string {
+  return sanitizeHtml(normalizeBlocks(html), options(opts));
 }
 
 /** A stylesheet cannot run code; the only thing to stop is breaking out of the <style> element it is placed in. */

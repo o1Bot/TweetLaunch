@@ -24,6 +24,7 @@
     "doctor": "pnpm --filter @o1bot/bot exec tsx scripts/doctor.ts",
     "privy:policy": "pnpm --filter @o1bot/bot exec tsx scripts/privy-policy.ts",
     "privy:signer": "pnpm --filter @o1bot/bot exec tsx scripts/privy-signer.ts",
+    "site:suspend": "pnpm --filter @o1bot/bot exec tsx scripts/site-suspend.ts",
     "repin": "pnpm --filter @o1bot/bot exec tsx scripts/repin.ts"
   },
   "devDependencies": {

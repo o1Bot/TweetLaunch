@@ -25,8 +25,8 @@ const schema = z.object({
   SITE_URL: z.url().default("http://localhost:3000"),
   /** Public docs URL the bot may link in help replies. Defaults to the site's how-it-works page. */
   DOCS_URL: z.url().optional(),
-  /** Domain under which agent-built token sites are served (<slug>.<domain>); the web project needs the wildcard domain attached. */
-  SITES_ROOT_DOMAIN: z.string().default("o1bot.exchange"),
+  /** Sandbox domain the agent-built token sites are served on (<slug>.<domain>), separate from the app so their scripts never share its origin; the web project needs the wildcard domain attached. */
+  SITES_ROOT_DOMAIN: z.string().default("o1bot.app"),
   /** Model that writes token sites; defaults to claude-sonnet-4-6. */
   SITES_MODEL: z.string().optional(),
 
