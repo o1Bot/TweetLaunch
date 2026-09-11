@@ -29,7 +29,36 @@ export type SiteBrief = {
   socials: { x: string | null; telegram: string | null; website: string | null };
   /** BCP-47 tag of the language the copy should be written in. */
   language: string;
+  /** The visual idea this build follows; picked per token, rotated on every rebuild. */
+  direction: string;
 };
+
+/**
+ * Left to itself the model designs the same dark page with one accent for
+ * every token. A direction assigned per token, and changed on every rebuild,
+ * is what makes two sites look like two sites.
+ */
+export const ART_DIRECTIONS: readonly string[] = [
+  "Bold editorial: a huge serif display headline, black on off-white paper, thin rules, generous margins, one accent colour from the logo used sparingly, no cards, no gradients.",
+  "Playful cartoon: big rounded shapes, thick outlines, saturated logo colours on a bright background, bouncy CSS animations, oversized buttons, hand-drawn feel through inline SVG blobs.",
+  "Luxury minimal: near-black or cream background, one metallic accent, small caps, wide letter-spacing, lots of air, thin dividers, the logo small and centred, nothing moves except a slow fade-in.",
+  "Retro terminal: monospace everything, dark screen with a phosphor accent from the logo, blinking cursor, box-drawing borders, stats rendered like a readout, scanline overlay in CSS.",
+  "Sticker chaos: overlapping tilted stickers and badges built from inline SVG and CSS transforms, loud logo colours, marquee text, a poster more than a page, everything slightly off-grid on purpose.",
+  "Swiss grid: strict 12-column layout, Helvetica-like sans, red-black-white or the logo's primary on white, large numerals for the stats, rules and alignment do the work, no decoration.",
+  "Neon arcade: deep dark background, two neon colours from the logo glowing (text-shadow, box-shadow), pixel-style headings, animated gradient border on the buy button, a starfield on canvas.",
+  "Paper zine: textured paper background via CSS gradients, cut-out photo-collage feel using the logo in a torn frame, typewriter body, marker-style highlights behind key words, staggered layout.",
+  "Soft pastel: pale gradient background in the logo's tints, rounded 24px cards with soft shadows, friendly humanist sans, gentle floating animation on the logo, calm and cute.",
+  "Brutalist web: system font at huge sizes, raw borders, high-contrast blocks of the logo's colours, underlined links, visible grid lines, no rounded corners, no shadows, unapologetic.",
+  "Glass and depth: layered translucent panels over a colourful blurred background made from the logo's palette, backdrop-filter, light borders, floating stats, the logo as a glowing centrepiece.",
+  "Comic strip: panels with thick borders, halftone-dot backgrounds in CSS, speech-bubble callouts for the tagline and the how-to-buy steps, punchy display type, primary colours from the logo.",
+];
+
+/** A stable choice per token; `salt` moves to another direction (the next rebuild). */
+export function directionFor(seed: string, salt = 0): string {
+  let h = 2166136261;
+  for (const ch of seed.toLowerCase()) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  return ART_DIRECTIONS[(h + salt) % ART_DIRECTIONS.length]!;
+}
 
 const chainLabel = (chain: SiteChain) => (chain === "base" ? "Base" : "Robinhood Chain");
 
@@ -50,6 +79,7 @@ export function briefText(b: SiteBrief): string {
     `Contract address: ${b.tokenAddress ?? "not known yet (the address block shows it once it is)"}`,
     `Token page with chart and swap: ${b.tokenAddress ? `${b.apiOrigin}/token/${b.tokenAddress}` : b.apiOrigin}`,
     `Language for all copy: ${b.language}`,
+    `Art direction for this build (follow it; it is what makes this site look like this token and not like the last one): ${b.direction}`,
     "",
     ...(b.tokenAddress
       ? [

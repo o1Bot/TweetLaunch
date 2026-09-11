@@ -1,4 +1,4 @@
-import { filesFromList, filesToList, logoPalette, siteUrl, type GenerateInput, type SiteBrief, type SiteFiles } from "@o1bot/sites";
+import { directionFor, filesFromList, filesToList, logoPalette, siteUrl, wantsRewrite, type GenerateInput, type SiteBrief, type SiteFiles } from "@o1bot/sites";
 import { logger } from "@o1bot/shared";
 import type { XClient } from "@o1bot/x";
 import { noAlerts, type Alerter } from "./alerts";
@@ -52,7 +52,8 @@ export function publicLogoUrl(uri: string | null): string | null {
   return path ? `${PUBLIC_GATEWAY}/${path}` : uri;
 }
 
-export async function buildBrief(site: SiteRecord, info: SiteLaunchInfo, language: string, deps: SiteCoreDeps): Promise<SiteBrief> {
+/** `directionSalt` 0 = the token's own art direction; a rebuild passes the version it starts from so every rebuild moves to the next one. */
+export async function buildBrief(site: SiteRecord, info: SiteLaunchInfo, language: string, deps: SiteCoreDeps, directionSalt = 0): Promise<SiteBrief> {
   const { config } = deps;
   const logoUrl = publicLogoUrl(info.imageUri);
   let palette: string[] | null = null;
@@ -83,6 +84,7 @@ export async function buildBrief(site: SiteRecord, info: SiteLaunchInfo, languag
     palette: palette && palette.length ? palette : null,
     socials: { x: xHandle ? `https://x.com/${xHandle}` : null, telegram: info.extras.telegram, website },
     language,
+    direction: directionFor(site.token ?? info.tokenAddress ?? site.slug, directionSalt),
   };
 }
 
@@ -119,7 +121,9 @@ export async function runSiteJob(job: SiteJobRecord, deps: SiteCoreDeps, log: Lo
     const baseN = job.baseN ?? site.publishedN;
     const current: SiteFiles | null = baseN !== null ? await sites.version(site.id, baseN).then((v) => (v ? filesFromList(v.files) : null)) : null;
     const mention = job.mentionId ? await deps.store.getMention(job.mentionId) : null;
-    const brief = await buildBrief(site, info, mention?.language ?? "en", deps);
+    // A rebuild moves to the next art direction; a first build or a plain revision keeps the token's own.
+    const directionSalt = wantsRewrite(job.instruction) ? (baseN ?? 0) : 0;
+    const brief = await buildBrief(site, info, mention?.language ?? "en", deps, directionSalt);
     const out = await deps.generateSite({ brief, current, instruction: job.instruction });
     const version = await sites.addVersion(site.id, { files: filesToList({ html: out.html, css: out.css }), brief, prompt: job.instruction, summary: out.summary, createdById: job.createdById });
     // The first build goes live at once; revisions wait for the creator to publish them from the editor.

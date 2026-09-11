@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { briefText, type SiteBrief } from "../src/brief";
-import { HTML_MAX_BYTES, postProcess, SiteGenerationError, systemPrompt, userMessage, type GeneratedSite } from "../src/generate";
+import { ART_DIRECTIONS, briefText, directionFor, type SiteBrief } from "../src/brief";
+import { applyEdits, HTML_MAX_BYTES, postProcess, SiteGenerationError, systemPrompt, userMessage, wantsRewrite, type GeneratedSite } from "../src/generate";
 import { BLOCK_TAGS } from "../src/sanitize";
 
 const brief: SiteBrief = {
@@ -19,6 +19,7 @@ const brief: SiteBrief = {
   palette: ["#f4c430", "#111111"],
   socials: { x: "https://x.com/cashcat", telegram: null, website: null },
   language: "en",
+  direction: "Bold editorial: a huge serif display headline.",
 };
 
 const generated = (over: Partial<GeneratedSite> = {}): GeneratedSite => ({
@@ -96,6 +97,52 @@ describe("postProcess", () => {
     expect(out.description.length).toBeLessThanOrEqual(160);
     expect(out.description).not.toContain("\n");
     expect(() => postProcess(generated({ html: "a".repeat(HTML_MAX_BYTES + 1) }))).toThrow(SiteGenerationError);
+  });
+});
+
+describe("art directions", () => {
+  it("assigns a stable direction per token and moves on with the salt", () => {
+    const a = directionFor("0x0ab6bf0ffa6d5c5aaa8fc94a8fb2f4ea2f4f5c01");
+    expect(ART_DIRECTIONS).toContain(a);
+    expect(directionFor("0x0AB6BF0FFA6D5C5AAA8FC94A8FB2F4EA2F4F5C01")).toBe(a);
+    expect(directionFor("0x0ab6bf0ffa6d5c5aaa8fc94a8fb2f4ea2f4f5c01", 1)).not.toBe(a);
+    const seen = new Set(ART_DIRECTIONS.map((_, i) => directionFor("cat", i)));
+    expect(seen.size).toBe(ART_DIRECTIONS.length);
+  });
+
+  it("puts the direction in the brief", () => {
+    expect(briefText(brief)).toContain("Art direction for this build");
+    expect(briefText(brief)).toContain("Bold editorial");
+  });
+});
+
+describe("wantsRewrite", () => {
+  it("recognises a request for a different site, not a change to this one", () => {
+    for (const s of ["Start over with a completely different visual idea", "redesign it", "please rebuild the whole thing", "give it a new look", "something completely different", "from scratch please"]) expect(wantsRewrite(s)).toBe(true);
+    for (const s of ["make the hero red", "shorter copy", "the logo is too big, fix it", null, ""]) expect(wantsRewrite(s)).toBe(false);
+  });
+});
+
+describe("applyEdits", () => {
+  const files = { html: `<h1 class="hero__name">Cash Cat</h1><p>To the moon.</p>`, css: `.hero{color:red}\n.hero__name{font-size:3rem}` };
+
+  it("applies unique edits in order, including deletions, across both files", () => {
+    const out = applyEdits(files, [
+      { file: "index.html", find: "Cash Cat", replace: "Cash Cat!" },
+      { file: "index.html", find: "<p>To the moon.</p>", replace: "" },
+      { file: "styles.css", find: "font-size:3rem", replace: "font-size:5rem" },
+    ]);
+    expect(out).toEqual({ ok: true, files: { html: `<h1 class="hero__name">Cash Cat!</h1>`, css: `.hero{color:red}\n.hero__name{font-size:5rem}` } });
+  });
+
+  it("refuses an edit whose find is empty, missing or not unique", () => {
+    expect(applyEdits(files, [{ file: "index.html", find: "", replace: "x" }])).toMatchObject({ ok: false, reason: "edit 1: empty find" });
+    expect(applyEdits(files, [{ file: "styles.css", find: "nope", replace: "x" }])).toMatchObject({ ok: false, reason: "edit 1 (styles.css): find matches 0 times" });
+    expect(applyEdits(files, [{ file: "styles.css", find: ".hero", replace: ".x" }])).toMatchObject({ ok: false, reason: "edit 1 (styles.css): find matches 2 times" });
+  });
+
+  it("treats replacement text literally", () => {
+    expect(applyEdits(files, [{ file: "index.html", find: "moon", replace: "$& $1 moon" }])).toMatchObject({ ok: true, files: { html: `<h1 class="hero__name">Cash Cat</h1><p>To the $& $1 moon.</p>` } });
   });
 });
 

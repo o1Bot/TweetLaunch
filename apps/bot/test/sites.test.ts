@@ -241,6 +241,7 @@ describe("the worker", () => {
     expect(brief?.originPost).toContain('launch $CAT "Cash Cat" pair ETH site');
     expect(brief?.socials).toEqual({ x: "https://x.com/alice", telegram: "https://t.me/cashcat", website: null });
     expect(brief?.logoUrl).toBe("https://gateway.pinata.cloud/ipfs/img/CAT");
+    expect(typeof brief?.direction).toBe("string");
     expect(h.generated[0]?.current).toBeNull();
     expect(h.sites.sites[0]).toMatchObject({ status: "LIVE", publishedN: 1 });
     expect(h.sites.versions[0]?.files.map((f) => f.path)).toEqual(["index.html", "styles.css"]);

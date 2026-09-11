@@ -27,8 +27,10 @@ const schema = z.object({
   DOCS_URL: z.url().optional(),
   /** Sandbox domain the agent-built token sites are served on (<slug>.<domain>), separate from the app so their scripts never share its origin; the web project needs the wildcard domain attached. */
   SITES_ROOT_DOMAIN: z.string().default("o1bot.app"),
-  /** Model that writes token sites; defaults to claude-sonnet-4-6. */
+  /** Model that builds token sites (first builds and rebuilds); defaults to claude-opus-5. */
   SITES_MODEL: z.string().optional(),
+  /** Model that revises a site as edits; defaults to claude-sonnet-4-6. */
+  SITES_REVISION_MODEL: z.string().optional(),
 
   DATABASE_URL: z.string().optional(),
   REDIS_URL: z.string().optional(),
