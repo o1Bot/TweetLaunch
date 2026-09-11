@@ -38,6 +38,8 @@ export type LaunchCoreInput = {
   telegram: string | null;
   /** Project X handle for the metadata; null = the author's own profile. */
   xHandle: string | null;
+  /** The token site being built for this launch, named in the success reply; null when none was asked for. */
+  tokenSiteUrl?: string | null;
   image: { url?: string | null; bytes?: Uint8Array | null };
   origin: LaunchOrigin;
   recipient: { handle: string; userId: string; address: Address } | null;
@@ -198,6 +200,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
       devBuyEth: input.devBuyNative,
       feesTo: extra.feesToFailed ? null : (recipient?.handle ?? null),
       feesToFailed: extra.feesToFailed ?? null,
+      site: input.tokenSiteUrl ?? null,
     });
 
   // 4. Dry run stops here: record what would be signed, sign nothing.

@@ -429,6 +429,8 @@ model TokenSiteJob {
   id          String             @id @default(cuid())
   siteId      String
   site        TokenSite          @relation(fields: [siteId], references: [id])
+  /// The post to reply under when the job finishes; null for web-only jobs.
+  mentionId   String?
   /// Null for the first build; the creator's instruction for a revision.
   instruction String?
   /// The version the revision starts from; null for the first build.

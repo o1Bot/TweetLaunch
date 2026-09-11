@@ -8,6 +8,7 @@ import { FakeXClient } from "@o1bot/x";
 import type { BotConfig } from "../src/config";
 import type { PipelineDeps } from "../src/pipeline";
 import { MemoryAskData } from "../src/ask-data";
+import { MemorySiteStore } from "../src/site-store";
 import { MemoryBotStore, type NewLaunch } from "../src/store";
 import { drainWebLaunches, processWebLaunch } from "../src/web-launches";
 import { noO1Tokens } from "../src/o1-tokens";
@@ -37,6 +38,7 @@ function config(over: Partial<BotConfig> = {}): BotConfig {
     siteUrl: "https://o1bot.exchange",
     botHandle: "o1bot_exchange",
     botUserId: "999",
+    sitesRootDomain: "o1bot.exchange",
     reservedHandles: [...RESERVED_HANDLES],
     ...over,
   };
@@ -103,6 +105,10 @@ function harness(over: Partial<BotConfig> = {}) {
     trade: dryRunTradeChain(),
     o1Tokens: noO1Tokens,
     askData: new MemoryAskData(),
+    sites: new MemorySiteStore(store),
+    generateSite: async () => {
+      throw new Error("not used");
+    },
     bridge: dryRunBridgeChain(),
     relay: { quote: async () => { throw new Error("not used"); }, status: async () => ({ status: "unknown", fillTxHash: null }) },
     now: () => new Date("2026-09-08T10:00:00Z"),

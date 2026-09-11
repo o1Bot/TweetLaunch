@@ -2,6 +2,7 @@ import { getAddress, type Address, type Hex } from "viem";
 import type { LaunchPlan, LaunchRequest, PlanResult, PreparedMetadata, TokenMetadataInput } from "@o1bot/executor";
 import { ParserError, type ComposeInput, type LaunchCommand, type MentionInput, type ParsedMention } from "@o1bot/parser";
 import { activeFactory, chainByKey, chainDisplayName, DEFAULT_CHAIN_KEY, findQuote, logger, tickerCollidesWithStock } from "@o1bot/shared";
+import { checkSlug, slugFromTicker } from "@o1bot/sites";
 import type { EnsureWalletInput, LinkedUser, LinkStatus } from "@o1bot/wallet";
 import { stripLeadingMentions, XPostError, type XClient, type XMention } from "@o1bot/x";
 import { noAlerts, postUrl, type Alerter } from "./alerts";
@@ -15,6 +16,9 @@ import { runLaunch } from "./launch-core";
 import { clampReply, formatEthCeil, replies } from "./replies";
 import type { O1TokenSource } from "./o1-tokens";
 import type { RelayClient } from "./relay";
+import { tokenSiteUrl, type SiteGenerator } from "./site-core";
+import { handleSite } from "./site-handler";
+import type { SiteStore } from "./site-store";
 import type { BotStore, MentionStatusValue } from "./store";
 import type { TradeChain } from "./trade-core";
 import { handleTrade } from "./trade-handler";
@@ -54,6 +58,10 @@ export type PipelineDeps = {
   relay: RelayClient;
   /** Figures behind questions from posts: statistics, tokens, the poster's wallet, launches and trades. */
   askData: AskData;
+  /** Token sites: reservations, versions and build jobs. */
+  sites: SiteStore;
+  /** The agent that writes a site; the worker runs it, the pipeline only queues jobs. */
+  generateSite: SiteGenerator;
   /** Phrases the answer to a question from the facts, in the post's language; null means "use the template". Absent in tests. */
   compose?: (input: ComposeInput) => Promise<string | null>;
   /** Operator alerts; absent in tests and dry runs. */
@@ -64,7 +72,7 @@ export type PipelineDeps = {
 export type PipelineOutcome =
   | { outcome: "duplicate" }
   | { outcome: "ignored"; reason: string }
-  | { outcome: "replied"; kind: "help" | "ask" | "clarify" | "unsupported_chain" | "not_registered" | "rejected"; reply: string | null }
+  | { outcome: "replied"; kind: "help" | "ask" | "site" | "clarify" | "unsupported_chain" | "not_registered" | "rejected"; reply: string | null }
   | { outcome: "dry_run"; launchId: string; token: Address; reply: string }
   | { outcome: "launched"; launchId: string; token: Address; txHash: Hex; feeRecipientTxHash: Hex | null; reply: string | null }
   | { outcome: "trade_dry_run"; tradeId: string; reply: string }
@@ -199,6 +207,8 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
     }
     case "ask":
       return handleAsk(result, { mention, mentionId, deps, now, log, reply, setMention });
+    case "site":
+      return handleSite(result, { mention, mentionId, deps, now, log, reply, setMention });
     case "launch":
       return handleLaunch(result, { mention, mentionId, deps, now, log, reply, setMention });
     case "trade":
@@ -320,6 +330,18 @@ async function handleLaunch(cmd: LaunchCommand, ctx: MentionContext): Promise<Pi
     }
   }
 
+  // 8b. A website on a subdomain: reserve the name before anything is signed, so the
+  // metadata can point at it and no other launch can take it in the meantime.
+  let site: { id: string; slug: string; url: string } | null = null;
+  if (cmd.siteSlug) {
+    const check = cmd.siteSlug === "auto" ? slugFromTicker(cmd.ticker) : checkSlug(cmd.siteSlug);
+    if (!check.ok) return rejected(replies.siteInvalid(check.slug || cmd.siteSlug, check.reason), `site slug ${check.reason}: ${cmd.siteSlug}`);
+    const reserved = await deps.sites.reserve({ slug: check.slug, chainId: chainByKey(key).id, ownerId: creator.id });
+    if (!reserved.ok) return rejected(replies.siteTaken(check.slug, config.sitesRootDomain), `site slug taken: ${check.slug}`);
+    site = { id: reserved.site.id, slug: check.slug, url: tokenSiteUrl(config, check.slug) };
+    log.info({ slug: check.slug, url: site.url }, "site subdomain reserved");
+  }
+
   // 9. Persist the launch, then run the shared core (metadata, plan, funding, signing).
   const launch = await store.createLaunch({
     mentionId,
@@ -338,6 +360,7 @@ async function handleLaunch(cmd: LaunchCommand, ctx: MentionContext): Promise<Pi
     status: "QUEUED",
   });
   const launchId = launch.id;
+  if (site) await deps.sites.update(site.id, { launchId });
   await setMention("QUEUED");
 
   const result = await runLaunch(
@@ -352,16 +375,28 @@ async function handleLaunch(cmd: LaunchCommand, ctx: MentionContext): Promise<Pi
       devBuyWei: devBuy.wei,
       devBuyNative: cmd.devBuyNative,
       description: cmd.description,
-      website: cmd.website,
+      // The token's own site is its website unless the creator named another.
+      website: cmd.website ?? site?.url ?? null,
       telegram: cmd.telegram,
       xHandle: cmd.xHandle,
       image: { url: cmd.imageFromTweet ? mention.imageUrl : null },
       origin: { kind: "x", tweetId: mention.id, tweetUrl: `https://x.com/${authorHandle}/status/${mention.id}` },
       recipient,
+      tokenSiteUrl: site?.url ?? null,
     },
     deps,
     log,
   );
+
+  // A launch that did not happen frees its subdomain; one that did gets its site built by the worker.
+  if (site && (!result.ok || result.dryRun)) {
+    await deps.sites.release(site.id);
+    site = null;
+  } else if (site && result.ok) {
+    await deps.sites.update(site.id, { token: result.token });
+    await deps.sites.createJob({ siteId: site.id, instruction: null, baseN: null, mentionId, createdById: creator.id });
+    log.info({ siteId: site.id, slug: site.slug }, "site build queued");
+  }
 
   if (!result.ok) {
     if (result.outcome === "rejected") {

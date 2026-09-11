@@ -11,6 +11,7 @@ import type { BotConfig } from "../src/config";
 import { processMention, type PipelineDeps } from "../src/pipeline";
 import type { RelayClient, RelayQuote, RelayStatus } from "../src/relay";
 import { MemoryAskData } from "../src/ask-data";
+import { MemorySiteStore } from "../src/site-store";
 import { MemoryBotStore, type TradableToken } from "../src/store";
 import type { TradeChain, TradePlan } from "../src/trade-core";
 
@@ -56,6 +57,7 @@ function config(over: Partial<BotConfig> = {}): BotConfig {
     siteUrl: "https://o1bot.exchange",
     botHandle: "o1bot_exchange",
     botUserId: "999",
+    sitesRootDomain: "o1bot.exchange",
     reservedHandles: [...RESERVED_HANDLES],
     ...over,
   };
@@ -174,6 +176,10 @@ function harness(over: Partial<BotConfig> = {}): Harness {
     trade,
     o1Tokens: { search: async () => [], byAddress: async () => null },
     askData: new MemoryAskData(),
+    sites: new MemorySiteStore(store),
+    generateSite: async () => {
+      throw new Error("not used");
+    },
     bridge,
     relay,
     now: () => NOW,

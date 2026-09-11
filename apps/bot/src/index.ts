@@ -7,6 +7,7 @@ import { dbConfigured } from "@o1bot/db";
 import { planLaunch, prepareTokenMetadata, type LaunchRequest, type PreparedMetadata, type TokenMetadataInput } from "@o1bot/executor";
 import { composeAnswer, localizeReply, parseMention } from "@o1bot/parser";
 import { activeFactory, activeFeeEscrow, cryptoQuotes, env, logger, o1Chain, o1Config, registryDrift, stockQuotes } from "@o1bot/shared";
+import { generateSite } from "@o1bot/sites";
 import { ensureWalletForXUser, findUserByXUserId, linkStatus, type EnsureWalletInput, type LinkedUser, type LinkStatus } from "@o1bot/wallet";
 import { FakeXClient, HttpXClient, type XClient, type XMention } from "@o1bot/x";
 import { liveAskData, MemoryAskData } from "./ask-data";
@@ -16,6 +17,8 @@ import { liveO1Tokens } from "./o1-tokens";
 import { dryRunTradeChain, liveTradeChain } from "./trade-chain";
 import { processMention, type PipelineDeps } from "./pipeline";
 import { BullQueue, MemoryQueue, type JobQueue } from "./queue";
+import { drainSiteJobs, startSiteJobPolling } from "./site-core";
+import { MemorySiteStore, PrismaSiteStore } from "./site-store";
 import { MemoryBotStore, PrismaBotStore, type BotStore } from "./store";
 import { drainWebLaunches, startWebLaunchPolling } from "./web-launches";
 import { pollOnce, startPolling } from "./x-listener";
@@ -170,6 +173,9 @@ function buildDeps(cfg: BotConfig, args: CliArgs, store: BotStore, x: XClient): 
     // Questions from posts read the same tables the web reads; without a database they get empty figures.
     askData: dbConfigured() ? liveAskData() : new MemoryAskData(),
     compose: (input) => composeAnswer(input),
+    // Token sites: the pipeline reserves and queues, the worker below builds.
+    sites: dbConfigured() ? new PrismaSiteStore() : new MemorySiteStore(store as MemoryBotStore),
+    generateSite: (input) => generateSite(input),
     alerts: cfg.dryRun ? undefined : alerterFromEnv(),
   };
 }
@@ -262,6 +268,8 @@ async function main() {
     await queue.drain();
     const webRan = await drainWebLaunches(deps);
     if (webRan) logger.info({ webRan }, "web launches processed");
+    const sitesRan = await drainSiteJobs(deps);
+    if (sitesRan) logger.info({ sitesRan }, "site jobs processed");
     await queue.close();
     logger.info("done");
     return;
@@ -269,10 +277,11 @@ async function main() {
 
   const poller = startPolling({ ...listener, alerts: deps.alerts }, cfg.pollMs);
   const webPoller = startWebLaunchPolling(deps, WEB_LAUNCH_POLL_MS);
+  const sitePoller = startSiteJobPolling(deps, WEB_LAUNCH_POLL_MS);
   deps.alerts?.send({ kind: "boot", title: "o1bot is up", fields: [["Factory", activeFactory("robinhood")], ["Poll", `${cfg.pollMs} ms`], ["Queue", e.QUEUE_DRIVER]] });
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "shutting down");
-    await Promise.all([poller.stop(), webPoller.stop()]);
+    await Promise.all([poller.stop(), webPoller.stop(), sitePoller.stop()]);
     await queue.close();
     process.exit(0);
   };
