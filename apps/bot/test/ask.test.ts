@@ -5,6 +5,7 @@ import { RESERVED_HANDLES } from "@o1bot/shared";
 import type { LinkedUser, LinkStatus } from "@o1bot/wallet";
 import { FakeXClient, XPostError, type XMention } from "@o1bot/x";
 import { MemoryAskData, type TokenSummary, type WalletSummary } from "../src/ask-data";
+import { MemorySiteStore } from "../src/site-store";
 import { ago, amount, money, price, sig, tokenAmount } from "../src/ask-handler";
 import { dryRunBridgeChain } from "../src/bridge-chain";
 import type { BotConfig } from "../src/config";
@@ -57,6 +58,7 @@ function config(over: Partial<BotConfig> = {}): BotConfig {
     siteUrl: SITE,
     botHandle: "o1bot_exchange",
     botUserId: "999",
+    sitesRootDomain: "o1bot.exchange",
     reservedHandles: [...RESERVED_HANDLES],
     ...over,
   };
@@ -162,6 +164,10 @@ function harness(over: { x?: FakeXClient; compose?: boolean; config?: Partial<Bo
     bridge: dryRunBridgeChain(),
     relay: { quote: async () => { throw new Error("not used"); }, status: async () => ({ status: "unknown", fillTxHash: null }) },
     askData,
+    sites: new MemorySiteStore(store),
+    generateSite: async () => {
+      throw new Error("not used");
+    },
     ...(over.compose
       ? {
           compose: async (input: ComposeInput) => {

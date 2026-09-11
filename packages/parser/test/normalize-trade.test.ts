@@ -6,6 +6,7 @@ const base: ParseOutput = {
   kind: "trade",
   language: "en",
   topic: "none",
+  site_slug: "",
   ticker: "cat",
   name: null,
   pair: null,

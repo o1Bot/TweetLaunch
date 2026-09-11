@@ -17,6 +17,8 @@ export type BotConfig = {
   /** Largest Relay deposit the bot signs on an origin chain. */
   maxBridgeWei: bigint;
   siteUrl: string;
+  /** Domain the token sites hang under: <slug>.<domain>. */
+  sitesRootDomain: string;
   botHandle: string;
   botUserId: string | null;
   reservedHandles: string[];
@@ -38,6 +40,7 @@ export function botConfig(): BotConfig {
     tradeSlippageBps: e.TRADE_SLIPPAGE_BPS,
     maxBridgeWei: parseEther(e.MAX_BRIDGE_ETH),
     siteUrl: e.SITE_URL.replace(/\/$/, ""),
+    sitesRootDomain: e.SITES_ROOT_DOMAIN,
     botHandle: e.X_BOT_HANDLE,
     botUserId: e.X_BOT_USER_ID ?? null,
     reservedHandles: [...RESERVED_HANDLES, e.X_BOT_HANDLE],

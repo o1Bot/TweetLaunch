@@ -49,13 +49,18 @@ export default function HowItWorksPage() {
             <b>@{BOT_HANDLE}</b> launch <em>$TICKER</em> &quot;Token name&quot; pair <em>ETH</em> on <em>robinhood</em>
           </div>
           <div className="cmd-opts">
-            Optional: <em>devbuy 0.05</em> buys at launch without the anti-snipe fee · <em>fees to @someone</em> sends creator fees to another account
+            Optional: <em>devbuy 0.05</em> buys at launch without the anti-snipe fee · <em>fees to @someone</em> sends creator fees to another account · <em>site</em> builds the token a website
           </div>
         </div>
 
         <h2>Ask it things</h2>
         <p>
           The bot also answers questions from its own data, in any language: how many tokens it has launched and their volume, what is trending, how one token is doing (price, market cap, holders), and for your own account your balances, deposit address, launches, claimable fees and past trades. Mention it and ask in your own words. It only ever shows you your own wallet.
+        </p>
+
+        <h2>A website for your token</h2>
+        <p>
+          End the launch command with <em>site</em> (or <em>site yourname</em>) and the bot also builds a one-page website for the token at <em>yourname.{SITE_NAME}</em>: your story, how to buy, live price, holders and a buy button. It replies with the link when the site is up, usually within two minutes, and you keep editing it at <em>{SITE_NAME}/site/yourname</em>: describe a change in plain words, preview it, publish it. The creator of a token that already exists can ask later with <em>build a site for $TICKER</em>.
         </p>
 
         <h2>What the bot does behind the scenes</h2>

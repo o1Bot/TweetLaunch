@@ -13,7 +13,7 @@ import { env, logger, type ChainKey } from "@o1bot/shared";
  * Without them alerts are a no-op.
  */
 
-export type AlertKind = "boot" | "crash" | "launch_failed" | "trade_failed" | "reply_failed" | "parser_failed" | "poll_failing" | "worker_crashed";
+export type AlertKind = "boot" | "crash" | "launch_failed" | "trade_failed" | "reply_failed" | "parser_failed" | "poll_failing" | "worker_crashed" | "site_failed";
 
 export type Alert = {
   kind: AlertKind;
@@ -42,6 +42,7 @@ const EMOJI: Record<AlertKind, string> = {
   parser_failed: "🟡",
   poll_failing: "🟡",
   worker_crashed: "🔴",
+  site_failed: "🟠",
 };
 
 const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

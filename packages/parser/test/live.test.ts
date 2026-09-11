@@ -38,6 +38,9 @@ type Expect = {
   topic?: string;
   askTicker?: string | null;
   askAddress?: string | null;
+  /** Sites: on a launch, or the site command's token and name. */
+  siteSlug?: string | null;
+  siteTicker?: string | null;
 };
 
 const hasKey = Boolean(process.env.ANTHROPIC_API_KEY);
@@ -61,6 +64,11 @@ describe.skipIf(!hasKey)("parser against the live model", () => {
         if (e.website !== undefined) expect(result.website).toBe(e.website);
         if (e.telegram !== undefined) expect(result.telegram).toBe(e.telegram);
         if (e.xHandle !== undefined) expect(result.xHandle).toBe(e.xHandle);
+        if (e.siteSlug !== undefined) expect(result.siteSlug).toBe(e.siteSlug);
+      }
+      if (result.kind === "site") {
+        if (e.siteTicker !== undefined) expect(result.ticker).toBe(e.siteTicker);
+        if (e.siteSlug !== undefined) expect(result.slug).toBe(e.siteSlug);
       }
       if (result.kind === "trade") {
         if (e.side !== undefined) expect(result.side).toBe(e.side);

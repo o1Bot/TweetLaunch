@@ -31,6 +31,8 @@ export type NewMention = {
   postedAt: Date | null;
 };
 
+export type MentionRecord = { id: string; tweetId: string; authorXUserId: string; authorHandle: string; language: string | null };
+
 export type MentionPatch = { status?: MentionStatusValue; parse?: unknown; error?: string | null; replyTweetId?: string | null; language?: string | null };
 
 export type UserUpsert = {
@@ -185,6 +187,8 @@ export type SignedTxRecord = {
 
 export interface BotStore {
   getCursor(id: string): Promise<string | null>;
+  /** A processed post by row id, for replies that come later (a site that finished building). */
+  getMention(id: string): Promise<MentionRecord | null>;
   setCursor(id: string, value: string): Promise<void>;
   insertMention(m: NewMention): Promise<{ id: string; created: boolean }>;
   updateMention(id: string, patch: MentionPatch): Promise<void>;
@@ -219,6 +223,10 @@ export interface BotStore {
 }
 
 export class PrismaBotStore implements BotStore {
+  async getMention(id: string) {
+    const row = await db().mention.findUnique({ where: { id }, select: { id: true, tweetId: true, authorXUserId: true, authorHandle: true, language: true } });
+    return row ?? null;
+  }
   async getCursor(id: string) {
     const row = await db().botCursor.findUnique({ where: { id } });
     return row?.value ?? null;
@@ -422,6 +430,10 @@ export class MemoryBotStore implements BotStore {
   private seq = 0;
   now: () => Date = () => new Date();
 
+  async getMention(id: string) {
+    const m = this.mentions.find((x) => x.id === id);
+    return m ? { id: m.id, tweetId: m.tweetId, authorXUserId: m.authorXUserId, authorHandle: m.authorHandle, language: m.language } : null;
+  }
   async getCursor(id: string) {
     return this.cursors.get(id) ?? null;
   }

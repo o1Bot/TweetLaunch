@@ -6,6 +6,7 @@ const base: ParseOutput = {
   kind: "ask",
   language: "en",
   topic: "stats",
+  site_slug: "",
   ticker: null,
   name: null,
   pair: null,

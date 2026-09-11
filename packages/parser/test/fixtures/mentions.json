@@ -1013,5 +1013,84 @@
     "expect": {
       "kind": "ignore"
     }
+  },
+  {
+    "id": "launch-with-site",
+    "text": "@o1bot_exchange launch $CAT \"Cash Cat\" pair ETH on robinhood site",
+    "hasImage": false,
+    "expect": {
+      "kind": "launch",
+      "ticker": "CAT",
+      "siteSlug": "auto"
+    }
+  },
+  {
+    "id": "launch-with-named-site",
+    "text": "@o1bot_exchange launch $CAT \"Cash Cat\" pair ETH, site catcoin please",
+    "hasImage": false,
+    "expect": {
+      "kind": "launch",
+      "siteSlug": "catcoin"
+    }
+  },
+  {
+    "id": "launch-site-url-is-website",
+    "text": "@o1bot_exchange launch $CAT \"Cash Cat\" pair ETH site https://cashcat.xyz",
+    "hasImage": false,
+    "expect": {
+      "kind": "launch",
+      "siteSlug": null,
+      "website": "https://cashcat.xyz"
+    }
+  },
+  {
+    "id": "launch-without-site",
+    "text": "@o1bot_exchange launch $CAT \"Cash Cat\" pair ETH",
+    "hasImage": false,
+    "expect": {
+      "kind": "launch",
+      "siteSlug": null
+    }
+  },
+  {
+    "id": "site-command-en",
+    "text": "@o1bot_exchange build a site for $CAT",
+    "hasImage": false,
+    "expect": {
+      "kind": "site",
+      "siteTicker": "CAT",
+      "siteSlug": null
+    }
+  },
+  {
+    "id": "site-command-named",
+    "text": "@o1bot_exchange make $CAT a website at catcoin",
+    "hasImage": false,
+    "expect": {
+      "kind": "site",
+      "siteTicker": "CAT",
+      "siteSlug": "catcoin"
+    }
+  },
+  {
+    "id": "site-command-id",
+    "text": "@o1bot_exchange bikinin website buat $KOPI dong",
+    "hasImage": false,
+    "expect": {
+      "kind": "site",
+      "siteTicker": "KOPI",
+      "languageStartsWith": "id"
+    }
+  },
+  {
+    "id": "site-command-no-token",
+    "text": "@o1bot_exchange can you build me a site?",
+    "hasImage": false,
+    "expect": {
+      "kindIn": [
+        "clarify",
+        "help"
+      ]
+    }
   }
 ]

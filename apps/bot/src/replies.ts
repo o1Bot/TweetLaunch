@@ -51,6 +51,8 @@ export type SuccessInput = {
   feesTo: string | null;
   /** Set when `fees to` was requested but the redirect transaction failed. */
   feesToFailed?: string | null;
+  /** The token site being built for this launch. */
+  site?: string | null;
 };
 
 /**
@@ -81,11 +83,15 @@ export function successReply(p: SuccessInput): string {
       ? `The fee redirect to @${p.feesToFailed} failed, so creator fees stay with you for now.`
       : null;
   const feesShort = p.feesTo ? `Creator fees go to @${p.feesTo}.` : fees;
+  const site = p.site ? `Its website is being built at ${p.site}; I reply here when it is up.` : null;
+  const siteShort = p.site ? `Site coming: ${p.site}` : null;
 
   const variants: string[][] = [
-    [opener, link, [devBuy, fees].filter(Boolean).join(" ")],
-    [opener, link, [devBuy, feesShort].filter(Boolean).join(" ")],
-    [opener, link, feesShort ?? ""],
+    [opener, link, [devBuy, fees, site].filter(Boolean).join(" ")],
+    [opener, link, [devBuy, feesShort, site].filter(Boolean).join(" ")],
+    [opener, link, [devBuy, feesShort, siteShort].filter(Boolean).join(" ")],
+    [opener, link, [feesShort, siteShort].filter(Boolean).join(" ")],
+    [opener, link, siteShort ?? ""],
     [opener, link],
   ];
   for (const lines of variants) {
@@ -203,6 +209,31 @@ export const replies = {
     const text = p.txHash ? `${line}\nTx: ${TX_EXPLORER}${p.txHash}\n${page}` : safe;
     return { text, safe };
   },
+
+  // Token sites: a website the agent builds on a subdomain.
+  siteInvalid: (slug: string, reason: "invalid" | "reserved") =>
+    reason === "reserved"
+      ? `"${slug}" cannot be a site name here. Pick another with "site <name>" and post again.`
+      : `"${slug}" cannot be a subdomain: 3 to 32 letters, digits or hyphens, like "site catcoin". Post again.`,
+
+  siteTaken: (slug: string, rootDomain: string) => `${slug}.${rootDomain} is already taken. Post again with another name, for example "site ${slug}coin".`,
+
+  siteQueued: (ticker: string, url: string) => `On it. The site for $${ticker} is being built at ${url}; I reply here when it is live, usually within a couple of minutes.`,
+
+  siteLive: (url: string, editUrl: string) => `Your site is live: ${url}\nChange the look or the copy any time at ${editUrl}`,
+
+  siteFailed: (editUrl: string) => `The site could not be built this time. Retry from ${editUrl}, or post the site command again in a few minutes.`,
+
+  siteNotCreator: (asked: string) => `Only the creator of ${asked.startsWith("0x") ? asked : `$${asked}`} can ask for its site.`,
+
+  siteUnknownToken: (asked: string, siteUrl: string) => `I could not find ${asked.startsWith("0x") ? asked : `$${asked}`} among the tokens launched through o1bot, and I only build sites for those. Board: ${siteUrl}`,
+
+  siteAmbiguous: (ticker: string, candidates: Array<{ name: string; token: string }>) => ({
+    text: `You launched more than one $${ticker}. Post again with the address of the one you mean:\n${candidates.map((c) => `${c.name || ticker}: ${c.token}`).join("\n")}`,
+    safe: `You launched more than one $${ticker} (${candidates.map((c) => c.name || ticker).join(", ")}). Post again with the address of the one you mean; your profile lists them.`,
+  }),
+
+  siteAlreadyLive: (ticker: string, url: string, editUrl: string) => `$${ticker} already has a site: ${url}\nEdit it at ${editUrl}`,
 
   // Questions answered from the data (kind ask). The model normally phrases the answer from the
   // same facts; these are the English stand-ins when it cannot, and the address-free variants.

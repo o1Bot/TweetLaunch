@@ -25,6 +25,20 @@ export type LaunchCommand = {
   telegram: string | null;
   /** Project X handle (lowercase, no @) when the user named one; null = the poster's own account. */
   xHandle: string | null;
+  /** Website wanted on a subdomain: "auto" = named after the ticker, else the name given; null = no site. */
+  siteSlug: string | null;
+  language: string;
+  reason: string;
+};
+
+/** "build a site for $CAT": a website for a token that already exists, from its creator. */
+export type SiteCommand = {
+  kind: "site";
+  /** Ticker without $, uppercased; null when the user gave an address. */
+  ticker: string | null;
+  tokenAddress: string | null;
+  /** Subdomain name the user chose; null = named after the ticker. */
+  slug: string | null;
   language: string;
   reason: string;
 };
@@ -126,6 +140,7 @@ export type ParseResult =
   | LaunchCommand
   | TradeCommand
   | BridgeCommand
+  | SiteCommand
   | AskCommand
   | { kind: "clarify"; question: string; missing: MissingField[]; language: string; reason: string }
   | { kind: "unsupported_chain"; chain: string; language: string; reason: string }
@@ -248,6 +263,28 @@ function normalizeTrade(raw: ParseOutput, language: string, reason: string): Par
 
 /** Which token was asked about? "Which token?" is asked when a token question names none. */
 export const ASK_TOKEN_QUESTION = "Which token do you mean? Give its ticker or address, for example: how is $CAT doing?";
+export const SITE_TOKEN_QUESTION = "Which token should the site be for? Give its ticker or address, for example: build a site for $CAT";
+
+/** "" = no site, "auto" = named after the ticker, anything else = the name as the user wrote it (the bot validates it). */
+export function cleanSiteSlug(raw: string | null | undefined): string | null {
+  const s = (raw ?? "").trim();
+  if (!s) return null;
+  if (/^auto$/i.test(s)) return "auto";
+  // A URL or a domain is a website, never a subdomain name.
+  if (/^https?:\/\//i.test(s) || /\.[a-z]{2,}(\/|$)/i.test(s)) return null;
+  return s.replace(/^\$/, "").trim() || null;
+}
+
+function normalizeSiteCommand(raw: ParseOutput, language: string, reason: string): ParseResult {
+  const tokenRaw = (raw.ticker ?? "").trim();
+  const tokenAddress = ADDRESS_RE.test(tokenRaw) ? tokenRaw : null;
+  const ticker = tokenAddress ? null : cleanTicker(tokenRaw || null);
+  if (!tokenAddress && (!ticker || !TICKER_RE.test(ticker))) {
+    return { kind: "clarify", question: (raw.question ?? "").trim() || SITE_TOKEN_QUESTION, missing: ["trade_token"], language, reason };
+  }
+  const slug = cleanSiteSlug(raw.site_slug);
+  return { kind: "site", ticker, tokenAddress, slug: slug === "auto" ? null : slug, language, reason };
+}
 
 function normalizeAsk(raw: ParseOutput, language: string, reason: string): ParseResult {
   // The model said "ask" without a subject: treat it like any other question.
@@ -314,6 +351,8 @@ export function normalizeParseOutput(raw: ParseOutput, input: { hasImage: boolea
 
   // A data question: the topic decides, the bot fetches the figures afterwards.
   if (raw.kind === "ask") return normalizeAsk(raw, language, reason);
+  // A site for a token that exists already.
+  if (raw.kind === "site") return normalizeSiteCommand(raw, language, reason);
 
   // A bridge, or a clarify about one, is decided before trades: it has no side.
   const bridgeIntent = raw.kind === "bridge" || (raw.kind === "clarify" && raw.missing.includes("bridge_chain"));
@@ -360,6 +399,7 @@ export function normalizeParseOutput(raw: ParseOutput, input: { hasImage: boolea
     website: cleanWebsite(raw.website),
     telegram: cleanTelegram(raw.telegram),
     xHandle: cleanXHandle(raw.x_handle),
+    siteSlug: cleanSiteSlug(raw.site_slug),
     language,
     reason,
   };

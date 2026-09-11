@@ -6,6 +6,7 @@ const base: ParseOutput = {
   kind: "launch",
   language: "en",
   topic: "none",
+  site_slug: "",
   ticker: "RUGRAT",
   name: "Rugrat",
   pair: "ETH",

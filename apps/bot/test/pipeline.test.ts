@@ -10,6 +10,7 @@ import type { BotConfig } from "../src/config";
 import type { WalletRef } from "../src/execute";
 import { processMention, type PipelineDeps } from "../src/pipeline";
 import { MemoryAskData } from "../src/ask-data";
+import { MemorySiteStore } from "../src/site-store";
 import { MemoryBotStore } from "../src/store";
 import { noO1Tokens } from "../src/o1-tokens";
 import { dryRunTradeChain } from "../src/trade-chain";
@@ -54,6 +55,7 @@ const launchCmd = (over: Partial<Extract<ParseResult, { kind: "launch" }>> = {})
   website: null,
   telegram: null,
   xHandle: null,
+  siteSlug: null,
   language: "en",
   reason: "test",
   ...over,
@@ -76,6 +78,7 @@ function config(over: Partial<BotConfig> = {}): BotConfig {
     siteUrl: "https://o1bot.exchange",
     botHandle: "o1bot_exchange",
     botUserId: "999",
+    sitesRootDomain: "o1bot.exchange",
     reservedHandles: [...RESERVED_HANDLES],
     ...over,
   };
@@ -170,6 +173,10 @@ function harness(over: Partial<BotConfig> = {}): Harness {
     trade: dryRunTradeChain(),
     o1Tokens: noO1Tokens,
     askData: new MemoryAskData(),
+    sites: new MemorySiteStore(store),
+    generateSite: async () => {
+      throw new Error("not used");
+    },
     bridge: dryRunBridgeChain(),
     relay: { quote: async () => { throw new Error("not used"); }, status: async () => ({ status: "unknown", fillTxHash: null }) },
     now: () => new Date("2026-09-07T10:00:00Z"),

@@ -20,9 +20,9 @@ export type AskTopic = Exclude<(typeof ASK_TOPICS)[number], "none">;
 
 export const ParseOutputSchema = z.object({
   kind: z
-    .enum(["launch", "trade", "bridge", "ask", "clarify", "help", "ignore"])
+    .enum(["launch", "trade", "bridge", "site", "ask", "clarify", "help", "ignore"])
     .describe(
-      "launch: a complete launch command. trade: a complete buy or sell command for the poster's own wallet. bridge: a complete request to move ETH from another chain to the poster's own wallet on Robinhood. ask: a question for a figure the bot can look up (its statistics, a token's market data, the poster's own wallet, launches, fees or trades). clarify: launch, trade or bridge intent but a required value is missing or ambiguous. help: a question about how the bot, wallet, fees or pairs work, or a request the bot cannot do. ignore: no actionable intent, spam or abuse.",
+      "launch: a complete launch command. trade: a complete buy or sell command for the poster's own wallet. bridge: a complete request to move ETH from another chain to the poster's own wallet on Robinhood. site: a request to build a website for a token that already exists (\"build a site for $CAT\"). ask: a question for a figure the bot can look up (its statistics, a token's market data, the poster's own wallet, launches, fees or trades). clarify: launch, trade or bridge intent but a required value is missing or ambiguous. help: a question about how the bot, wallet, fees or pairs work, or a request the bot cannot do. ignore: no actionable intent, spam or abuse.",
     ),
   language: z.string().describe("BCP-47 language tag of the post, e.g. en, id, es, ja."),
   topic: z
@@ -60,6 +60,11 @@ export const ParseOutputSchema = z.object({
   website: z.string().nullable().describe("Launch only. Project website URL the user gave (after \"site\", \"website\" or as a bare URL that is not a t.me or x.com link). null when absent."),
   telegram: z.string().nullable().describe("Launch only. Telegram link or @handle the user gave (after \"tg\", \"telegram\" or a t.me URL). null when absent."),
   x_handle: z.string().nullable().describe("Launch only. Project X handle without @ when the user names one for the token's profile (after \"x\" or \"twitter\", or an x.com link). null when absent; the poster's own account is used then."),
+  site_slug: z
+    .string()
+    .describe(
+      'Launch or site. Whether the bot should build a website for the token on its own subdomain. "" when the post does not ask for one. "auto" when it asks for a site without naming the subdomain ("site", "with a site", "build a site for $CAT"). Otherwise the subdomain name written after "site" or "at", exactly as written ("site catcoin" -> "catcoin"). A URL or a domain after "site" is the project website, not a subdomain: then this is "" and website carries the URL.',
+    ),
   trade_side: z.enum(["buy", "sell"]).nullable().describe("Trade only. buy or sell as the user asked. null when the post is not a trade or the side is unclear."),
   trade_amount: z
     .string()

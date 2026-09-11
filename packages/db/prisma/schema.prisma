@@ -45,6 +45,7 @@ model User {
   feeRecipientOf Launch[] @relation("LaunchFeeRecipient")
   trades         Trade[]
   bridges        Bridge[]
+  sites          TokenSite[]
 
   @@index([xHandle])
 }
@@ -147,6 +148,7 @@ model Launch {
 
   signedTxs SignedTransaction[]
   pool      Pool?
+  site      TokenSite?
 
   @@index([creatorId, createdAt])
   @@index([chainId, tokenAddress])
@@ -347,4 +349,100 @@ model BotCursor {
   id        String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+enum TokenSiteStatus {
+  /// The subdomain is taken for a launch that has not confirmed yet.
+  RESERVED
+  /// The launch confirmed (or a site was asked for later); the agent is writing the site.
+  GENERATING
+  /// A version is published and served.
+  LIVE
+  /// Generation failed; the reservation is kept so the creator can retry from the editor.
+  FAILED
+  /// The launch failed or the reservation expired; the slug is free again.
+  RELEASED
+}
+
+/// A site the agent built for a token, served at <slug>.o1bot.exchange.
+/// The row is created when the slug is reserved, before anything is signed,
+/// so two launches can never claim the same subdomain.
+model TokenSite {
+  id          String          @id @default(cuid())
+  /// Subdomain label, lowercase, unique across chains.
+  slug        String          @unique
+  chainId     Int
+  /// Null until the launch confirms.
+  token       String?
+  launchId    String?         @unique
+  launch      Launch?         @relation(fields: [launchId], references: [id])
+  ownerId     String
+  owner       User            @relation(fields: [ownerId], references: [id])
+  status      TokenSiteStatus @default(RESERVED)
+  /// Version number currently served; null = nothing published yet.
+  publishedN  Int?
+  error       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  versions TokenSiteVersion[]
+  jobs     TokenSiteJob[]
+
+  @@index([token])
+  @@index([ownerId])
+  @@index([status, updatedAt])
+}
+
+/// One generation of a site: the files the agent wrote, what it was told,
+/// and the instruction that produced it. Publishing points TokenSite.publishedN here.
+model TokenSiteVersion {
+  id          String    @id @default(cuid())
+  siteId      String
+  site        TokenSite @relation(fields: [siteId], references: [id])
+  n           Int
+  /// [{ path, content }]: index.html (body fragment) and styles.css.
+  files       Json
+  /// The brand brief the agent received.
+  brief       Json?
+  /// The creator's instruction for this version; null for the first generation.
+  prompt      String?
+  /// The agent's one-line note about what it did.
+  summary     String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([siteId, n])
+}
+
+enum TokenSiteJobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// One request to the agent: the first build of a site, or a revision from
+/// the editor. Queued by the pipeline or the web app, run by the bot worker
+/// (a build takes a minute or two, longer than a web function may run), and
+/// polled by the editor. A finished job names the version it produced.
+model TokenSiteJob {
+  id          String             @id @default(cuid())
+  siteId      String
+  site        TokenSite          @relation(fields: [siteId], references: [id])
+  /// The post to reply under when the job finishes; null for web-only jobs.
+  mentionId   String?
+  /// Null for the first build; the creator's instruction for a revision.
+  instruction String?
+  /// The version the revision starts from; null for the first build.
+  baseN       Int?
+  status      TokenSiteJobStatus @default(QUEUED)
+  versionN    Int?
+  error       String?
+  createdById String?
+  createdAt   DateTime           @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+
+  @@index([status, createdAt])
+  @@index([siteId, createdAt])
 }
