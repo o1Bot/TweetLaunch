@@ -238,7 +238,7 @@ export const replies = {
 
   siteTaken: (slug: string, rootDomain: string) => `${slug}.${rootDomain} is already taken. Post again with another name, for example "site ${slug}coin".`,
 
-  siteQueued: (ticker: string, url: string) => `On it. The site for $${ticker} is being built at ${url}; I reply here when it is live, usually within a couple of minutes.`,
+  siteQueued: (ticker: string, url: string) => `On it. The site for $${ticker} is being built at ${url} (beta); I reply here when it is live, usually within a few minutes.`,
 
   siteLive: (url: string, editUrl: string) => `Your site is live: ${url}\nChange the look or the copy any time at ${editUrl}`,
 

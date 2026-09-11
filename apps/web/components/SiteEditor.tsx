@@ -237,6 +237,7 @@ export function SiteEditor({ slug }: { slug: string }) {
               {view.url.replace(/^https:\/\//, "")}
             </a>
             <span className={`pill ${view.status === "LIVE" ? "live" : ""}`}>{pill}</span>
+            <span className="pill">Beta</span>
           </div>
         </div>
         <div className="links">
