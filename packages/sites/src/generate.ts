@@ -14,7 +14,15 @@ import type { SiteFiles } from "./types";
  * on every version regardless of what the model returned.
  */
 
-export const DEFAULT_SITES_MODEL = "claude-sonnet-4-6";
+/** First builds and rebuilds: design judgement matters more than speed. */
+export const DEFAULT_SITES_MODEL = "claude-opus-5";
+/** Revisions as edits: small outputs, a fast model is enough. */
+export const DEFAULT_REVISION_MODEL = "claude-sonnet-4-6";
+
+/** Instructions that ask for a different site, not a change to this one: no edits, a fresh build with the next art direction. */
+export function wantsRewrite(instruction: string | null | undefined): boolean {
+  return /\b(start over|from scratch|rebuild|redesign|re-design|new look|new design|different (look|design|style|vibe)|completely different)\b/i.test(instruction ?? "");
+}
 /** Generous: a site is 6 to 12 KB of HTML and about as much CSS. */
 const MAX_OUTPUT_TOKENS = 20_000;
 export const HTML_MAX_BYTES = 40_000;
@@ -103,7 +111,7 @@ Write it as a real single-page site, in this order, in the language named in the
 # The o1bot blocks
 
 These custom elements are replaced by o1bot with live content; write each exactly once, as an empty element with a closing tag, and never put anything inside them:
-  <o1bot-logo size="sm|md|lg"></o1bot-logo>   the token logo (omitted automatically when there is none)
+  <o1bot-logo size="sm|md|lg"></o1bot-logo>   the token logo as an <img class="o1bot-logo">: sm is 96px (headers, nav bars, next to a title), md is 160px (a hero with the name beside it), lg is 240px (only when the logo alone is the centrepiece of the hero). Size .o1bot-logo in CSS when your layout needs another size; never let it dwarf the name. Omitted automatically when there is no logo.
   <o1bot-stats></o1bot-stats>                 price, market cap, holders, 24h volume, live
   <o1bot-buy label="..."></o1bot-buy>          the buy button (label optional, in the site's language, short)
   <o1bot-address></o1bot-address>             the contract address with an explorer link
@@ -128,7 +136,7 @@ The script may only: read the DOM, animate, draw on canvas, use the clipboard, a
 
 # Design
 
-Make it look designed for this token, not generated: pick one strong visual idea from the name, the logo colours and the description, and carry it through type, colour, shapes and spacing. Bold display type for the name and headings, readable body type, generous whitespace, a palette built from the logo colours (or a fitting one when there is no logo) with one accent, large rounded shapes or sharp editorial layout as the idea demands, CSS-only motion where it adds life (keyframes, hover). Mobile first: it must read well at 375px and use the width at 1200px (max-width containers, fluid type with clamp, grids that collapse). No stock "AI landing page" look: no generic three-column feature cards with icons, no purple-on-black by default, no lorem, no emoji as icons.
+Make it look designed for this token, not generated: the brief names an art direction for this build; commit to it fully, and fill it in with the name, the logo colours and the description, carried through type, colour, shapes and spacing. Bold display type for the name and headings, readable body type, generous whitespace, a palette built from the logo colours (or a fitting one when there is no logo) with one accent, large rounded shapes or sharp editorial layout as the idea demands, CSS-only motion where it adds life (keyframes, hover). Mobile first: it must read well at 375px and use the width at 1200px (max-width containers, fluid type with clamp, grids that collapse). No stock "AI landing page" look: no generic three-column feature cards with icons, no purple-on-black by default, no lorem, no emoji as icons.
 
 # Changing an existing site
 
@@ -232,10 +240,11 @@ async function reviseSite(input: GenerateInput & { current: SiteFiles; instructi
   }
 }
 
-export async function generateSite(input: GenerateInput, opts: { client?: Anthropic; model?: string } = {}): Promise<GenerateOutcome> {
+export async function generateSite(input: GenerateInput, opts: { client?: Anthropic; model?: string; revisionModel?: string } = {}): Promise<GenerateOutcome> {
   const model = opts.model ?? env().SITES_MODEL ?? DEFAULT_SITES_MODEL;
-  if (input.current && input.instruction?.trim()) {
-    const revised = await reviseSite({ ...input, current: input.current, instruction: input.instruction }, opts.client ?? client(), model);
+  const revisionModel = opts.revisionModel ?? env().SITES_REVISION_MODEL ?? DEFAULT_REVISION_MODEL;
+  if (input.current && input.instruction?.trim() && !wantsRewrite(input.instruction)) {
+    const revised = await reviseSite({ ...input, current: input.current, instruction: input.instruction }, opts.client ?? client(), revisionModel);
     if (revised) return revised;
   }
   let response: Awaited<ReturnType<Anthropic["messages"]["parse"]>>;
