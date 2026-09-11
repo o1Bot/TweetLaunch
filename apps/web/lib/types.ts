@@ -36,6 +36,8 @@ export type TokenRow = {
   /** Tokens sent to the dead address (human units); market cap counts the rest. */
   burnedTokens: number;
   circulatingTokens: number;
+  /** The token's site on the sandbox domain, when one is live. */
+  siteUrl: string | null;
 };
 
 export type TradeRow = {

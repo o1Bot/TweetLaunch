@@ -29,6 +29,8 @@ type LaunchStatus = {
   launchTxHash: string | null;
   feeRecipientTxHash: string | null;
   userMessage: string | null;
+  /** The website asked for with the launch, once the worker reserved it; null when none was asked for. */
+  site?: { slug: string; url: string; editUrl: string; status: string } | null;
 };
 
 const PAIRS = ["ETH", "USDG"];
@@ -42,7 +44,8 @@ const STEPS: Array<{ key: string; label: string; statuses: string[] }> = [
 ];
 const FINAL = new Set(["CONFIRMED", "REPLIED", "DRY_RUN", "FAILED"]);
 
-export function LaunchForm() {
+/** `sitesRootDomain` is the sandbox domain the sites live on, read on the server. */
+export function LaunchForm({ sitesRootDomain }: { sitesRootDomain: string }) {
   const { ready, authenticated, login, getAccessToken } = usePrivy();
   const signer = useGrantSigner();
   const granting = signer.busy;
@@ -52,6 +55,7 @@ export function LaunchForm() {
   const [launch, setLaunch] = useState<LaunchStatus | null>(null);
   const [pairMode, setPairMode] = useState<"ETH" | "USDG" | "stock">("ETH");
   const [stock, setStock] = useState("");
+  const [wantSite, setWantSite] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   const refresh = useCallback(async () => {
@@ -104,7 +108,7 @@ export function LaunchForm() {
         const res = await fetch("/api/launch", { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
         const json = (await res.json()) as { id?: string; error?: string };
         if (!res.ok || !json.id) throw new Error(json.error ?? `HTTP ${res.status}`);
-        setLaunch({ id: json.id, status: "QUEUED", ticker: String(form.get("ticker") ?? ""), tokenAddress: null, launchTxHash: null, feeRecipientTxHash: null, userMessage: null });
+        setLaunch({ id: json.id, status: "QUEUED", ticker: String(form.get("ticker") ?? ""), tokenAddress: null, launchTxHash: null, feeRecipientTxHash: null, userMessage: null, site: null });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not submit the launch.");
       } finally {
@@ -228,6 +232,25 @@ export function LaunchForm() {
             <input name="feesToHandle" placeholder="@someone" disabled={busy} />
             <span className="hint">They claim from this site after signing in with X.</span>
           </label>
+          <div className="full launch-site">
+            <label className="check">
+              <input name="site" type="checkbox" value="1" checked={wantSite} onChange={(e) => setWantSite(e.target.checked)} disabled={busy} />
+              <span>
+                <b>Also build a website (beta)</b>
+                <span className="hint">The agent writes a one-page site for the token on its own subdomain and makes it the token&apos;s website. You edit it afterwards in plain words.</span>
+              </span>
+            </label>
+            {wantSite && (
+              <label>
+                <b>Site name (optional)</b>
+                <span className="slug">
+                  <input name="siteSlug" placeholder="defaults to the ticker" maxLength={32} disabled={busy} />
+                  <span>.{sitesRootDomain}</span>
+                </span>
+                <span className="hint">3 to 32 lowercase letters, digits and dashes. The name is reserved when the launch runs.</span>
+              </label>
+            )}
+          </div>
         </div>
         <div className="actions">
           <button className="btn-p" type="submit" disabled={busy || (launch !== null && !FINAL.has(launch.status))}>
@@ -264,6 +287,11 @@ export function LaunchForm() {
                   <a className="btn-s" href={`${EXPLORER}/tx/${launch.launchTxHash}`} target="_blank" rel="noreferrer">
                     Launch transaction
                   </a>
+                )}
+                {launch.site && launch.status !== "DRY_RUN" && (
+                  <Link className="btn-s" href={launch.site.editUrl}>
+                    {launch.site.status === "LIVE" ? "Website is live: open the editor" : "Website is being built: open the editor"}
+                  </Link>
                 )}
               </div>
             </>

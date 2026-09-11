@@ -6,6 +6,7 @@ import { userFromRequest } from "@o1bot/wallet";
 import { ipfsToHttp } from "@/lib/ipfs";
 import { listBoardTokens } from "@/lib/market";
 import { quoteUsd } from "@/lib/quote-usd";
+import { sitesForLaunches, type LaunchSiteInfo } from "@/lib/sites";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,6 +53,8 @@ type LaunchRow = {
   /** The creator's half of the hook fees on the token so far, when it is live. */
   feesEarnedQuote: number | null;
   feesEarnedUsd: number | null;
+  /** The token's website on the sandbox domain, in any state short of released; null when none was asked for. */
+  site: LaunchSiteInfo | null;
 };
 
 export async function GET(req: Request) {
@@ -73,6 +76,7 @@ export async function GET(req: Request) {
   const liveTokens = rows.map((l) => l.tokenAddress).filter((t): t is string => Boolean(t));
   const feeSums = liveTokens.length ? await db().swap.groupBy({ by: ["token"], where: { token: { in: liveTokens } }, _sum: { feeQuote: true } }) : [];
   const feesByToken = new Map(feeSums.map((f) => [f.token.toLowerCase(), f._sum.feeQuote ? Number(f._sum.feeQuote.toString()) : 0]));
+  const sites = await sitesForLaunches(rows.map((l) => l.id));
   const launches: LaunchRow[] = [];
   for (const l of rows) {
     const q = findQuote("robinhood", l.quoteAddress) ?? (getAddress(l.quoteAddress) === zeroAddress ? { symbol: "ETH", decimals: 18, address: zeroAddress } : null);
@@ -95,6 +99,7 @@ export async function GET(req: Request) {
       createdAt: l.createdAt.toISOString(),
       feesEarnedQuote,
       feesEarnedUsd: feesEarnedQuote !== null && px !== null ? feesEarnedQuote * px : null,
+      site: sites.get(l.id) ?? null,
     });
   }
 

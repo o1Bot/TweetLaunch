@@ -251,6 +251,10 @@ a.row:hover {
   background: var(--blue-soft);
   color: var(--blue);
 }
+.tag.site {
+  background: var(--up-soft);
+  color: var(--up);
+}
 
 /* ---------- token page ---------- */
 .back {

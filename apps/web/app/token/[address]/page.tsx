@@ -30,8 +30,12 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
   const t = await getTokenDetail(address).catch(() => null);
   if (!t) notFound();
   const meta = await fetchTokenMetadata(t.metadataUri);
+  // The token's own site comes first; a metadata website that is the same address is not listed twice.
+  const ownSite = t.siteUrl?.replace(/\/$/, "") ?? null;
+  const metaWebsite = meta?.website && meta.website.replace(/\/$/, "") !== ownSite ? meta.website : null;
   const links = [
-    meta?.website ? { label: "Website", href: meta.website } : null,
+    ownSite ? { label: "Website", href: ownSite } : null,
+    metaWebsite ? { label: ownSite ? "Other website" : "Website", href: metaWebsite } : null,
     meta?.x ? { label: "X", href: meta.x } : null,
     meta?.telegram ? { label: "Telegram", href: meta.telegram } : null,
   ].filter((l): l is { label: string; href: string } => l !== null);
@@ -86,6 +90,11 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
                 <a className="addr" href={o1TokenUrl(t.token, t.chain)} target="_blank" rel="noreferrer">
                   View on o1 {EXT_ICON}
                 </a>
+                {ownSite && (
+                  <a className="addr" href={ownSite} target="_blank" rel="noreferrer">
+                    Website <b>{ownSite.replace(/^https:\/\//, "")}</b> {EXT_ICON}
+                  </a>
+                )}
               </div>
               {(meta?.description || links.length > 0) && (
                 <div className="about">

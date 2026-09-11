@@ -20,6 +20,7 @@ export async function SiteHeader() {
       <nav className="nav" aria-label="Main">
         <Link href="/">Board</Link>
         <Link href="/launch">Launch</Link>
+        <Link href="/sites">Sites</Link>
         <Link href="/how-it-works">How it works</Link>
         <a href={DOCS_URL} target="_blank" rel="noreferrer">
           Docs

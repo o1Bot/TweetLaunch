@@ -28,6 +28,7 @@ export function BoardTable({ rows, emptyText }: { rows: TokenRow[]; emptyText?: 
                 <i />
                 Robinhood
               </span>
+              {t.siteUrl && <span className="tag site">site</span>}
               {t.source === "DEV" && <span className="tag dev">dev</span>}
             </div>
             <div className="post">

@@ -13,8 +13,9 @@ import { fetchTokenMetadata } from "./metadata";
  * disagree.
  */
 
-/** Sandbox domain the sites are served on; separate from the app on purpose. */
-export const SITES_ROOT_DOMAIN = process.env.SITES_ROOT_DOMAIN ?? "o1bot.app";
+import { SITES_ROOT_DOMAIN, siteUrlFor } from "./site-domain";
+
+export { SITES_ROOT_DOMAIN };
 /** The app's own origin, for links back to the board, token pages, the editor and the API. */
 export const APP_ORIGIN = (process.env.SITE_URL ?? "https://o1bot.exchange").replace(/\/$/, "");
 /** Where visitors report a site; shown in every footer. */
@@ -192,4 +193,50 @@ export async function renderSiteVersion(site: OwnerSiteRow, n: number): Promise<
   if (!version) return null;
   const { live, meta } = await liveDataFor(site);
   return renderSite(filesFromList(version.files as SiteFile[]), meta, live);
+}
+
+/* ── Public gallery and profile reads ────────────────────────────────── */
+
+export type PublicSite = {
+  slug: string;
+  url: string;
+  name: string;
+  ticker: string;
+  logoUrl: string | null;
+  token: string | null;
+  chainId: number;
+  creatorHandle: string | null;
+  /** When the served version was made. */
+  publishedAt: string;
+};
+
+/** Every site that is live, newest publish first; what the gallery shows. */
+export async function listLiveSites(limit = 60): Promise<PublicSite[]> {
+  if (!dbConfigured()) return [];
+  const rows = await db().tokenSite.findMany({
+    where: { status: "LIVE", publishedN: { not: null } },
+    orderBy: { updatedAt: "desc" },
+    take: limit,
+    include: { launch: { select: { name: true, ticker: true, imageUri: true } }, owner: { select: { xHandle: true } } },
+  });
+  return rows.map((s) => ({
+    slug: s.slug,
+    url: siteUrlFor(s.slug),
+    name: s.launch?.name ?? s.slug,
+    ticker: s.launch?.ticker ?? s.slug.toUpperCase(),
+    logoUrl: ipfsToHttp(s.launch?.imageUri) ?? null,
+    token: s.token,
+    chainId: s.chainId,
+    creatorHandle: s.owner.xHandle ?? null,
+    publishedAt: s.updatedAt.toISOString(),
+  }));
+}
+
+export type LaunchSiteInfo = { slug: string; url: string; editUrl: string; status: string };
+
+/** The site of each launch id, for the profile and the launch status API. Released sites do not count. */
+export async function sitesForLaunches(launchIds: string[]): Promise<Map<string, LaunchSiteInfo>> {
+  if (launchIds.length === 0 || !dbConfigured()) return new Map();
+  const rows = await db().tokenSite.findMany({ where: { launchId: { in: launchIds }, status: { not: "RELEASED" } }, select: { launchId: true, slug: true, status: true } });
+  return new Map(rows.filter((r) => r.launchId).map((r) => [r.launchId!, { slug: r.slug, url: siteUrlFor(r.slug), editUrl: `/site/${r.slug}`, status: r.status }]));
 }

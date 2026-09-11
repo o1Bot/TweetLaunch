@@ -25,7 +25,8 @@ type Me = {
 };
 
 type Asset = { address: string; symbol: string; name: string; imageUrl: string | null; decimals: number; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null };
-type LaunchRow = { id: string; source: "X" | "WEB"; role: "creator" | "fee_recipient"; ticker: string; name: string; quoteSymbol: string; imageUrl: string | null; chainId: number; status: string; tokenAddress: string | null; launchTxHash: string | null; userMessage: string | null; createdAt: string; feesEarnedUsd: number | null; feesEarnedQuote: number | null };
+type LaunchSite = { slug: string; url: string; editUrl: string; status: string };
+type LaunchRow = { id: string; source: "X" | "WEB"; role: "creator" | "fee_recipient"; ticker: string; name: string; quoteSymbol: string; imageUrl: string | null; chainId: number; status: string; tokenAddress: string | null; launchTxHash: string | null; userMessage: string | null; createdAt: string; feesEarnedUsd: number | null; feesEarnedQuote: number | null; site: LaunchSite | null };
 type TradeRow = { id: string; side: "BUY" | "SELL"; token: string; tokenSymbol: string; quoteSymbol: string; amountIn: string; amountOut: string | null; status: string; txHash: string | null; userMessage: string | null; createdAt: string };
 type Overview = {
   wallet: string | null;
@@ -130,6 +131,28 @@ export function Profile() {
     }
   }, [ready, authenticated, load]);
   useLinkedRefresh(load);
+
+  // Ask the agent for a website for one of this account's live tokens; the editor page shows the build.
+  const buildSite = useCallback(
+    async (launchId: string) => {
+      const headers = await auth();
+      if (!headers) return;
+      setBusy(`site:${launchId}`);
+      setError(null);
+      try {
+        const res = await fetch("/api/site", { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ launchId }) });
+        const json = (await res.json()) as Partial<LaunchSite> & { error?: string };
+        if (!res.ok && !(res.status === 409 && json.slug)) throw new Error(json.error ?? `HTTP ${res.status}`);
+        const site: LaunchSite = { slug: json.slug ?? "", url: json.url ?? "", editUrl: json.editUrl ?? `/site/${json.slug ?? ""}`, status: res.ok ? "GENERATING" : "LIVE" };
+        setOverview((o) => (o ? { ...o, launches: o.launches.map((l) => (l.id === launchId ? { ...l, site } : l)) } : o));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not queue the site.");
+      } finally {
+        setBusy(null);
+      }
+    },
+    [auth],
+  );
 
   const save = useCallback(
     async (patch: Partial<Pick<Settings, "enabled" | "maxTradeEth" | "acceptFeeRedirects" | "replyLanguage">>) => {
@@ -425,6 +448,41 @@ export function Profile() {
                       {l.role === "fee_recipient" ? " · fees directed to you" : ""}
                       {l.status === "FAILED" && l.userMessage ? ` · ${l.userMessage}` : ""}
                     </span>
+                    {l.site ? (
+                      <span className="site-line">
+                        {l.site.status === "LIVE" ? (
+                          <>
+                            <span className="pill on">site live</span>
+                            <a href={l.site.url} target="_blank" rel="noreferrer">
+                              {l.site.url.replace(/^https:\/\//, "")}
+                            </a>
+                            {l.role === "creator" && <Link href={l.site.editUrl}>Edit</Link>}
+                          </>
+                        ) : l.site.status === "FAILED" ? (
+                          <>
+                            <span className="pill warn">site build failed</span>
+                            {l.role === "creator" && (
+                              <button type="button" disabled={busy !== null} onClick={() => void buildSite(l.id)}>
+                                Try again
+                              </button>
+                            )}
+                          </>
+                        ) : l.site.status === "SUSPENDED" ? (
+                          <span className="pill warn">site suspended</span>
+                        ) : (
+                          <>
+                            <span className="pill">site building…</span>
+                            {l.role === "creator" && <Link href={l.site.editUrl}>Open the editor</Link>}
+                          </>
+                        )}
+                      </span>
+                    ) : live && l.role === "creator" ? (
+                      <span className="site-line">
+                        <button type="button" disabled={busy !== null} onClick={() => void buildSite(l.id)}>
+                          {busy === `site:${l.id}` ? "Queueing…" : "Build a website (beta)"}
+                        </button>
+                      </span>
+                    ) : null}
                   </div>
                   <div className="v">
                     {live ? (

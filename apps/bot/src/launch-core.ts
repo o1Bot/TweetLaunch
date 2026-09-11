@@ -201,6 +201,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
       feesTo: extra.feesToFailed ? null : (recipient?.handle ?? null),
       feesToFailed: extra.feesToFailed ?? null,
       site: input.tokenSiteUrl ?? null,
+      web: origin.kind === "web",
     });
 
   // 4. Dry run stops here: record what would be signed, sign nothing.
