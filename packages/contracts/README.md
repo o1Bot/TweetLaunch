@@ -43,6 +43,17 @@ Dependencies come through pnpm, not git submodules: `@openzeppelin/contracts` fr
 GitHub tarball, mapped in `foundry.toml` (`remappings`). Foundry itself (`forge`, solc 0.8.26, the same
 compiler as o1's contracts) must be installed on the machine that builds or tests.
 
+## Deployed factories
+
+| Chain | FeeSplitterFactory | FeeSplitter implementation |
+| ----- | ------------------ | -------------------------- |
+| Robinhood Chain (4663) | `0xfdcE856d48548d54BC0F2183ff0d7B8435Be0B2D` | `0x3Bfd4A3e8CA865cfFBdEC807ce22b75797737256` |
+| Base (8453) | `0xfdcE856d48548d54BC0F2183ff0d7B8435Be0B2D` | `0x3Bfd4A3e8CA865cfFBdEC807ce22b75797737256` |
+| Arc (5042) | `0x1f4A51C79884c9aC303E2C731Bc1CF65B225F6A9` | `0x23F9736B6C5b01Af256127B6bf27374F007412F3` |
+
+Deployed 2026-09-13 with a 20% platform share; the same deployer nonce gave Robinhood and Base the same
+address. The apps read them from `FEE_SPLITTER_FACTORY_<CHAIN>`.
+
 ## Deployment
 
 One factory per chain. Copy `.env.example` in this directory to `.env` and fill it in (`FEE_SPLITTER_DEPLOYER_KEY`,

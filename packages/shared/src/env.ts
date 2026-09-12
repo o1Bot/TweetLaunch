@@ -37,7 +37,11 @@ const schema = z.object({
   FEE_SPLITTER_FACTORY_BASE: address.optional(),
   FEE_SPLITTER_FACTORY_ARC: address.optional(),
   /** Deployment only (`pnpm contracts:deploy`), read on the operator's machine: gas payer, treasury, owner, platform share. */
-  FEE_SPLITTER_DEPLOYER_KEY: z.string().regex(/^0x[0-9a-fA-F]{64}$/, "expected a 0x-prefixed 32-byte private key").optional(),
+  FEE_SPLITTER_DEPLOYER_KEY: z
+    .string()
+    .regex(/^(0x)?[0-9a-fA-F]{64}$/, "expected a 32-byte private key in hex")
+    .transform((k) => (k.startsWith("0x") ? k : `0x${k}`))
+    .optional(),
   FEE_SPLITTER_TREASURY: address.optional(),
   FEE_SPLITTER_OWNER: address.optional(),
   FEE_SPLITTER_PLATFORM_BPS: z.coerce.number().int().min(0).max(3000).default(2000),
