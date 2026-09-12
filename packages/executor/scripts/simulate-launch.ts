@@ -1,7 +1,7 @@
 /**
  * Dry-run a launch end to end WITHOUT signing or broadcasting:
  *
- *   pnpm simulate --name "Rugrat" --symbol RUGRAT [--pair ETH] [--devbuy 0.01] [--chain base]
+ *   pnpm simulate --name "Rugrat" --symbol RUGRAT [--pair ETH] [--devbuy 0.01] [--chain base|arc]
  *                 [--creator 0x…] [--uri ipfs://…] [--editable] [--skip-drift-check] [--no-fund]
  *
  * With no --creator a random address is used and, unless --no-fund, given a
@@ -13,6 +13,7 @@ import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { formatEther, getAddress, parseEther, toHex, type Hex } from "viem";
+import { isChainKey, type ChainKey } from "@o1bot/shared";
 import { planLaunch } from "../src/index";
 
 try {
@@ -40,7 +41,7 @@ const { values } = parseArgs({
 });
 
 if (!values.name || !values.symbol) {
-  console.error('usage: pnpm simulate --name "Token name" --symbol TICKER [--pair ETH] [--devbuy 0.01] [--creator 0x…] [--chain robinhood|base]');
+  console.error('usage: pnpm simulate --name "Token name" --symbol TICKER [--pair ETH] [--devbuy 0.01] [--creator 0x…] [--chain robinhood|base|arc]');
   process.exit(2);
 }
 
@@ -49,7 +50,7 @@ const started = Date.now();
 const result = await planLaunch(
   {
     creator,
-    chain: values.chain === "base" ? "base" : "robinhood",
+    chain: isChainKey(values.chain ?? "") ? (values.chain as ChainKey) : "robinhood",
     name: values.name,
     symbol: values.symbol,
     pair: values.pair,
