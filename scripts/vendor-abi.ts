@@ -2,19 +2,33 @@
  * Vendor verified ABIs for the active o1 suite on every supported chain.
  *
  * For each contract the ABI is fetched from two independent verification
- * sources (Sourcify and the chain's Blockscout) and the script refuses to
+ * sources (Sourcify and the chain's explorer) and the script refuses to
  * write anything when both exist and disagree. Where Sourcify has no entry
  * (the Base factory and fee escrow, verified on Blockscout only) the
- * Blockscout ABI is vendored alone, the provenance says so, and the ABI is
+ * explorer ABI is vendored alone, the provenance says so, and the ABI is
  * cross-checked against the Robinhood contract of the same role: every
- * function the two share must have an identical signature. Output per
- * contract:
+ * function the two share must have an identical signature.
+ *
+ * Arc (2026-09-12): Sourcify does not index chain 5042 and the explorer o1
+ * links (arc-scan.org) has nothing verified, but arcexplorer.org holds the
+ * factory, fee escrow and token deployer as runtime matches, so those are
+ * vendored from its API alone and cross-checked against the Robinhood
+ * contract of the same role (the same `launchpad-v4-minimal` family). A
+ * contract no source knows can still be mirrored from the Robinhood ABI of
+ * its role when a runtime-bytecode comparison over RPC shows the same code
+ * up to the few 32-byte words that hold immutables; the provenance says so.
+ * The executor reads the live factory and simulates before anything is
+ * signed, so a wrong ABI fails closed.
+ *
+ * Output per contract:
  *
  *   abis/<Name>.<chainId>.<address>.json   verbatim ABI + provenance
  *   abis/<Name>.<chainId>.<address>.ts     `as const` export for viem typing
  *   abis/index.ts                          re-exports
  *
- * Run: pnpm abi:vendor   (re-run after `pnpm o1:sync` reports drift)
+ * Run: pnpm abi:vendor [--only <chain>]
+ * (re-run after `pnpm o1:sync` reports drift; `--only` re-fetches one chain
+ * and keeps the others' files as they are)
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -29,17 +43,37 @@ type AbiItem = {
   anonymous?: boolean;
 };
 type AbiParam = { name: string; type: string; internalType?: string; indexed?: boolean; components?: AbiParam[] };
+type Verified = { abi: AbiItem[]; contractName: string; compilerVersion: string };
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36";
 
-type ChainKey = "robinhood" | "base";
-type Target = { name: string; exportName: string; key: string; role: "factory" | "hook" | "feeEscrow" | "tokenDeployer" };
+type ChainKey = "robinhood" | "base" | "arc";
+type Role = "factory" | "hook" | "feeEscrow" | "tokenDeployer";
+type Target = { name: string; exportName: string; key: string; role: Role };
 
-/** Blockscout instances: o1's explorer field is Blockscout on Robinhood, Basescan on Base. */
-const BLOCKSCOUT: Record<ChainKey, string> = {
-  robinhood: o1.chains.robinhood.explorer,
-  base: "https://base.blockscout.com",
+const CHAIN_ORDER: readonly ChainKey[] = ["robinhood", "base", "arc"];
+
+/**
+ * Explorer contract APIs: Blockscout on Robinhood and Base. On Arc the
+ * explorer o1 links (arc-scan.org) has none of o1's contracts verified;
+ * arcexplorer.org does (factory, fee escrow, token deployer as runtime
+ * matches, 2026-09-10) and serves the ABI from its own API.
+ */
+const EXPLORER_API: Record<ChainKey, { api: string; site: string; kind: "blockscout" | "arcexplorer" }> = {
+  robinhood: { api: `${o1.chains.robinhood.explorer}/api`, site: o1.chains.robinhood.explorer, kind: "blockscout" },
+  base: { api: "https://base.blockscout.com/api", site: "https://base.blockscout.com", kind: "blockscout" },
+  arc: { api: "https://arcexplorer.org/api/v1", site: "https://arcexplorer.org", kind: "arcexplorer" },
 };
+
+/** Public RPCs for the bytecode comparison; RPC_<CHAIN> in the environment wins. */
+const RPC: Record<ChainKey, string[]> = {
+  robinhood: [process.env.RPC_ROBINHOOD ?? "", "https://robinhood-rpc.publicnode.com", "https://rpc.ordofi.network"].filter(Boolean),
+  base: [process.env.RPC_BASE ?? "", "https://base-rpc.publicnode.com", "https://mainnet.base.org"].filter(Boolean),
+  arc: [process.env.RPC_ARC ?? "", "https://5042.rpc.thirdweb.com"].filter(Boolean),
+};
+
+/** Immutables of these contracts fit in a handful of words; more differences than this means different code. */
+const MAX_IMMUTABLE_WORDS = 16;
 
 const TARGETS: Record<ChainKey, Target[]> = {
   robinhood: [
@@ -53,27 +87,87 @@ const TARGETS: Record<ChainKey, Target[]> = {
     { name: "LaunchHook", exportName: "baseLaunchHookAbi", key: "hook", role: "hook" },
     { name: "FeeEscrow", exportName: "baseFeeEscrowAbi", key: "feeEscrow", role: "feeEscrow" },
   ],
+  // The Arc hook is not verified anywhere yet; it is only read for swaps, which Arc does not have.
+  arc: [
+    { name: "LaunchFactory", exportName: "arcLaunchFactoryAbi", key: "factory", role: "factory" },
+    { name: "FeeEscrow", exportName: "arcFeeEscrowAbi", key: "feeEscrow", role: "feeEscrow" },
+    { name: "LaunchTokenDeployer", exportName: "arcLaunchTokenDeployerAbi", key: "launchTokenDeployer", role: "tokenDeployer" },
+  ],
 };
 
-async function fetchSourcify(chainId: number, address: string): Promise<{ abi: AbiItem[]; contractName: string; compilerVersion: string } | null> {
+async function fetchSourcify(chainId: number, address: string): Promise<Verified | null> {
   const url = `https://sourcify.dev/server/v2/contract/${chainId}/${address}?fields=abi,compilation`;
   const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`sourcify ${address}: HTTP ${res.status}`);
+  if (!res.ok) {
+    // Sourcify answers 400 with `unsupported_chain` for chains it does not index (Arc).
+    const body = await res.text().catch(() => "");
+    if (res.status === 400 && /unsupported_chain/.test(body)) return null;
+    throw new Error(`sourcify ${address}: HTTP ${res.status}`);
+  }
   const json = (await res.json()) as { abi?: AbiItem[]; match?: string | null; compilation?: { name?: string; compilerVersion?: string } };
   if (!json.match || !Array.isArray(json.abi)) return null;
   return { abi: json.abi, contractName: json.compilation?.name ?? "", compilerVersion: json.compilation?.compilerVersion ?? "" };
 }
 
-async function fetchBlockscout(chain: ChainKey, address: string): Promise<{ abi: AbiItem[]; contractName: string; compilerVersion: string }> {
-  const url = `${BLOCKSCOUT[chain]}/api?module=contract&action=getabi&address=${address.toLowerCase()}`;
+class NotVerified extends Error {}
+
+/** arcexplorer.org: one JSON document per contract, ABI included when the source is a runtime match. */
+async function fetchArcExplorer(api: string, address: string): Promise<Verified> {
+  const res = await fetch(`${api}/contracts/${address.toLowerCase()}`, { headers: { "user-agent": UA, accept: "application/json" }, signal: AbortSignal.timeout(60_000) });
+  if (res.status === 404) throw new NotVerified(`arcexplorer ${address}: not verified (unknown contract)`);
+  if (!res.ok) throw new Error(`arcexplorer ${address}: HTTP ${res.status}`);
+  const json = (await res.json()) as { verified?: boolean; contractName?: string | null; compilerVersion?: string | null; verificationStatus?: string; abi?: AbiItem[] | null; error?: string };
+  if (json.error) throw new NotVerified(`arcexplorer ${address}: ${json.error}`);
+  if (!json.verified || !Array.isArray(json.abi)) throw new NotVerified(`arcexplorer ${address}: not verified (${json.verificationStatus ?? "no status"})`);
+  return { abi: json.abi, contractName: json.contractName ?? "", compilerVersion: json.compilerVersion ?? "" };
+}
+
+async function fetchExplorer(chain: ChainKey, address: string): Promise<Verified> {
+  const { api, kind } = EXPLORER_API[chain];
+  if (kind === "arcexplorer") return fetchArcExplorer(api, address);
+  const url = `${api}?module=contract&action=getabi&address=${address.toLowerCase()}`;
   const res = await fetch(url, { headers: { "user-agent": UA, accept: "application/json" }, signal: AbortSignal.timeout(60_000) });
-  if (!res.ok) throw new Error(`blockscout ${address}: HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`${kind} ${address}: HTTP ${res.status}`);
   const json = (await res.json()) as { status: string; result: string | null; message?: string };
-  if (json.status !== "1" || !json.result) throw new Error(`blockscout ${address}: ${json.message ?? "not verified"}`);
-  const meta = await fetch(`${BLOCKSCOUT[chain]}/api/v2/smart-contracts/${address}`, { headers: { "user-agent": UA, accept: "application/json" }, signal: AbortSignal.timeout(60_000) });
+  if (json.status !== "1" || !json.result) {
+    const reason = json.result ?? json.message ?? "not verified";
+    if (/not verified/i.test(reason)) throw new NotVerified(`${kind} ${address}: ${reason}`);
+    throw new Error(`${kind} ${address}: ${reason}`);
+  }
+  const meta = await fetch(`${api}/v2/smart-contracts/${address}`, { headers: { "user-agent": UA, accept: "application/json" }, signal: AbortSignal.timeout(60_000) });
   const m = meta.ok ? ((await meta.json()) as { name?: string; compiler_version?: string }) : {};
   return { abi: JSON.parse(json.result) as AbiItem[], contractName: m.name ?? "", compilerVersion: m.compiler_version ?? "" };
+}
+
+async function getCode(chain: ChainKey, address: string): Promise<string> {
+  let last: unknown = null;
+  for (const url of RPC[chain]) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getCode", params: [address, "latest"] }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      const json = (await res.json()) as { result?: string; error?: { message?: string } };
+      if (typeof json.result === "string" && json.result.length > 2) return json.result;
+      last = json.error?.message ?? `no code at ${address}`;
+    } catch (err) {
+      last = err;
+    }
+  }
+  throw new Error(`eth_getCode ${chain} ${address}: ${last instanceof Error ? last.message : String(last)}`);
+}
+
+/** Runtime code comparison: same length and only immutable words differing means the same compiled contract. */
+function compareCode(a: string, b: string): { sameLength: boolean; length: number; differingWords: number } {
+  const x = Buffer.from(a.slice(2), "hex");
+  const y = Buffer.from(b.slice(2), "hex");
+  if (x.length !== y.length) return { sameLength: false, length: x.length, differingWords: -1 };
+  const words = new Set<number>();
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) words.add(Math.floor(i / 32));
+  return { sameLength: true, length: x.length, differingWords: words.size };
 }
 
 /** Canonical form that ignores ordering and internalType noise. */
@@ -105,49 +199,83 @@ function tsFile(exportName: string, meta: Record<string, unknown>, abi: AbiItem[
   );
 }
 
+function argValue(flag: string): string | null {
+  const i = process.argv.indexOf(flag);
+  return i >= 0 ? (process.argv[i + 1] ?? null) : null;
+}
+
 async function main() {
   const root = path.resolve(import.meta.dirname, "..");
   const outDir = path.join(root, "abis");
   await mkdir(outDir, { recursive: true });
   const verifiedAt = new Date().toISOString();
+  const only = argValue("--only") as ChainKey | null;
+  if (only && !CHAIN_ORDER.includes(only)) throw new Error(`--only: unknown chain ${only}`);
   const indexLines: string[] = ["// Generated by scripts/vendor-abi.ts — do not edit by hand."];
-  const reference = new Map<Target["role"], AbiItem[]>();
+  const reference = new Map<Role, { abi: AbiItem[]; chain: ChainKey; address: string }>();
 
-  for (const chainKey of ["robinhood", "base"] as const) {
+  for (const chainKey of CHAIN_ORDER) {
     const chain = o1.chains[chainKey];
     const chainId = chain.chainId;
     for (const c of TARGETS[chainKey]) {
       const address = (chain.contracts as Record<string, string>)[c.key];
       if (!address) throw new Error(`config/o1.json: ${chainKey} has no ${c.key}`);
       const base = `${c.name}.${chainId}.${address}`;
+      const previous = await readFile(path.join(outDir, `${base}.json`), "utf8").then((t) => JSON.parse(t) as { abi: AbiItem[] }, () => null);
+
+      // With --only, every other chain keeps what it has and still serves as the cross-chain reference.
+      if (only && chainKey !== only) {
+        if (!previous) throw new Error(`${chainKey} ${c.name}: no vendored ABI to keep; run without --only`);
+        if (!reference.has(c.role)) reference.set(c.role, { abi: previous.abi, chain: chainKey, address });
+        indexLines.push(`export { ${c.exportName} } from "./${base}";`);
+        continue;
+      }
+
       const sourcify = await fetchSourcify(chainId, address);
-      let blockscout: Awaited<ReturnType<typeof fetchBlockscout>> | null;
+      let explorer: Verified | null = null;
+      let unverified = false;
       try {
-        blockscout = await fetchBlockscout(chainKey, address);
+        explorer = await fetchExplorer(chainKey, address);
       } catch (err) {
-        // Robinhood's Blockscout sits behind Cloudflare and rejects some networks. A previously
-        // vendored ABI that still matches Sourcify keeps the two-source guarantee it was written with.
-        blockscout = null;
-        const previous = await readFile(path.join(outDir, `${base}.json`), "utf8").then((t) => (JSON.parse(t) as { abi: AbiItem[] }).abi, () => null);
-        if (!sourcify || !previous || canonical(previous) !== canonical(sourcify.abi)) throw err;
-        console.warn(`${chainKey} ${c.name}: Blockscout unreachable (${(err as Error).message.slice(0, 60)}); Sourcify matches the previously vendored ABI, keeping it`);
+        if (err instanceof NotVerified) {
+          unverified = true;
+        } else {
+          // Robinhood's Blockscout sits behind Cloudflare and rejects some networks. A previously
+          // vendored ABI that still matches Sourcify keeps the two-source guarantee it was written with.
+          if (!sourcify || !previous || canonical(previous.abi) !== canonical(sourcify.abi)) throw err;
+          console.warn(`${chainKey} ${c.name}: explorer unreachable (${(err as Error).message.slice(0, 60)}); Sourcify matches the previously vendored ABI, keeping it`);
+        }
       }
-      if (sourcify && blockscout && canonical(sourcify.abi) !== canonical(blockscout.abi)) {
-        throw new Error(`${chainKey} ${c.name} ${address}: Sourcify and Blockscout ABIs differ; refusing to vendor`);
+      if (sourcify && explorer && canonical(sourcify.abi) !== canonical(explorer.abi)) {
+        throw new Error(`${chainKey} ${c.name} ${address}: Sourcify and explorer ABIs differ; refusing to vendor`);
       }
-      const chosen = sourcify ?? blockscout;
-      if (!chosen) throw new Error(`${chainKey} ${c.name} ${address}: no verification source reachable`);
-      // Cross-chain check: the same role on another chain must agree on every shared function.
       const ref = reference.get(c.role);
-      if (ref) {
-        const a = signatures(ref);
+      let chosen = sourcify ?? explorer;
+      let mirror: Record<string, unknown> | null = null;
+
+      if (!chosen) {
+        // No verification source at all: mirror the reference contract of the same role, justified by bytecode.
+        if (!unverified || !ref) throw new Error(`${chainKey} ${c.name} ${address}: no verification source reachable`);
+        const [here, there] = await Promise.all([getCode(chainKey, address), getCode(ref.chain, ref.address)]);
+        const cmp = compareCode(here, there);
+        if (!cmp.sameLength || cmp.differingWords > MAX_IMMUTABLE_WORDS) {
+          throw new Error(`${chainKey} ${c.name} ${address}: runtime code differs from ${ref.chain} ${ref.address} (sameLength=${cmp.sameLength}, differingWords=${cmp.differingWords}); refusing to mirror`);
+        }
+        const check = { checked: true, checkedAt: verifiedAt, length: cmp.length, differingWords: cmp.differingWords, maxImmutableWords: MAX_IMMUTABLE_WORDS };
+        chosen = { abi: ref.abi, contractName: `${c.name} (mirrored)`, compilerVersion: "" };
+        mirror = { from: { chain: ref.chain, address: ref.address }, bytecode: check, note: `Not verified on ${EXPLORER_API[chainKey].site} nor indexed by Sourcify on ${verifiedAt.slice(0, 10)}; ABI mirrored from the ${ref.chain} contract of the same role.` };
+      } else if (ref) {
+        // Cross-chain check: the same role on another chain must agree on every shared function.
+        const a = signatures(ref.abi);
         const b = signatures(chosen.abi);
         for (const [name, sig] of b) {
           const other = a.get(name);
-          if (other && other !== sig) throw new Error(`${chainKey} ${c.name}: function ${name} differs from the Robinhood contract; refusing to vendor`);
+          if (other && other !== sig) throw new Error(`${chainKey} ${c.name}: function ${name} differs from the ${ref.chain} contract; refusing to vendor`);
         }
-      } else reference.set(c.role, chosen.abi);
-      if (!sourcify && !ref) throw new Error(`${chainKey} ${c.name} ${address}: only one verification source and nothing to compare against`);
+      } else if (!sourcify) {
+        throw new Error(`${chainKey} ${c.name} ${address}: only one verification source and nothing to compare against`);
+      }
+      if (!ref) reference.set(c.role, { abi: chosen.abi, chain: chainKey, address });
 
       const meta = {
         name: c.name,
@@ -158,14 +286,14 @@ async function main() {
         verifiedAt,
         sources: {
           sourcify: sourcify ? `https://sourcify.dev/server/v2/contract/${chainId}/${address}` : null,
-          blockscout: `${BLOCKSCOUT[chainKey]}/address/${address}?tab=contract`,
-          ...(sourcify ? {} : { note: "Not on Sourcify; Blockscout ABI cross-checked against the Robinhood contract of the same role." }),
+          explorer: `${EXPLORER_API[chainKey].site}/address/${address}`,
+          ...(mirror ? { mirror } : sourcify ? {} : { note: `Not on Sourcify; explorer ABI cross-checked against the ${ref?.chain ?? "reference"} contract of the same role.` }),
         },
       };
       await writeFile(path.join(outDir, `${base}.json`), JSON.stringify({ ...meta, abi: chosen.abi }, null, 2) + "\n");
       await writeFile(path.join(outDir, `${base}.ts`), tsFile(c.exportName, meta, chosen.abi));
       indexLines.push(`export { ${c.exportName} } from "./${base}";`);
-      console.log(`vendored ${chainKey} ${c.name} (${chosen.contractName}, ${chosen.compilerVersion}) at ${address}: ${chosen.abi.length} items${sourcify ? "" : " [blockscout only]"}`);
+      console.log(`vendored ${chainKey} ${c.name} (${chosen.contractName}${chosen.compilerVersion ? `, ${chosen.compilerVersion}` : ""}) at ${address}: ${chosen.abi.length} items${mirror ? " [mirrored]" : sourcify ? "" : " [explorer only]"}`);
     }
   }
 

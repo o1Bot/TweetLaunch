@@ -1,6 +1,6 @@
 import { erc20Abi, getAddress, isAddress, maxUint256, zeroAddress, type Address, type Hex, type PublicClient } from "viem";
 import { launchHookAbi, quoteUsd } from "@o1bot/executor";
-import { activeFactory, activeFeeEscrow, buildAllowlist, env, logger, o1Chain, publicClient } from "@o1bot/shared";
+import { activeFactory, activeFeeEscrow, buildAllowlist, env, logger, o1Chain, publicClient, universalRouterOf } from "@o1bot/shared";
 import { encodeExactInputSwap, permit2Abi, v4QuoterAbi } from "@o1bot/swap";
 import { ExecutionError, walletClientFor, type AuditSink, type WalletRef } from "./execute";
 import type { PoolConfig, TradeChain, TradePlan } from "./trade-core";
@@ -24,8 +24,7 @@ const FEE_CAP_PCT = 150n;
 export function liveTradeChain(opts: { client?: PublicClient } = {}): TradeChain {
   const client = opts.client ?? publicClient(KEY);
   const chain = o1Chain(KEY);
-  const router = getAddress(chain.uniswapV4.universalRouter);
-  const permit2 = getAddress(chain.uniswapV4.permit2);
+  const { router, permit2 } = universalRouterOf(KEY);
   const quoter = getAddress(chain.uniswapV4.quoter);
   const referrerEnv = env().REFERRER_ADDRESS;
   const referrer = referrerEnv && isAddress(referrerEnv) ? getAddress(referrerEnv) : null;
@@ -157,7 +156,7 @@ export async function executeTrade(plan: TradePlan, wallet: WalletRef, audit: Au
 export function dryRunTradeChain(): TradeChain {
   const chain = o1Chain(KEY);
   return {
-    addresses: () => ({ router: getAddress(chain.uniswapV4.universalRouter), permit2: getAddress(chain.uniswapV4.permit2), referrer: null }),
+    addresses: () => ({ ...universalRouterOf(KEY), referrer: null }),
     async poolConfig() {
       return { initialized: true, currentCreator: zeroAddress, creatorFeeRecipient: zeroAddress, baseFeeBps: 100, antiSnipeStartTotalBps: 9900, antiSnipeWindowSeconds: 20, launchTime: 0 };
     },

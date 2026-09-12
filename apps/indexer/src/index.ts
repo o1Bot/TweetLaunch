@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { formatUnits, type Hex } from "viem";
 import { dbConfigured } from "@o1bot/db";
 import { e18ToDecimalString } from "@o1bot/market";
-import { activeHook, CHAIN_KEYS, env, logger, logsClient, o1Chain, type ChainKey } from "@o1bot/shared";
+import { activeHook, env, INDEXED_CHAIN_KEYS, logger, logsClient, o1Chain, type ChainKey } from "@o1bot/shared";
 import { DEFAULT_SCAN, scanAdaptive, type ScanConfig, type ScanProgress } from "./scanner";
 import { MemoryStore, PrismaStore, type PoolRecord, type Store, type SwapRecord } from "./store";
 import { ensurePools, trackedTokens } from "./tracked";
@@ -91,7 +91,7 @@ async function loop(key: ChainKey, store: Store, cfg: ScanConfig, progress: Scan
 async function main() {
   const store: Store = DRY || !dbConfigured() ? new MemoryStore() : new PrismaStore();
   if (!DRY && !dbConfigured()) logger.warn("DATABASE_URL not set: running in memory, nothing will be persisted");
-  const chains = CHAIN_KEYS.map((key) => {
+  const chains = INDEXED_CHAIN_KEYS.map((key) => {
     const cfg: ScanConfig = { ...DEFAULT_SCAN, poolManager: o1Chain(key).uniswapV4.poolManager, hook: activeHook(key) };
     const progress: ScanProgress = { range: cfg.rangeInit, ranges: 0, errors: 0, swaps: 0 };
     return { key, cfg, progress };

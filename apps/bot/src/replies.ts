@@ -1,5 +1,5 @@
 import { formatEther } from "viem";
-import { fitsX, truncateForX, type ChainKey } from "@o1bot/shared";
+import { fitsX, nativeSymbol, truncateForX, type ChainKey } from "@o1bot/shared";
 
 /**
  * English source text for every reply. The pipeline localizes these into the
@@ -16,9 +16,12 @@ export const TX_EXPLORER = "https://rh-scan.com/tx/";
 /** o1's token page: the chain goes in the query string, not the path. */
 export const O1_TOKEN_BASE = "https://launch.o1.exchange/token";
 export const O1_CHAIN_QUERY = "?chain=4663";
-const O1_CHAIN_ID: Record<ChainKey, number> = { robinhood: 4663, base: 8453 };
-/** "Robinhood Chain" or "Base", for sentences. */
-export const chainLabel = (chain: ChainKey | null | undefined): string => (chain === "base" ? "Base" : "Robinhood Chain");
+const O1_CHAIN_ID: Record<ChainKey, number> = { robinhood: 4663, base: 8453, arc: 5042 };
+const CHAIN_LABEL: Record<ChainKey, string> = { robinhood: "Robinhood Chain", base: "Base", arc: "Arc" };
+/** "Robinhood Chain", "Base" or "Arc", for sentences. */
+export const chainLabel = (chain: ChainKey | null | undefined): string => CHAIN_LABEL[chain ?? "robinhood"];
+/** The gas asset a launch is paid in: ETH, or USDC on Arc. */
+export const nativeOf = (chain: ChainKey | null | undefined): string => nativeSymbol(chain ?? "robinhood");
 
 export function clampReply(text: string): string {
   return truncateForX(text);
@@ -89,9 +92,10 @@ const SUCCESS_OPENERS: Array<(p: SuccessInput) => string> = [
 export function successReply(p: SuccessInput): string {
   const link = tokenPageUrl(p.siteUrl, p.token);
   const index = Number.parseInt(p.token.slice(-4), 16) % SUCCESS_OPENERS.length;
-  // A Base launch always says so, since Robinhood is what people expect.
-  const opener = (p.chain === "base" ? SUCCESS_OPENERS.map((o) => o(p)).find((t) => t.includes("Base")) : undefined) ?? SUCCESS_OPENERS[Number.isNaN(index) ? 0 : index]!(p);
-  const devBuy = p.devBuyEth ? `Dev buy of ${p.devBuyEth} ETH filled inside the launch.` : null;
+  // A launch off the default chain always says where, since Robinhood is what people expect.
+  const elsewhere = p.chain && p.chain !== "robinhood" ? chainLabel(p.chain) : null;
+  const opener = (elsewhere ? SUCCESS_OPENERS.map((o) => o(p)).find((t) => t.includes(elsewhere)) : undefined) ?? SUCCESS_OPENERS[Number.isNaN(index) ? 0 : index]!(p);
+  const devBuy = p.devBuyEth ? `Dev buy of ${p.devBuyEth} ${nativeOf(p.chain)} filled inside the launch.` : null;
   const fees = p.feesTo
     ? `Creator fees go to @${p.feesTo}, claimable after signing in with X at the link.`
     : p.feesToFailed
@@ -120,15 +124,22 @@ export const replies = {
   notRegistered: (siteUrl: string) =>
     `Three steps first: 1) sign in with X at ${siteUrl} and allow signing, 2) send a little ETH on Robinhood Chain to the wallet it shows, 3) post the full launch command again. Then I launch from your wallet.`,
 
-  unsupportedChain: () => `Launches run on Robinhood Chain by default, or on Base when the command ends with "on base". Trades run on Robinhood; ETH can be bridged in from Base, Ethereum, Arbitrum or Optimism with "bridge 0.1 ETH from base".`,
+  unsupportedChain: () =>
+    `Launches run on Robinhood Chain by default, on Base with "on base" or on Arc with "on arc". Trades run on Robinhood; ETH can be bridged in from Base, Ethereum, Arbitrum or Optimism with "bridge 0.1 ETH from base".`,
 
-  pairUnavailable: (pair: string, siteUrl: string, chainName = "Robinhood") => `${pair} is not a pair on o1's ${chainName} factory. Use ETH, USDG or a listed stock token. Pairs: ${siteUrl}/how-it-works`,
+  /** A chain the bot knows but this deployment cannot reach yet. */
+  chainNotOpen: (chainName: string) => `Launches on ${chainName} are not open yet. Post again without "on ${chainName.toLowerCase()}" to launch on Robinhood Chain.`,
+
+  pairUnavailable: (pair: string, siteUrl: string, chainName = "Robinhood", pairs = "ETH, USDG or a listed stock token") =>
+    `${pair} is not a pair on o1's ${chainName} factory. Use ${pairs}. Pairs: ${siteUrl}/how-it-works`,
 
   tickerCollides: (ticker: string) => `$${ticker} is a stock token symbol on o1, so it cannot be a new ticker. Pick another one and post again.`,
 
-  devBuyInvalid: () => `The dev buy amount must be a plain ETH number, for example "devbuy 0.05". Post again.`,
+  devBuyInvalid: (native = "ETH") => `The dev buy amount must be a plain ${native} number, for example "devbuy ${native === "USDC" ? "5" : "0.05"}". Post again.`,
 
-  devBuyTooLarge: (maxEth: string) => `The dev buy is capped at ${maxEth} ETH per launch. Lower it and post again.`,
+  devBuyTooLarge: (max: string, native = "ETH") => `The dev buy is capped at ${max} ${native} per launch. Lower it and post again.`,
+
+  devBuyTooPrecise: (native: string, decimals: number) => `A ${native} dev buy can have at most ${decimals} decimals. Round it and post again.`,
 
   feesToRejected: (handle: string, reason: "reserved" | "invalid" | "not_found" | "suspended" | "unavailable" | "declined") =>
     reason === "reserved"
@@ -146,17 +157,19 @@ export const replies = {
       ? `One launch per account every ${Math.max(1, Math.round(cooldownSeconds / 60))} minutes. Try again in ${Math.max(1, Math.ceil(retryAfterSeconds / 60))} min.`
       : `This account has reached today's launch limit. Try again tomorrow.`,
 
-  insufficient: (shortfallEth: string, address: string) =>
-    `Your wallet is ${shortfallEth} ETH short for this launch. Send ETH on Robinhood Chain to ${address}, then post again.`,
+  insufficient: (shortfall: string, address: string, chain?: ChainKey) =>
+    `Your wallet is ${shortfall} ${nativeOf(chain)} short for this launch. Send ${nativeOf(chain)} on ${chainLabel(chain)} to ${address}, then post again.`,
 
-  insufficientUnknown: (address: string) => `Your wallet does not hold enough ETH for this launch. Send ETH on Robinhood Chain to ${address}, then post again.`,
+  insufficientUnknown: (address: string, chain?: ChainKey) =>
+    `Your wallet does not hold enough ${nativeOf(chain)} for this launch. Send ${nativeOf(chain)} on ${chainLabel(chain)} to ${address}, then post again.`,
 
-  insufficientSafe: (shortfallEth: string, siteUrl: string) =>
-    `Your wallet is ${shortfallEth} ETH short for this launch. Sign in at ${siteUrl} to see your deposit address, top up, then post again.`,
+  insufficientSafe: (shortfall: string, siteUrl: string, chain?: ChainKey) =>
+    `Your wallet is ${shortfall} ${nativeOf(chain)} short for this launch. Sign in at ${siteUrl} to see your deposit address, top up, then post again.`,
 
-  insufficientSafeUnknown: (siteUrl: string) => `Your wallet does not hold enough ETH for this launch. Sign in at ${siteUrl} to see your deposit address, top up, then post again.`,
+  insufficientSafeUnknown: (siteUrl: string, chain?: ChainKey) =>
+    `Your wallet does not hold enough ${nativeOf(chain)} for this launch. Sign in at ${siteUrl} to see your deposit address, top up, then post again.`,
 
-  devBuyNoRoute: (pair: string) => `There is no liquid route from ETH to ${pair} for a dev buy right now. Post again without "devbuy" to launch anyway.`,
+  devBuyNoRoute: (pair: string, native = "ETH") => `There is no liquid route from ${native} to ${pair} for a dev buy right now. Post again without "devbuy" to launch anyway.`,
 
   launchFailed: (detail: string) => `The launch did not go through (${detail}). Nothing was spent except gas, if any. Post the full launch command again to retry.`,
 

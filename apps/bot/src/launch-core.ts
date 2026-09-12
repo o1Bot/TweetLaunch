@@ -1,6 +1,6 @@
 import type { Address, Hex } from "viem";
 import { classifyError, type LaunchErrorKind, type PreparedMetadata } from "@o1bot/executor";
-import { chainByKey, DEFAULT_CHAIN_KEY, type ChainKey, type O1Quote, type AllowedTxKind } from "@o1bot/shared";
+import { chainByKey, DEFAULT_CHAIN_KEY, nativeSymbol, type ChainKey, type O1Quote, type AllowedTxKind } from "@o1bot/shared";
 import type { SignAudit } from "@o1bot/wallet";
 import { noAlerts, postUrl, txUrl } from "./alerts";
 import type { BotConfig } from "./config";
@@ -20,6 +20,13 @@ import type { SignedTxKindValue } from "./store";
  */
 
 export type LaunchOrigin = { kind: "x"; tweetId: string; tweetUrl: string } | { kind: "web" };
+
+/**
+ * Chains o1's Public API prepares launches for (checked 2026-09-12: Base,
+ * Robinhood, Monad). Only there can o1 pin the metadata in its own account;
+ * elsewhere (Arc) o1bot pins through its own Pinata straight away.
+ */
+const O1_PIN_CHAIN_IDS = new Set([8453, 4663]);
 
 export type LaunchCoreInput = {
   launchId: string;
@@ -141,7 +148,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
       website: input.website,
       x: `https://x.com/${input.xHandle ?? author.handle}`,
       telegram: input.telegram,
-      o1: { chainId: chainByKey(chain).id, creator: wallet.address, market: quote.kind === "stock" ? "rwa" : "standard", quoteAddress: quote.address },
+      o1: O1_PIN_CHAIN_IDS.has(chainByKey(chain).id) ? { chainId: chainByKey(chain).id, creator: wallet.address, market: quote.kind === "stock" ? "rwa" : "standard", quoteAddress: quote.address } : null,
     });
   } catch (err) {
     const detail = /plan usage limit|FORBIDDEN|429/i.test(errMessage(err)) ? "our IPFS pinning service is over its quota, the team has been alerted, try again later" : "the image or metadata upload failed";
@@ -164,7 +171,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
     const error = `plan/${planned.stage}: ${kind}: ${message}`;
     switch (kind) {
       case "dev_buy_no_route":
-        return fail("REJECTED", error, replies.devBuyNoRoute(quote.symbol));
+        return fail("REJECTED", error, replies.devBuyNoRoute(quote.symbol, nativeSymbol(chain)));
       case "pair_not_registered":
         return fail("REJECTED", error, replies.pairUnavailable(quote.symbol, siteUrl));
       case "ticker_collides_with_stock":
@@ -172,7 +179,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
       case "bad_token_fields":
         return fail("REJECTED", error, replies.launchFailed(message));
       case "insufficient_balance":
-        return fail("REJECTED", error, replies.insufficientUnknown(wallet.address), { safeText: replies.insufficientSafeUnknown(siteUrl) });
+        return fail("REJECTED", error, replies.insufficientUnknown(wallet.address, chain), { safeText: replies.insufficientSafeUnknown(siteUrl, chain) });
       default:
         return fail("FAILED", error, replies.launchFailed(FAILURE_DETAIL[kind] ?? kind));
     }
@@ -184,9 +191,9 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
   if (plan.funding.shortfallWei > 0n) {
     const short = formatEthCeil(plan.funding.shortfallWei);
     log.info({ launchId, shortfallWei: plan.funding.shortfallWei.toString(), wallet: wallet.address }, "insufficient balance");
-    const userText = replies.insufficient(short, wallet.address);
+    const userText = replies.insufficient(short, wallet.address, chain);
     await store.updateLaunch(launchId, { status: "FAILED", error: `insufficient balance: short ${plan.funding.shortfallWei} wei`, userMessage: userText });
-    return { ok: false, terminal: "REJECTED", outcome: "rejected", error: "insufficient balance", userText, safeText: replies.insufficientSafe(short, siteUrl) };
+    return { ok: false, terminal: "REJECTED", outcome: "rejected", error: "insufficient balance", userText, safeText: replies.insufficientSafe(short, siteUrl, chain) };
   }
 
   const successText = (extra: { feesToFailed?: string | null; token?: Address } = {}) =>

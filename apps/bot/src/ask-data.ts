@@ -2,7 +2,7 @@ import { erc20Abi, formatUnits, getAddress, zeroAddress, type Address } from "vi
 import { db, type Prisma } from "@o1bot/db";
 import { feeEscrowAbi, quoteUsd } from "@o1bot/executor";
 import { computeStats } from "@o1bot/market";
-import { activeFeeEscrow, CHAIN_KEYS, chainByKey, chainKeyById, env, findQuote, logger, publicClient, type ChainKey } from "@o1bot/shared";
+import { activeFeeEscrow, chainByKey, chainKeyById, env, findQuote, INDEXED_CHAIN_KEYS, logger, publicClient, type ChainKey } from "@o1bot/shared";
 import { COUNTED_TRADE_STATUSES } from "./store";
 
 /**
@@ -101,7 +101,7 @@ export interface AskData {
 
 export const TOKENS_SHOWN = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const STABLE: Record<ChainKey, string> = { robinhood: "USDG", base: "USDC" };
+const STABLE: Record<ChainKey, string> = { robinhood: "USDG", base: "USDC", arc: "USDC" };
 const LIVE_LAUNCHES_DETAILED = 8;
 
 const poolSelect = {
@@ -273,7 +273,7 @@ export class LiveAskData implements AskData {
       if (usd !== null) out.totalUsd = (out.totalUsd ?? 0) + usd;
     };
     const tokenRows: Array<BalanceRow & { chain: ChainKey }> = [];
-    for (const key of CHAIN_KEYS) {
+    for (const key of INDEXED_CHAIN_KEYS) {
       try {
         const chainId = chainByKey(key).id;
         const client = publicClient(key);

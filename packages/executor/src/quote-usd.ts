@@ -11,7 +11,7 @@ import { DEFAULT_CHAIN_KEY, findQuote, o1Chain, publicClient, type ChainKey } fr
  * Cached for 60 seconds per chain and asset.
  */
 
-const STABLE: Record<ChainKey, string> = { robinhood: "USDG", base: "USDC" };
+const STABLE: Record<ChainKey, string> = { robinhood: "USDG", base: "USDC", arc: "USDC" };
 
 const TTL_MS = 60_000;
 const cache = new Map<string, { at: number; value: number | null }>();

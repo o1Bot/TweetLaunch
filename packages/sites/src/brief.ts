@@ -60,7 +60,7 @@ export function directionFor(seed: string, salt = 0): string {
   return ART_DIRECTIONS[(h + salt) % ART_DIRECTIONS.length]!;
 }
 
-const chainLabel = (chain: SiteChain) => (chain === "base" ? "Base" : "Robinhood Chain");
+const chainLabel = (chain: SiteChain) => (chain === "base" ? "Base" : chain === "arc" ? "Arc" : "Robinhood Chain");
 
 /** The brief as the model reads it: one fact per line, plus the fixed o1 facts every site may state. */
 export function briefText(b: SiteBrief): string {

@@ -1,5 +1,5 @@
 import { getAddress, isAddress, zeroAddress, type Address, type PublicClient } from "viem";
-import { chainDisplayName, DEFAULT_CHAIN_KEY, findQuote, logger, o1Chain, type ChainKey, type O1Quote } from "@o1bot/shared";
+import { chainDisplayName, DEFAULT_CHAIN_KEY, findQuote, logger, nativeQuoteAddress, o1Chain, type ChainKey, type O1Quote } from "@o1bot/shared";
 import { v3PoolStep, v4PoolStep, type RouteStep } from "./route";
 import { poolIdOf, poolKeyFor, stateViewAbi, v3FactoryAbi, v3PoolAbi, V3_FEE_TIERS, V4_FEE_TIERS } from "./v4";
 
@@ -28,8 +28,8 @@ const DEFAULT_MAX = 6;
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
 const cache = new Map<string, { at: number; candidates: RouteCandidate[] }>();
 
-/** The dollar asset a two-hop route bridges through: USDG on Robinhood, USDC on Base. */
-const BRIDGE_STABLE: Record<ChainKey, string> = { robinhood: "USDG", base: "USDC" };
+/** The dollar asset a two-hop route bridges through: USDG on Robinhood, USDC on Base and Arc. */
+const BRIDGE_STABLE: Record<ChainKey, string> = { robinhood: "USDG", base: "USDC", arc: "USDC" };
 
 function addressesFromConfig(key: ChainKey) {
   const chain = o1Chain(key);
@@ -80,7 +80,9 @@ const byLiquidityDesc = (x: { liquidity: bigint }, y: { liquidity: bigint }) => 
 
 /** Prefix routes (ETH → quote). Empty for ETH itself; empty list = no dev buy possible. */
 export async function discoverPrefixRoutes(client: PublicClient, quote: O1Quote, opts: DiscoveryOptions = {}, key: ChainKey = DEFAULT_CHAIN_KEY): Promise<RouteCandidate[]> {
-  if (quote.address === zeroAddress) return [{ label: "native", steps: [], liquidity: 2n ** 128n }];
+  // A pool quoted in the gas asset needs no prefix hop: native ETH, or on Arc the ERC-20 USDC the adapter
+  // turns native USDC into by itself.
+  if (quote.address === zeroAddress || quote.address === nativeQuoteAddress(key)) return [{ label: "native", steps: [], liquidity: 2n ** 128n }];
   const ttl = opts.ttlMs ?? DEFAULT_TTL_MS;
   const cacheKey = `${key}:${quote.address}`;
   const cached = cache.get(cacheKey);

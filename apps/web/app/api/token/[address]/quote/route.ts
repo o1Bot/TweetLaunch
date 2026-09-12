@@ -50,6 +50,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ address:
   const key = chainKeyOf(pool.chainId);
   const client = publicClient(key);
   const chain = o1Chain(key);
+  if (!chain.uniswapV4.universalRouter || !chain.uniswapV4.permit2) return Response.json({ error: "swaps are not available on this chain yet" }, { status: 400 });
   const router = chain.uniswapV4.universalRouter;
   const permit2 = chain.uniswapV4.permit2;
 

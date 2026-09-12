@@ -21,9 +21,14 @@ export function checkRate(input: { lastLaunchAt: Date | null; launchesToday: num
   return { ok: true };
 }
 
-export type DevBuyCheck = { ok: true; wei: bigint | null } | { ok: false; reason: "invalid" | "too_large" };
+export type DevBuyCheck = { ok: true; wei: bigint | null } | { ok: false; reason: "invalid" | "too_large" | "too_precise" };
 
-export function checkDevBuy(devBuyNative: string | null, maxWei: bigint): DevBuyCheck {
+/**
+ * `scale` is the smallest native unit the chain's launch-buy adapter accepts
+ * (1e12 on Arc, where native USDC has 18 decimals and the pool's USDC six;
+ * the adapter rejects anything finer instead of rounding). 1 elsewhere.
+ */
+export function checkDevBuy(devBuyNative: string | null, maxWei: bigint, opts: { scale?: bigint } = {}): DevBuyCheck {
   if (devBuyNative === null) return { ok: true, wei: null };
   let wei: bigint;
   try {
@@ -33,6 +38,7 @@ export function checkDevBuy(devBuyNative: string | null, maxWei: bigint): DevBuy
   }
   if (wei <= 0n) return { ok: false, reason: "invalid" };
   if (wei > maxWei) return { ok: false, reason: "too_large" };
+  if ((opts.scale ?? 1n) > 1n && wei % (opts.scale ?? 1n) !== 0n) return { ok: false, reason: "too_precise" };
   return { ok: true, wei };
 }
 

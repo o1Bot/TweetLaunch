@@ -4,8 +4,9 @@ import { CHAIN_KEYS, type ChainKey } from "./chains";
 import o1Raw from "../../../config/o1.json" with { type: "json" };
 import robinhoodStocksRaw from "../../../config/o1-stocks.robinhood.json" with { type: "json" };
 import baseStocksRaw from "../../../config/o1-stocks.base.json" with { type: "json" };
+import arcStocksRaw from "../../../config/o1-stocks.arc.json" with { type: "json" };
 
-const STOCK_FILES: Record<ChainKey, unknown> = { robinhood: robinhoodStocksRaw, base: baseStocksRaw };
+const STOCK_FILES: Record<ChainKey, unknown> = { robinhood: robinhoodStocksRaw, base: baseStocksRaw, arc: arcStocksRaw };
 
 /**
  * Typed access to the dated o1 snapshot in `config/o1.json`, plus a live
@@ -56,8 +57,9 @@ const ChainSchema = z.object({
     poolManager: addressSchema,
     quoter: addressSchema,
     stateView: addressSchema,
-    universalRouter: addressSchema,
-    permit2: addressSchema,
+    /** Absent on Arc, where swaps go through o1's SwapX router instead. */
+    universalRouter: addressSchema.optional(),
+    permit2: addressSchema.optional(),
   }),
   swapX: z.record(z.string(), z.unknown()),
   /** Base only: the B20 precompiles the factory mints through and predicts addresses with. */
@@ -102,7 +104,7 @@ const ConfigSchema = z.object({
   governance: z.record(z.string(), z.string()),
   hardCaps: z.record(z.string(), z.unknown()),
   defaults: z.record(z.string(), z.unknown()),
-  chains: z.object({ robinhood: ChainSchema, base: ChainSchema }),
+  chains: z.object({ robinhood: ChainSchema, base: ChainSchema, arc: ChainSchema }),
 });
 export type O1Config = z.infer<typeof ConfigSchema>;
 
@@ -145,6 +147,34 @@ export const activeFactory = (key: ChainKey): Address => requiredContract(key, "
 export const activeHook = (key: ChainKey): Address => requiredContract(key, "hook");
 export const activeFeeEscrow = (key: ChainKey): Address => requiredContract(key, "feeEscrow");
 export const activeLaunchBuyAdapter = (key: ChainKey): Address => requiredContract(key, "launchBuyAdapter");
+
+/** Uniswap's Universal Router and Permit2 on a chain; throws on a chain without them (Arc). */
+export function universalRouterOf(key: ChainKey): { router: Address; permit2: Address } {
+  const { universalRouter, permit2 } = o1Chain(key).uniswapV4;
+  if (!universalRouter || !permit2) throw new Error(`config/o1.json: ${key} has no Universal Router; trades are not supported there`);
+  return { router: universalRouter, permit2 };
+}
+
+/**
+ * The ERC-20 that is the same asset as the chain's gas token, when o1 pairs
+ * pools with it: USDC on Arc, where the launch-buy adapter turns native
+ * funding into that token itself. Zero address on chains whose native asset
+ * is the pool quote directly (ETH on Robinhood and Base).
+ */
+export function nativeQuoteAddress(key: ChainKey): Address {
+  const erc20 = o1Chain(key).swapX.erc20Usdc;
+  return typeof erc20 === "string" && isAddress(erc20, { strict: false }) ? getAddress(erc20.toLowerCase()) : ("0x0000000000000000000000000000000000000000" as Address);
+}
+
+/**
+ * Native units per unit of the ERC-20 view of the gas asset (1e12 on Arc:
+ * 18 against 6 decimals). A native buy amount must be a multiple of it; the
+ * adapter rejects the rest instead of rounding. 1 on the ETH chains.
+ */
+export function nativeBuyScale(key: ChainKey): bigint {
+  const scale = o1Chain(key).swapX.nativeUsdcScale;
+  return typeof scale === "string" && /^\d+$/.test(scale) ? BigInt(scale) : 1n;
+}
 
 /** Every LaunchHook o1 has deployed on the chain (current and past suites): a pool on any of them is an o1 launch pool. */
 export function knownHooks(key: ChainKey): Address[] {

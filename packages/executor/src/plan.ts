@@ -3,6 +3,8 @@ import {
   activeFactory,
   chainByKey,
   chainDisplayName,
+  nativeBuyScale,
+  nativeSymbol,
   DEFAULT_CHAIN_KEY,
   env,
   findQuote,
@@ -217,6 +219,9 @@ export async function planLaunch(req: LaunchRequest, opts: PlanOptions = {}): Pr
 
   // 5. Bytecode hash is salt-independent: read it once with a zero salt.
   const devBuy = req.devBuyWei ?? 0n;
+  // Arc converts a native buy amount to six-decimal USDC and reverts on anything finer than 1e12 native units.
+  const buyScale = nativeBuyScale(key);
+  if (devBuy > 0n && devBuy % buyScale !== 0n) return failure("fields", "dev_buy_rejected", `a dev buy on ${chainDisplayName(key)} must be a multiple of ${buyScale} native units`);
   const defaultDeadline = devBuy > 0n ? O1_LIMITS.devBuyDeadlineSeconds : O1_LIMITS.deadlineSeconds;
   const deadline = block.timestamp + BigInt(req.deadlineSeconds ?? defaultDeadline);
   const base: Omit<LaunchParams, "creatorSalt"> = {
@@ -282,7 +287,7 @@ export async function planLaunch(req: LaunchRequest, opts: PlanOptions = {}): Pr
       return failure("route", "rpc_error", `route discovery failed: ${msg(err)}`);
     }
     if (candidates.length === 0) {
-      return failure("route", "dev_buy_no_route", `no liquid ETH route to ${quote.symbol} exists on ${chainDisplayName(key)}; launch without a dev buy`);
+      return failure("route", "dev_buy_no_route", `no liquid ${nativeSymbol(key)} route to ${quote.symbol} exists on ${chainDisplayName(key)}; launch without a dev buy`);
     }
     const value = state.nativeLaunchFee + devBuy;
     const launchHop = launchPoolStep({ quote: quote.address, token: salt.token, hook: state.hook, tickSpacing: state.tickSpacing });

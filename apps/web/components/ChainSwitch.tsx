@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CHAIN_COOKIE, CHAIN_KEYS, CHAIN_SHORT, isChainKey, type ChainKey } from "@/lib/chains-web";
+import { BOARD_CHAINS, CHAIN_COOKIE, CHAIN_SHORT, isChainKey, type ChainKey } from "@/lib/chains-web";
 import { ChainIcon } from "./ChainIcons";
 
 /**
@@ -36,7 +36,7 @@ export function ChainSwitch({ current }: { current: ChainKey }) {
 
   return (
     <div className="chainsw" role="group" aria-label="Chain">
-      {CHAIN_KEYS.map((key) => (
+      {BOARD_CHAINS.map((key) => (
         <button key={key} type="button" className={key === active ? "on" : ""} aria-pressed={key === active} onClick={() => choose(key)} title={`Show launches on ${CHAIN_SHORT[key]}`}>
           <ChainIcon chain={key} size={16} />
           <span>{CHAIN_SHORT[key]}</span>

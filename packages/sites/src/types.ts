@@ -30,7 +30,7 @@ export function filesToList(files: SiteFiles): SiteFile[] {
   ];
 }
 
-export type SiteChain = "robinhood" | "base";
+export type SiteChain = "robinhood" | "base" | "arc";
 
 export type SiteMeta = {
   slug: string;

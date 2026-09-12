@@ -28,7 +28,7 @@ function usd(n: number | null): string {
 }
 
 const count = (n: number | null) => (n === null ? "—" : n.toLocaleString("en-US"));
-const chainLabel = (chain: LiveData["chain"]) => (chain === "base" ? "Base" : "Robinhood Chain");
+const chainLabel = (chain: LiveData["chain"]) => (chain === "base" ? "Base" : chain === "arc" ? "Arc" : "Robinhood Chain");
 const originOf = (url: string | null | undefined): string | null => {
   if (!url) return null;
   try {

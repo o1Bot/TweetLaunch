@@ -1,5 +1,5 @@
 import { parseEther } from "viem";
-import { env, RESERVED_HANDLES } from "@o1bot/shared";
+import { env, RESERVED_HANDLES, type ChainKey } from "@o1bot/shared";
 
 export type BotConfig = {
   dryRun: boolean;
@@ -7,7 +7,10 @@ export type BotConfig = {
   cooldownSeconds: number;
   maxLaunchesPerDay: number;
   maxRepliesPerDay: number;
+  /** Largest dev buy on the ETH chains (Robinhood, Base), in wei. */
   maxDevBuyWei: bigint;
+  /** Largest dev buy on Arc, in native USDC units (18 decimals). */
+  maxDevBuyArcWei: bigint;
   /** Trades from posts: hard cap, default per-user cap, cooldown, daily count, default slippage. */
   maxTradeWei: bigint;
   defaultUserTradeCapWei: bigint;
@@ -24,6 +27,11 @@ export type BotConfig = {
   reservedHandles: string[];
 };
 
+/** The dev-buy cap for a chain, in that chain's native units. */
+export function maxDevBuyFor(config: BotConfig, key: ChainKey): bigint {
+  return key === "arc" ? config.maxDevBuyArcWei : config.maxDevBuyWei;
+}
+
 export function botConfig(): BotConfig {
   const e = env();
   return {
@@ -33,6 +41,7 @@ export function botConfig(): BotConfig {
     maxLaunchesPerDay: e.MAX_LAUNCHES_PER_USER_PER_DAY,
     maxRepliesPerDay: e.MAX_REPLIES_PER_USER_PER_DAY,
     maxDevBuyWei: parseEther(e.MAX_DEV_BUY_ETH),
+    maxDevBuyArcWei: parseEther(e.MAX_DEV_BUY_USDC),
     maxTradeWei: parseEther(e.MAX_TRADE_ETH),
     defaultUserTradeCapWei: parseEther(e.DEFAULT_USER_TRADE_CAP_ETH),
     tradeCooldownSeconds: e.TRADE_COOLDOWN_SECONDS,
