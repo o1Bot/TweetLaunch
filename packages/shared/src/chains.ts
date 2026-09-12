@@ -27,10 +27,10 @@ export type ChainKey = (typeof CHAIN_KEYS)[number];
 export const DEFAULT_CHAIN_KEY: ChainKey = "robinhood";
 /**
  * Chains the indexer scans and the figures (board, questions from posts,
- * wallet overviews) cover. Arc launches run before Arc is indexed; it joins
- * this list with its indexer cursor and web pages.
+ * wallet overviews) cover: every launch chain since 2026-09-13, when Arc got
+ * its indexer cursor, board and token pages.
  */
-export const INDEXED_CHAIN_KEYS: readonly ChainKey[] = ["robinhood", "base"];
+export const INDEXED_CHAIN_KEYS: readonly ChainKey[] = ["robinhood", "base", "arc"];
 
 export const CHAINS: Record<ChainKey, Chain> = { robinhood, base, arc };
 

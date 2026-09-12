@@ -288,12 +288,12 @@ export const replies = {
 
   askUnavailable: (siteUrl: string) => `I could not read those numbers right now. The board at ${siteUrl} has them; ask me again in a minute.`,
 
-  askStats: (p: { total: number; robinhood: number; base: number; scope: string | null; vol24: string; volAll: string; trades: string; siteUrl: string }) =>
+  askStats: (p: { total: number; robinhood: number; base: number; arc: number; scope: string | null; vol24: string; volAll: string; trades: string; siteUrl: string }) =>
     p.total === 0
       ? `No token has been launched through o1bot${p.scope ? ` on ${p.scope}` : ""} yet. The first one will show up at ${p.siteUrl}`
       : p.scope
         ? `${p.total} tokens launched through o1bot on ${p.scope}, ${p.vol24} traded in the last 24h, ${p.volAll} all time across ${p.trades} trades. Board: ${p.siteUrl}`
-        : `${p.total} tokens launched through o1bot so far (${p.robinhood} on Robinhood Chain, ${p.base} on Base), ${p.vol24} traded in the last 24h, ${p.volAll} all time across ${p.trades} trades. Board: ${p.siteUrl}`,
+        : `${p.total} tokens launched through o1bot so far (${p.robinhood} on Robinhood Chain, ${p.base} on Base, ${p.arc} on Arc), ${p.vol24} traded in the last 24h, ${p.volAll} all time across ${p.trades} trades. Board: ${p.siteUrl}`,
 
   askNoTokens: (siteUrl: string) => `No token has been launched through o1bot yet, so there is nothing to rank. The first one will show up at ${siteUrl}.`,
 

@@ -84,7 +84,7 @@ export default function HowItWorksPage() {
             You are the on-chain creator. o1 pays 0.5% of every trade in the paired asset as the creator fee; {creatorPct}% of it is yours to claim from your profile and {platformPct}% goes to{" "}
             {SITE_NAME}&apos;s treasury for buyback and burn.
           </li>
-          <li>196 pairs on Robinhood Chain: ETH, USDG, and 194 stock tokens.</li>
+          <li>196 pairs on Robinhood Chain: ETH, USDG, and 194 stock tokens. Base pairs with ETH or USDC; Arc pairs with USDC, which is also its gas.</li>
         </ul>
 
         <h2>What it costs</h2>

@@ -483,7 +483,9 @@ export function Profile() {
                 <div className="row" key={l.id}>
                   <div className="lg wrap">
                     <TokenLogo symbol={l.ticker} imageUrl={l.imageUrl} className="lg" />
-                    {RH_DOT}
+                    <i className="chain" aria-hidden="true">
+                      <ChainIcon chain={chainKeyOf(l.chainId)} size={16} />
+                    </i>
                   </div>
                   <div className="n">
                     {live ? (

@@ -7,8 +7,8 @@
 export type ChainKey = "robinhood" | "base" | "arc";
 
 export const CHAIN_KEYS: readonly ChainKey[] = ["robinhood", "base", "arc"];
-/** Chains the board, the indexer and the token pages cover; Arc joins once its indexer and swap route exist. */
-export const BOARD_CHAINS: readonly ChainKey[] = ["robinhood", "base"];
+/** Chains the board, the indexer and the token pages cover. Swaps from the site need a Universal Router, which Arc has none of yet. */
+export const BOARD_CHAINS: readonly ChainKey[] = ["robinhood", "base", "arc"];
 export const DEFAULT_CHAIN: ChainKey = "robinhood";
 
 export const CHAIN_IDS: Record<ChainKey, number> = { robinhood: 4663, base: 8453, arc: 5042 };

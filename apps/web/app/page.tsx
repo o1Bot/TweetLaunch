@@ -34,7 +34,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
         </h1>
         <p>
           o1bot.exchange turns a mention on X into a real launch on o1 Launchpad. Link your account, top up your wallet once, then post the command. The bot mines an 01 address, signs
-          with your wallet, and opens a permanent Uniswap v4 pool on Robinhood Chain or Base. No form, no site to visit.
+          with your wallet, and opens a permanent Uniswap v4 pool on Robinhood Chain, Base or Arc. No form, no site to visit.
         </p>
         <div className="hero-cta">
           <Link className="btn-p" href="/start">

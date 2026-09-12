@@ -1,8 +1,8 @@
 import { getAddress, isAddress, zeroAddress } from "viem";
 import { db, dbConfigured, Prisma, type Pool } from "@o1bot/db";
 import { buildCandles, computeStats, TIMEFRAMES, type Candle, type Timeframe, type TokenStats } from "@o1bot/market";
-import { env } from "@o1bot/shared";
-import { CHAIN_IDS, chainKeyOf, type ChainKey } from "./chains-web";
+import { env, o1Chain } from "@o1bot/shared";
+import { CHAIN_IDS, CHAIN_KEYS, chainKeyOf, type ChainKey } from "./chains-web";
 import { ipfsToHttp } from "./ipfs";
 import { readBurned } from "./burn";
 import { quoteUsd } from "./quote-usd";
@@ -19,6 +19,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const include = { launch: { include: { mention: true, creator: true } } } as const;
 type PoolWithLaunch = Prisma.PoolGetPayload<{ include: typeof include }>;
 
+/** Whether the site can route a swap on the chain: it needs o1's Universal Router and Permit2 there, which Arc has none of yet. */
+export function swapsAvailable(chain: ChainKey): boolean {
+  const v4 = o1Chain(chain).uniswapV4;
+  return Boolean(v4.universalRouter && v4.permit2);
+}
+
 function poolFilter(chain?: ChainKey): Prisma.PoolWhereInput {
   return { ...(env().SHOW_DEV_TOKENS ? {} : { source: "BOT" }), ...(chain ? { chainId: CHAIN_IDS[chain] } : {}) };
 }
@@ -32,7 +38,7 @@ function quoteKind(address: string, symbol: string): QuoteKind {
 /** Burned balances for pools that may sit on different chains: one multicall per chain. */
 async function burnedFor(pools: Pool[]): Promise<Map<string, bigint>> {
   const out = new Map<string, bigint>();
-  for (const chain of ["robinhood", "base"] as const) {
+  for (const chain of CHAIN_KEYS) {
     const tokens = pools.filter((p) => chainKeyOf(p.chainId) === chain).map((p) => p.token);
     if (tokens.length === 0) continue;
     for (const [token, raw] of await readBurned(tokens, chain)) out.set(token, raw);
