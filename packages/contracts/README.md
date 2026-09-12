@@ -45,9 +45,9 @@ compiler as o1's contracts) must be installed on the machine that builds or test
 
 ## Deployment
 
-One factory per chain. Fill the "Fee splitter deployment" section of the root `.env`
-(`FEE_SPLITTER_DEPLOYER_KEY`, the gas payer; `FEE_SPLITTER_TREASURY`; `FEE_SPLITTER_OWNER`, defaults to the
-deployer; `FEE_SPLITTER_PLATFORM_BPS`, default 2000), then:
+One factory per chain. Copy `.env.example` in this directory to `.env` and fill it in (`FEE_SPLITTER_DEPLOYER_KEY`,
+the gas payer; `FEE_SPLITTER_TREASURY`; `FEE_SPLITTER_OWNER`, defaults to the deployer; `FEE_SPLITTER_PLATFORM_BPS`,
+default 2000). The deploy wrapper reads that file first and the root `.env` for anything missing (the RPC). Then:
 
 ```bash
 pnpm contracts:deploy robinhood              # simulation only: escrow, owner, treasury, the address it would land on
