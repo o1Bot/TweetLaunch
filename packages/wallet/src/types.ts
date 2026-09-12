@@ -26,7 +26,7 @@ export type LinkedUser = {
 
 export type LinkStatus =
   | { linked: true; user: LinkedUser; wallet: EmbeddedWallet }
-  | { linked: false; reason: "no_account" | "never_logged_in" | "no_embedded_wallet" | "not_delegated"; user: LinkedUser | null };
+  | { linked: false; reason: "no_account" | "never_logged_in" | "no_embedded_wallet" | "signer_stale" | "not_delegated"; user: LinkedUser | null };
 
 export const PREGEN_METADATA_KEY = "pregeneratedBy";
 export const PREGEN_METADATA_VALUE = "o1bot";

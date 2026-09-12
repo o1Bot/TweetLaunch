@@ -106,6 +106,8 @@ export function linkStatus(user: LinkedUser | null): LinkStatus {
   if (!user) return { linked: false, reason: "no_account", user: null };
   if (!user.hasLoggedIn) return { linked: false, reason: "never_logged_in", user };
   if (!user.wallet?.walletId) return { linked: false, reason: "no_embedded_wallet", user };
+  // A grant made under an earlier policy: the user did everything right once and only needs to renew it.
+  if (user.wallet.signerStale) return { linked: false, reason: "signer_stale", user };
   if (!user.wallet.delegated) return { linked: false, reason: "not_delegated", user };
   return { linked: true, user, wallet: user.wallet };
 }

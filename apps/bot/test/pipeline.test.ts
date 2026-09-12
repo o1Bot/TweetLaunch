@@ -227,6 +227,17 @@ describe("processMention", () => {
     expect(h.store.launches).toHaveLength(0);
   });
 
+  it("tells a poster whose grant predates the current policy to update the permission, not to start over", async () => {
+    h.script.link = { linked: false, reason: "signer_stale", user: null };
+    const out = await processMention(ALICE, h.deps);
+    expect(out).toMatchObject({ outcome: "replied", kind: "not_registered" });
+    expect(h.x.replies[0]?.text).toContain("Update permission");
+    expect(h.x.replies[0]?.text).not.toContain("Three steps first");
+    expect(h.store.mentions[0]?.status).toBe("NOT_REGISTERED");
+    expect(h.store.mentions[0]?.error).toBe("signer_stale");
+    expect(h.store.launches).toHaveLength(0);
+  });
+
   it("answers clarify questions verbatim and does not launch", async () => {
     h.script.parse = { kind: "clarify", question: "Which pair? ETH, USDG or a stock token.", missing: ["pair"], language: "en", reason: "no pair" };
     const out = await processMention(ALICE, h.deps);
