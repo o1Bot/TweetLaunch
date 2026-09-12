@@ -43,7 +43,7 @@ import { join } from "node:path";
 import { formatEther, parseEther } from "viem";
 import { findRepoRoot } from "@o1bot/shared/load-env";
 import { activeFactory, activeFeeEscrow, BRIDGE_CHAIN_KEYS, bridgeChainByKey, chainByKey, env, o1Chain, RELAY_DEPOSITORY, requireEnv, universalRouterOf } from "@o1bot/shared";
-import { baseFeeEscrowAbi, baseLaunchFactoryAbi, feeEscrowAbi, launchFactoryAbi } from "@o1bot/executor";
+import { arcFeeEscrowAbi, arcLaunchFactoryAbi, baseFeeEscrowAbi, baseLaunchFactoryAbi, feeEscrowAbi, launchFactoryAbi } from "@o1bot/executor";
 import { permit2Abi, universalRouterAbi } from "@o1bot/swap";
 
 const VARS = ["PRIVY_POLICY_ID", "NEXT_PUBLIC_PRIVY_POLICY_ID"] as const;
@@ -134,8 +134,7 @@ async function main() {
     perTxCapWei: BigInt(o1Chain("base").snapshot.nativeLaunchFeeRaw) + parseEther(env().MAX_DEV_BUY_ETH),
   };
   // Arc (2026-09-12): launches and fee claims. Value is native USDC (18 decimals): the 2 USDC creation fee plus
-  // MAX_DEV_BUY_USDC. No Universal Router on Arc, so no trade rules. The factory and escrow run the same
-  // launchpad-v4-minimal code as Robinhood's (see scripts/vendor-abi.ts), so the Robinhood ABIs decode their calldata.
+  // MAX_DEV_BUY_USDC. No Universal Router on Arc, so no trade rules.
   const arc = {
     chainId: String(chainByKey("arc").id),
     factory: activeFactory("arc"),
@@ -300,7 +299,7 @@ async function main() {
           tx("chain_id", "eq", arc.chainId),
           tx("to", "eq", arc.factory),
           tx("value", "lte", arc.perTxCapWei.toString()),
-          { field_source: "ethereum_calldata", field: "function_name", abi: abiFunctions(launchFactoryAbi, LAUNCH_FUNCTIONS), operator: "in", value: LAUNCH_FUNCTIONS },
+          { field_source: "ethereum_calldata", field: "function_name", abi: abiFunctions(arcLaunchFactoryAbi, LAUNCH_FUNCTIONS), operator: "in", value: LAUNCH_FUNCTIONS },
           { field_source: "reference", field: `aggregation.${aggregationId}`, operator: "lte", value: dailyCapWei.toString() },
         ],
       },
@@ -312,7 +311,7 @@ async function main() {
           tx("chain_id", "eq", arc.chainId),
           tx("to", "eq", arc.escrow),
           tx("value", "eq", "0"),
-          { field_source: "ethereum_calldata", field: "function_name", abi: abiFunctions(feeEscrowAbi, CLAIM_FUNCTIONS), operator: "in", value: CLAIM_FUNCTIONS },
+          { field_source: "ethereum_calldata", field: "function_name", abi: abiFunctions(arcFeeEscrowAbi, CLAIM_FUNCTIONS), operator: "in", value: CLAIM_FUNCTIONS },
         ],
       },
     ],

@@ -1,8 +1,19 @@
 // Verified ABIs vendored by scripts/vendor-abi.ts (two verification sources, or one plus a cross-chain check).
 import type { ChainKey } from "@o1bot/shared";
-import { baseFeeEscrowAbi, baseLaunchFactoryAbi, baseLaunchHookAbi, feeEscrowAbi, launchFactoryAbi, launchHookAbi, launchTokenDeployerAbi } from "../../../abis/index";
+import {
+  arcFeeEscrowAbi,
+  arcLaunchFactoryAbi,
+  arcLaunchTokenDeployerAbi,
+  baseFeeEscrowAbi,
+  baseLaunchFactoryAbi,
+  baseLaunchHookAbi,
+  feeEscrowAbi,
+  launchFactoryAbi,
+  launchHookAbi,
+  launchTokenDeployerAbi,
+} from "../../../abis/index";
 
-export { baseFeeEscrowAbi, baseLaunchFactoryAbi, baseLaunchHookAbi, feeEscrowAbi, launchFactoryAbi, launchHookAbi, launchTokenDeployerAbi };
+export { arcFeeEscrowAbi, arcLaunchFactoryAbi, arcLaunchTokenDeployerAbi, baseFeeEscrowAbi, baseLaunchFactoryAbi, baseLaunchHookAbi, feeEscrowAbi, launchFactoryAbi, launchHookAbi, launchTokenDeployerAbi };
 
 export type LaunchFactoryAbi = typeof launchFactoryAbi;
 
@@ -12,15 +23,12 @@ export type LaunchFactoryAbi = typeof launchFactoryAbi;
  * signature (vendor-abi.ts refuses to write it otherwise); it only lacks
  * `tokenDeployer` and `launchTokenBytecodeHash`, which the B20 path never
  * calls because Base predicts token addresses through the B20 precompile.
- *
- * Arc runs the same `launchpad-v4-minimal` contracts as Robinhood (ERC-20
- * token mode, CREATE2 prediction, `01` suffix), but none of them is verified
- * on Arcscan and Sourcify does not index the chain, so there is no source to
- * vendor from: the Robinhood ABI is used as is. `pnpm abi:vendor --only arc`
- * writes bytecode-checked mirrors once an Arc RPC answers; until then the
- * live reads and the simulation in plan.ts are what catch a mismatch, and
- * they run before anything is signed.
+ * Arc's factory is the same `launchpad-v4-minimal` contract as Robinhood's
+ * (ERC-20 token mode), vendored from arcexplorer.org and cross-checked the
+ * same way.
  */
 export function factoryAbiFor(key: ChainKey): LaunchFactoryAbi {
-  return key === "base" ? (baseLaunchFactoryAbi as unknown as LaunchFactoryAbi) : launchFactoryAbi;
+  if (key === "base") return baseLaunchFactoryAbi as unknown as LaunchFactoryAbi;
+  if (key === "arc") return arcLaunchFactoryAbi as unknown as LaunchFactoryAbi;
+  return launchFactoryAbi;
 }

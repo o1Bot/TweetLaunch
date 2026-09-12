@@ -9,16 +9,16 @@
  * cross-checked against the Robinhood contract of the same role: every
  * function the two share must have an identical signature.
  *
- * Arc (2026-09-12): Sourcify does not index chain 5042 and o1's contracts
- * are not verified on Arcscan, so no source can give an ABI. They are the
- * same `launchpad-v4-minimal` family as Robinhood's, so the Robinhood ABI
- * of the same role is mirrored, and the mirror is justified by comparing
- * runtime bytecode over RPC: same length, and only the few 32-byte words
- * that hold immutables (addresses set in the constructor) may differ.
- * Without a reachable Arc RPC the mirror is written unchecked only when
- * `--allow-unchecked` is passed, and the provenance says so; re-run with
- * RPC_ARC set to upgrade it. The executor reads the live factory and
- * simulates before anything is signed, so a wrong ABI fails closed.
+ * Arc (2026-09-12): Sourcify does not index chain 5042 and the explorer o1
+ * links (arc-scan.org) has nothing verified, but arcexplorer.org holds the
+ * factory, fee escrow and token deployer as runtime matches, so those are
+ * vendored from its API alone and cross-checked against the Robinhood
+ * contract of the same role (the same `launchpad-v4-minimal` family). A
+ * contract no source knows can still be mirrored from the Robinhood ABI of
+ * its role when a runtime-bytecode comparison over RPC shows the same code
+ * up to the few 32-byte words that hold immutables; the provenance says so.
+ * The executor reads the live factory and simulates before anything is
+ * signed, so a wrong ABI fails closed.
  *
  * Output per contract:
  *
@@ -26,7 +26,7 @@
  *   abis/<Name>.<chainId>.<address>.ts     `as const` export for viem typing
  *   abis/index.ts                          re-exports
  *
- * Run: pnpm abi:vendor [--only <chain>] [--allow-unchecked]
+ * Run: pnpm abi:vendor [--only <chain>]
  * (re-run after `pnpm o1:sync` reports drift; `--only` re-fetches one chain
  * and keeps the others' files as they are)
  */
@@ -53,11 +53,16 @@ type Target = { name: string; exportName: string; key: string; role: Role };
 
 const CHAIN_ORDER: readonly ChainKey[] = ["robinhood", "base", "arc"];
 
-/** Explorer contract APIs: Blockscout on Robinhood and Base, an Etherscan-style API on Arc. */
-const EXPLORER_API: Record<ChainKey, { api: string; site: string; kind: "blockscout" | "etherscan" }> = {
+/**
+ * Explorer contract APIs: Blockscout on Robinhood and Base. On Arc the
+ * explorer o1 links (arc-scan.org) has none of o1's contracts verified;
+ * arcexplorer.org does (factory, fee escrow, token deployer as runtime
+ * matches, 2026-09-10) and serves the ABI from its own API.
+ */
+const EXPLORER_API: Record<ChainKey, { api: string; site: string; kind: "blockscout" | "arcexplorer" }> = {
   robinhood: { api: `${o1.chains.robinhood.explorer}/api`, site: o1.chains.robinhood.explorer, kind: "blockscout" },
   base: { api: "https://base.blockscout.com/api", site: "https://base.blockscout.com", kind: "blockscout" },
-  arc: { api: "https://api.arc-scan.org/api", site: o1.chains.arc.explorer, kind: "etherscan" },
+  arc: { api: "https://arcexplorer.org/api/v1", site: "https://arcexplorer.org", kind: "arcexplorer" },
 };
 
 /** Public RPCs for the bytecode comparison; RPC_<CHAIN> in the environment wins. */
@@ -82,9 +87,9 @@ const TARGETS: Record<ChainKey, Target[]> = {
     { name: "LaunchHook", exportName: "baseLaunchHookAbi", key: "hook", role: "hook" },
     { name: "FeeEscrow", exportName: "baseFeeEscrowAbi", key: "feeEscrow", role: "feeEscrow" },
   ],
+  // The Arc hook is not verified anywhere yet; it is only read for swaps, which Arc does not have.
   arc: [
     { name: "LaunchFactory", exportName: "arcLaunchFactoryAbi", key: "factory", role: "factory" },
-    { name: "LaunchHook", exportName: "arcLaunchHookAbi", key: "hook", role: "hook" },
     { name: "FeeEscrow", exportName: "arcFeeEscrowAbi", key: "feeEscrow", role: "feeEscrow" },
     { name: "LaunchTokenDeployer", exportName: "arcLaunchTokenDeployerAbi", key: "launchTokenDeployer", role: "tokenDeployer" },
   ],
@@ -107,8 +112,20 @@ async function fetchSourcify(chainId: number, address: string): Promise<Verified
 
 class NotVerified extends Error {}
 
+/** arcexplorer.org: one JSON document per contract, ABI included when the source is a runtime match. */
+async function fetchArcExplorer(api: string, address: string): Promise<Verified> {
+  const res = await fetch(`${api}/contracts/${address.toLowerCase()}`, { headers: { "user-agent": UA, accept: "application/json" }, signal: AbortSignal.timeout(60_000) });
+  if (res.status === 404) throw new NotVerified(`arcexplorer ${address}: not verified (unknown contract)`);
+  if (!res.ok) throw new Error(`arcexplorer ${address}: HTTP ${res.status}`);
+  const json = (await res.json()) as { verified?: boolean; contractName?: string | null; compilerVersion?: string | null; verificationStatus?: string; abi?: AbiItem[] | null; error?: string };
+  if (json.error) throw new NotVerified(`arcexplorer ${address}: ${json.error}`);
+  if (!json.verified || !Array.isArray(json.abi)) throw new NotVerified(`arcexplorer ${address}: not verified (${json.verificationStatus ?? "no status"})`);
+  return { abi: json.abi, contractName: json.contractName ?? "", compilerVersion: json.compilerVersion ?? "" };
+}
+
 async function fetchExplorer(chain: ChainKey, address: string): Promise<Verified> {
   const { api, kind } = EXPLORER_API[chain];
+  if (kind === "arcexplorer") return fetchArcExplorer(api, address);
   const url = `${api}?module=contract&action=getabi&address=${address.toLowerCase()}`;
   const res = await fetch(url, { headers: { "user-agent": UA, accept: "application/json" }, signal: AbortSignal.timeout(60_000) });
   if (!res.ok) throw new Error(`${kind} ${address}: HTTP ${res.status}`);
@@ -118,20 +135,9 @@ async function fetchExplorer(chain: ChainKey, address: string): Promise<Verified
     if (/not verified/i.test(reason)) throw new NotVerified(`${kind} ${address}: ${reason}`);
     throw new Error(`${kind} ${address}: ${reason}`);
   }
-  let contractName = "";
-  let compilerVersion = "";
-  if (kind === "blockscout") {
-    const meta = await fetch(`${api}/v2/smart-contracts/${address}`, { headers: { "user-agent": UA, accept: "application/json" }, signal: AbortSignal.timeout(60_000) });
-    const m = meta.ok ? ((await meta.json()) as { name?: string; compiler_version?: string }) : {};
-    contractName = m.name ?? "";
-    compilerVersion = m.compiler_version ?? "";
-  } else {
-    const src = await fetch(`${api}?module=contract&action=getsourcecode&address=${address.toLowerCase()}`, { headers: { "user-agent": UA, accept: "application/json" }, signal: AbortSignal.timeout(60_000) });
-    const s = src.ok ? ((await src.json()) as { result?: Array<{ ContractName?: string; CompilerVersion?: string }> }) : {};
-    contractName = s.result?.[0]?.ContractName ?? "";
-    compilerVersion = s.result?.[0]?.CompilerVersion ?? "";
-  }
-  return { abi: JSON.parse(json.result) as AbiItem[], contractName, compilerVersion };
+  const meta = await fetch(`${api}/v2/smart-contracts/${address}`, { headers: { "user-agent": UA, accept: "application/json" }, signal: AbortSignal.timeout(60_000) });
+  const m = meta.ok ? ((await meta.json()) as { name?: string; compiler_version?: string }) : {};
+  return { abi: JSON.parse(json.result) as AbiItem[], contractName: m.name ?? "", compilerVersion: m.compiler_version ?? "" };
 }
 
 async function getCode(chain: ChainKey, address: string): Promise<string> {
@@ -205,7 +211,6 @@ async function main() {
   const verifiedAt = new Date().toISOString();
   const only = argValue("--only") as ChainKey | null;
   if (only && !CHAIN_ORDER.includes(only)) throw new Error(`--only: unknown chain ${only}`);
-  const allowUnchecked = process.argv.includes("--allow-unchecked");
   const indexLines: string[] = ["// Generated by scripts/vendor-abi.ts — do not edit by hand."];
   const reference = new Map<Role, { abi: AbiItem[]; chain: ChainKey; address: string }>();
 
@@ -251,19 +256,12 @@ async function main() {
       if (!chosen) {
         // No verification source at all: mirror the reference contract of the same role, justified by bytecode.
         if (!unverified || !ref) throw new Error(`${chainKey} ${c.name} ${address}: no verification source reachable`);
-        let check: Record<string, unknown>;
-        try {
-          const [here, there] = await Promise.all([getCode(chainKey, address), getCode(ref.chain, ref.address)]);
-          const cmp = compareCode(here, there);
-          if (!cmp.sameLength || cmp.differingWords > MAX_IMMUTABLE_WORDS) {
-            throw new Error(`${chainKey} ${c.name} ${address}: runtime code differs from ${ref.chain} ${ref.address} (sameLength=${cmp.sameLength}, differingWords=${cmp.differingWords}); refusing to mirror`);
-          }
-          check = { checked: true, checkedAt: verifiedAt, length: cmp.length, differingWords: cmp.differingWords, maxImmutableWords: MAX_IMMUTABLE_WORDS };
-        } catch (err) {
-          if (!allowUnchecked || /refusing to mirror/.test((err as Error).message)) throw err;
-          check = { checked: false, reason: (err as Error).message.slice(0, 160) };
-          console.warn(`${chainKey} ${c.name}: bytecode check skipped (${check.reason}); mirroring unchecked because --allow-unchecked was passed`);
+        const [here, there] = await Promise.all([getCode(chainKey, address), getCode(ref.chain, ref.address)]);
+        const cmp = compareCode(here, there);
+        if (!cmp.sameLength || cmp.differingWords > MAX_IMMUTABLE_WORDS) {
+          throw new Error(`${chainKey} ${c.name} ${address}: runtime code differs from ${ref.chain} ${ref.address} (sameLength=${cmp.sameLength}, differingWords=${cmp.differingWords}); refusing to mirror`);
         }
+        const check = { checked: true, checkedAt: verifiedAt, length: cmp.length, differingWords: cmp.differingWords, maxImmutableWords: MAX_IMMUTABLE_WORDS };
         chosen = { abi: ref.abi, contractName: `${c.name} (mirrored)`, compilerVersion: "" };
         mirror = { from: { chain: ref.chain, address: ref.address }, bytecode: check, note: `Not verified on ${EXPLORER_API[chainKey].site} nor indexed by Sourcify on ${verifiedAt.slice(0, 10)}; ABI mirrored from the ${ref.chain} contract of the same role.` };
       } else if (ref) {

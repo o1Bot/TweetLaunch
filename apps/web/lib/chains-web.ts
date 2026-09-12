@@ -18,9 +18,9 @@ export const CHAIN_SHORT: Record<ChainKey, string> = { robinhood: "Robinhood", b
 export const NATIVE_SYMBOL: Record<ChainKey, string> = { robinhood: "ETH", base: "ETH", arc: "USDC" };
 
 /** Block explorer for addresses and tokens. */
-export const EXPLORER: Record<ChainKey, string> = { robinhood: "https://robinhoodchain.blockscout.com", base: "https://basescan.org", arc: "https://arc-scan.org" };
-/** Transaction links: the founder's pick on Robinhood, Basescan on Base, Arcscan on Arc. */
-export const TX_EXPLORER: Record<ChainKey, string> = { robinhood: "https://rh-scan.com/tx", base: "https://basescan.org/tx", arc: "https://arc-scan.org/tx" };
+export const EXPLORER: Record<ChainKey, string> = { robinhood: "https://robinhoodchain.blockscout.com", base: "https://basescan.org", arc: "https://arcexplorer.org" };
+/** Transaction links: the founder's pick on Robinhood, Basescan on Base, arcexplorer.org on Arc (the live one; arc-scan.org is stale). */
+export const TX_EXPLORER: Record<ChainKey, string> = { robinhood: "https://rh-scan.com/tx", base: "https://basescan.org/tx", arc: "https://arcexplorer.org/tx" };
 
 /** The cookie that remembers the chain the visitor last picked on the board. */
 export const CHAIN_COOKIE = "o1bot-chain";
