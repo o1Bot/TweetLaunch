@@ -40,7 +40,7 @@ Arc (chain id 5042, added 2026-09-12) is the third launch chain: `on arc`. Its g
 ## Quickstart
 
 ```bash
-pnpm install
+pnpm install                    # plus Foundry (forge) for packages/contracts: https://getfoundry.sh
 cp .env.example .env            # one file at the repo root for every app; keep DRY_RUN=true
 pnpm o1:sync                    # refresh config/o1.json from docs.o1.exchange
 pnpm abi:vendor                 # re-vendor ABIs when o1:sync reports drift
