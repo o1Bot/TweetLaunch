@@ -13,7 +13,7 @@ import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { formatEther, getAddress, parseEther, toHex, type Hex } from "viem";
-import { isChainKey, type ChainKey } from "@o1bot/shared";
+import { isChainKey, nativeSymbol, type ChainKey } from "@o1bot/shared";
 import { planLaunch } from "../src/index";
 
 try {
@@ -46,11 +46,14 @@ if (!values.name || !values.symbol) {
 }
 
 const creator = getAddress(values.creator ?? toHex(randomBytes(20)));
+const chain: ChainKey = isChainKey(values.chain ?? "") ? (values.chain as ChainKey) : "robinhood";
+// Amounts below are in the chain's gas asset: ETH on Robinhood and Base, USDC on Arc.
+const native = nativeSymbol(chain);
 const started = Date.now();
 const result = await planLaunch(
   {
     creator,
-    chain: isChainKey(values.chain ?? "") ? (values.chain as ChainKey) : "robinhood",
+    chain,
     name: values.name,
     symbol: values.symbol,
     pair: values.pair,
@@ -83,15 +86,15 @@ console.log(`  creator       ${creator}`);
 console.log(`  pair          ${plan.quote.symbol} ${plan.quote.address} (${plan.quote.kind}, revision ${plan.quoteState.revision})`);
 console.log(`  token         ${plan.salt.token}  (salt mined in ${plan.salt.attempts} attempts)`);
 console.log(`  poolId        ${plan.simulation.poolId}`);
-console.log(`  call          ${plan.call.functionName}  value ${formatEther(plan.call.value)} ETH`);
+console.log(`  call          ${plan.call.functionName}  value ${formatEther(plan.call.value)} ${native}`);
 if (plan.simulation.amountOut !== null && plan.call.functionName === "createLaunchAndBuy") {
-  console.log(`  dev buy       ${formatEther(plan.call.args[1].amountIn)} ETH → ${formatEther(plan.simulation.amountOut)} tokens (minAmountOut ${formatEther(plan.call.args[1].minAmountOut)})`);
+  console.log(`  dev buy       ${formatEther(plan.call.args[1].amountIn)} ${native} → ${formatEther(plan.simulation.amountOut)} tokens (minAmountOut ${formatEther(plan.call.args[1].minAmountOut)})`);
   console.log(`  route         ${plan.route?.label} (${plan.route?.steps.length} hops, ${(plan.call.args[1].routeData.length - 2) / 2} bytes)`);
   for (const a of plan.routeAttempts) console.log(`    candidate   ${a.label}: ${a.error ? `revert ${a.error.errorName ?? a.error.kind}` : `${formatEther(a.amountOut ?? 0n)} tokens`}`);
 }
-console.log(`  gas           ${plan.simulation.gas} (${plan.simulation.gasSource}) @ ${plan.funding.maxFeePerGas} wei/gas = ${formatEther(plan.funding.gasWei)} ETH`);
-console.log(`  required      ${formatEther(plan.funding.requiredWei)} ETH`);
-console.log(`  balance       ${formatEther(plan.funding.balanceWei)} ETH  shortfall ${formatEther(plan.funding.shortfallWei)} ETH`);
+console.log(`  gas           ${plan.simulation.gas} (${plan.simulation.gasSource}) @ ${plan.funding.maxFeePerGas} wei/gas = ${formatEther(plan.funding.gasWei)} ${native}`);
+console.log(`  required      ${formatEther(plan.funding.requiredWei)} ${native}`);
+console.log(`  balance       ${formatEther(plan.funding.balanceWei)} ${native}  shortfall ${formatEther(plan.funding.shortfallWei)} ${native}`);
 console.log(`  deadline      ${new Date(Number(plan.params.deadline) * 1000).toISOString()}`);
 console.log("\nlaunch params:");
 console.log(json(plan.params));

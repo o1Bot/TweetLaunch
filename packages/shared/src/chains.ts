@@ -37,8 +37,10 @@ export const CHAINS: Record<ChainKey, Chain> = { robinhood, base, arc };
 /**
  * Public RPCs tried in order when the chain's RPC_* is unset. The chain's own
  * endpoint is last: some ISPs intercept its TLS. Use a paid RPC in production.
- * Arc ships no public endpoint in viem; thirdweb's is the one open relay
- * found, rate-limited and not always up, so RPC_ARC is effectively required.
+ * Arc ships no public endpoint in viem. rpc.arc-scan.org answers every method
+ * the launch path needs without a key (found 2026-09-13); thirdweb's relay is
+ * rate-limited and often down. Set RPC_ARC in production all the same: the
+ * bot only opens Arc launches once it is set (see rpcConfigured).
  */
 export const PUBLIC_RPCS: Record<ChainKey, readonly string[]> = {
   robinhood: [
@@ -47,7 +49,7 @@ export const PUBLIC_RPCS: Record<ChainKey, readonly string[]> = {
     "https://rpc.mainnet.chain.robinhood.com",
   ],
   base: ["https://base-rpc.publicnode.com", "https://mainnet.base.org", "https://base.drpc.org"],
-  arc: ["https://5042.rpc.thirdweb.com"],
+  arc: ["https://rpc.arc-scan.org", "https://5042.rpc.thirdweb.com"],
 };
 
 export function isChainKey(value: string): value is ChainKey {
@@ -86,9 +88,10 @@ export function rpcUrls(key: ChainKey): string[] {
 }
 
 /**
- * Whether the chain can be reached at all: the ETH chains always have public
- * endpoints to fall back on; Arc only counts once RPC_ARC is set, so a
- * deployment without it neither offers Arc launches nor polls it for balances.
+ * Whether the deployment means to use the chain: the ETH chains are always
+ * on; Arc only counts once RPC_ARC is set (https://rpc.arc-scan.org works
+ * without a key), so switching Arc launches on is an explicit decision and a
+ * deployment without it neither offers them nor polls Arc for balances.
  */
 export function rpcConfigured(key: ChainKey): boolean {
   return key === "arc" ? Boolean(rpcOverride(key)) : true;
