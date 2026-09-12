@@ -45,16 +45,17 @@ compiler as o1's contracts) must be installed on the machine that builds or test
 
 ## Deployment
 
-One factory per chain, with the active o1 `FeeEscrow` of that chain (`config/o1.json`,
-`chains.<key>.contracts.feeEscrow`), the treasury wallet and the initial platform share:
+One factory per chain. Fill the "Fee splitter deployment" section of the root `.env`
+(`FEE_SPLITTER_DEPLOYER_KEY`, the gas payer; `FEE_SPLITTER_TREASURY`; `FEE_SPLITTER_OWNER`, defaults to the
+deployer; `FEE_SPLITTER_PLATFORM_BPS`, default 2000), then:
 
 ```bash
-cd packages/contracts
-O1_FEE_ESCROW=0x... TREASURY=0x... PLATFORM_BPS=2000 OWNER=0x... \
-  forge script script/Deploy.s.sol --rpc-url $RPC --private-key $DEPLOYER_KEY --broadcast
+pnpm contracts:deploy robinhood              # simulation only: escrow, owner, treasury, the address it would land on
+pnpm contracts:deploy robinhood --broadcast  # the real deployment
 ```
 
-The script prints the factory and implementation addresses; record them per chain in the app configuration
-(the bot needs the factory to predict and register clones, the web app to claim). The owner should be a
-wallet kept apart from the bot's signer; `Ownable2Step` means a transfer of ownership must be accepted by
-the new owner.
+The wrapper (`scripts/deploy.ts`) takes the active o1 `FeeEscrow` from `config/o1.json` and the RPC from
+`RPC_<CHAIN>`, runs `script/Deploy.s.sol`, and after a broadcast prints the `FEE_SPLITTER_FACTORY_<CHAIN>`
+line to add to `.env`, Railway (bot) and Vercel (web). Until that variable is set, launches on the chain keep
+the creator's wallet as o1's fee recipient. The owner should be a wallet kept apart from the bot's signer, a
+hardware wallet or a multisig; `Ownable2Step` means a transfer of ownership must be accepted by the new owner.

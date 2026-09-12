@@ -6,19 +6,21 @@ import {FeeSplitterFactory} from "../src/FeeSplitterFactory.sol";
 import {IO1FeeEscrow} from "../src/interfaces/IO1FeeEscrow.sol";
 
 /// @notice Deploys the factory (and, through its constructor, the splitter implementation) on one chain.
+/// Run through `pnpm contracts:deploy <chain> [--broadcast]` (scripts/deploy.ts), which fills the environment:
 ///
-///   O1_FEE_ESCROW=0x…  TREASURY=0x…  PLATFORM_BPS=2000  OWNER=0x… \
-///   forge script script/Deploy.s.sol --rpc-url $RPC --private-key $PK --broadcast
-///
-/// `O1_FEE_ESCROW` is the active o1 FeeEscrow of that chain (config/o1.json → chains.<key>.contracts.feeEscrow).
+///   O1_FEE_ESCROW             the active o1 FeeEscrow of the chain (config/o1.json)
+///   TREASURY, OWNER           FEE_SPLITTER_TREASURY / FEE_SPLITTER_OWNER
+///   PLATFORM_BPS              FEE_SPLITTER_PLATFORM_BPS (default 2000)
+///   FEE_SPLITTER_DEPLOYER_KEY the gas payer's private key, used for the broadcast
 contract Deploy is Script {
     function run() external {
         IO1FeeEscrow escrow = IO1FeeEscrow(vm.envAddress("O1_FEE_ESCROW"));
         address treasury = vm.envAddress("TREASURY");
         uint16 platformBps = uint16(vm.envOr("PLATFORM_BPS", uint256(2_000)));
-        address owner = vm.envOr("OWNER", msg.sender);
+        uint256 deployerKey = vm.envUint("FEE_SPLITTER_DEPLOYER_KEY");
+        address owner = vm.envOr("OWNER", vm.addr(deployerKey));
 
-        vm.startBroadcast();
+        vm.startBroadcast(deployerKey);
         FeeSplitterFactory factory = new FeeSplitterFactory(escrow, treasury, platformBps, owner);
         vm.stopBroadcast();
 

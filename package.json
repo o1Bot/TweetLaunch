@@ -25,7 +25,8 @@
     "privy:policy": "pnpm --filter @o1bot/bot exec tsx scripts/privy-policy.ts",
     "privy:signer": "pnpm --filter @o1bot/bot exec tsx scripts/privy-signer.ts",
     "site:suspend": "pnpm --filter @o1bot/bot exec tsx scripts/site-suspend.ts",
-    "repin": "pnpm --filter @o1bot/bot exec tsx scripts/repin.ts"
+    "repin": "pnpm --filter @o1bot/bot exec tsx scripts/repin.ts",
+    "contracts:deploy": "pnpm --filter @o1bot/contracts run deploy:factory"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

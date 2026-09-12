@@ -6,3 +6,4 @@ export * from "./x-handle";
 export * from "./tx-allowlist";
 export * from "./o1-registry";
 export * from "./x-text";
+export * from "./fee-splitter";

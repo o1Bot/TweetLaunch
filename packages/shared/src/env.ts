@@ -32,6 +32,16 @@ const schema = z.object({
   /** Model that revises a site as edits; defaults to claude-sonnet-4-6. */
   SITES_REVISION_MODEL: z.string().optional(),
 
+  /** o1bot's FeeSplitterFactory per chain; unset = launches keep the creator's wallet as o1's fee recipient. */
+  FEE_SPLITTER_FACTORY_ROBINHOOD: address.optional(),
+  FEE_SPLITTER_FACTORY_BASE: address.optional(),
+  FEE_SPLITTER_FACTORY_ARC: address.optional(),
+  /** Deployment only (`pnpm contracts:deploy`), read on the operator's machine: gas payer, treasury, owner, platform share. */
+  FEE_SPLITTER_DEPLOYER_KEY: z.string().regex(/^0x[0-9a-fA-F]{64}$/, "expected a 0x-prefixed 32-byte private key").optional(),
+  FEE_SPLITTER_TREASURY: address.optional(),
+  FEE_SPLITTER_OWNER: address.optional(),
+  FEE_SPLITTER_PLATFORM_BPS: z.coerce.number().int().min(0).max(3000).default(2000),
+
   DATABASE_URL: z.string().optional(),
   REDIS_URL: z.string().optional(),
 
