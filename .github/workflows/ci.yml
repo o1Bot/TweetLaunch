@@ -27,6 +27,10 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      # packages/contracts builds and tests with Foundry (forge); the compiler is pinned in its foundry.toml.
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @o1bot/db generate
       - run: pnpm typecheck
