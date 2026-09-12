@@ -25,7 +25,7 @@ type Me = {
   balances: Array<{ chain: string; eth: string | null }>;
 };
 
-type Asset = { address: string; symbol: string; name: string; imageUrl: string | null; decimals: number; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null };
+type Asset = { chain: string; address: string; symbol: string; name: string; imageUrl: string | null; decimals: number; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null };
 type LaunchSite = { slug: string; url: string; editUrl: string; status: string };
 /** o1bot's fee splitter for a launch: the clone o1 pays, whether it exists yet, and what a claim would pay the recipients now. */
 type FeeSplit = { splitter: string; factory: string | null; deployed: boolean; config: { recipients: string[]; shares: number[]; platformBps: number }; sharePct: number; currency: string; symbol: string; decimals: number; claimable: string | null; claimableUsd: number | null };
@@ -37,7 +37,7 @@ type Overview = {
   launches: LaunchRow[];
   trades: TradeRow[];
   fees: { escrow: string; positions: Array<{ currency: string; symbol: string; decimals: number; owed: string; usd: number | null }> };
-  gas: Array<{ chain: string; name: string; eth: string; usd: number | null }>;
+  gas: Array<{ chain: string; name: string; eth: string; symbol: string; usd: number | null }>;
 };
 type Settings = { enabled: boolean; maxTradeEth: string | null; defaultCapEth: string; maxCapEth: string; acceptFeeRedirects: boolean; replyLanguage: "auto" | "en" };
 
@@ -90,13 +90,6 @@ const ICON = {
     </svg>
   ),
 };
-
-/** The Robinhood mark in the corner of an asset logo: everything on this page lives on that chain. */
-const RH_DOT = (
-  <i className="chain" aria-hidden="true">
-    <ChainIcon chain="robinhood" size={16} />
-  </i>
-);
 
 export function Profile() {
   const { ready, authenticated, user, login, logout, getAccessToken, exportWallet } = usePrivy();
@@ -342,10 +335,16 @@ export function Profile() {
                   <div className="ic">{ChainIcon({ chain: g.chain, size: 30 }) ?? g.name.slice(0, 1)}</div>
                   <div className="n">
                     {g.name}
-                    {g.chain === "robinhood" ? <small className={empty ? "warn" : ""}>{empty ? "Fund it to launch or trade" : "Launches, trades and claims"}</small> : <small className={empty ? "" : "ok"}>{empty ? "Send ETH here to bridge from a post" : `Post "bridge ${Math.min(Number(g.eth), 1).toFixed(3)} ETH from ${g.chain}"`}</small>}
+                    {g.chain === "robinhood" ? (
+                      <small className={empty ? "warn" : ""}>{empty ? "Fund it to launch or trade" : "Launches, trades and claims"}</small>
+                    ) : g.chain === "arc" ? (
+                      <small className={empty ? "" : "ok"}>{empty ? "Send USDC here to launch on Arc" : "Launches on Arc; USDC pays the gas"}</small>
+                    ) : (
+                      <small className={empty ? "" : "ok"}>{empty ? "Send ETH here to bridge from a post" : `Post "bridge ${Math.min(Number(g.eth), 1).toFixed(3)} ETH from ${g.chain}"`}</small>
+                    )}
                   </div>
                   <div className="b">
-                    {fmt(g.eth, 5)} ETH
+                    {fmt(g.eth, g.symbol === "USDC" ? 2 : 5)} {g.symbol}
                     <small>{g.usd === null ? (empty ? "empty" : "") : usd(g.usd)}</small>
                   </div>
                 </div>
@@ -446,14 +445,16 @@ export function Profile() {
                 ) : (
                   <div className="lg mark" aria-hidden="true">
                     <AssetIcon symbol={a.symbol} kind={a.kind} size={44} />
-                    {RH_DOT}
+                    <i className="chain">
+                      <ChainIcon chain={a.chain} size={16} />
+                    </i>
                   </div>
                 )}
                 <div className="n">
                   {a.tokenPage ? <Link href={a.tokenPage}>{a.name}</Link> : <b>{a.name}</b>}
                   <span>
                     {fmt(a.balance, a.kind === "token" ? 2 : 5)} {a.symbol}
-                    {a.kind === "native" ? " · Robinhood" : ""}
+                    {a.kind === "native" ? ` · ${CHAIN_NAMES[a.chain] ?? a.chain}` : ""}
                   </span>
                 </div>
                 <div className="v">
@@ -647,7 +648,7 @@ export function Profile() {
       {sheet === "deposit" && overview?.wallet && <DepositSheet wallet={overview.wallet} onClose={() => setSheet(null)} />}
       {sheet === "withdraw" && overview?.wallet && (
         <WithdrawSheet
-          assets={overview.assets.filter((a) => Number(a.balance) > 0)}
+          assets={overview.assets.filter((a) => a.chain === "robinhood" && Number(a.balance) > 0)}
           onClose={() => setSheet(null)}
           onSent={(hash) => {
             setLastTx({ hash, chainId: CHAIN_ID });
@@ -670,7 +671,10 @@ function DepositSheet({ wallet, onClose }: { wallet: string; onClose: () => void
     <div className="me-sheet-bg" onClick={onClose} role="presentation">
       <div className="me-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Deposit">
         <h3 className="sora">Deposit</h3>
-        <p>Send ETH on Robinhood Chain to this address. It is your wallet, the same address on Base, Ethereum, Arbitrum and Optimism, so you can also send ETH there and post &quot;bridge 0.1 ETH from base&quot;.</p>
+        <p>
+          Send ETH on Robinhood Chain to this address. It is your wallet, the same address on Base, Ethereum, Arbitrum and Optimism, so you can also send ETH there and post &quot;bridge 0.1 ETH from base&quot;. On Arc, send USDC to it:
+          that is the gas and the pair there.
+        </p>
         <code className="full">{wallet}</code>
         <div className="me-chains" aria-label="Chains that share this address">
           {(["robinhood", "base", "ethereum", "arbitrum", "optimism"] as const).map((c) => (

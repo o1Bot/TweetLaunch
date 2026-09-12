@@ -271,8 +271,8 @@ describe("questions answered from the data", () => {
     await processMention(post("what is my ETH balance?"), h.deps);
     const text = h.x.replies[0]?.text ?? "";
     expect(text).toContain(ALICE_WALLET);
-    expect(text).toContain("0.4213 on Robinhood Chain");
-    expect(text).toContain("0.1 on Base");
+    expect(text).toContain("0.4213 ETH on Robinhood Chain");
+    expect(text).toContain("0.1 ETH on Base");
     expect(text).toContain("20.5 USDG");
     expect(text).toContain("$CAT 1.23M");
     expect(text).toContain("claimable fees 0.012 ETH");

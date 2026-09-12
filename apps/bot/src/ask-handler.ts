@@ -1,7 +1,7 @@
 import { getAddress, type Address } from "viem";
 import type { AskCommand, AskTopic } from "@o1bot/parser";
 import { formatPct, formatUsd } from "@o1bot/market";
-import type { ChainKey } from "@o1bot/shared";
+import { nativeSymbol, type ChainKey } from "@o1bot/shared";
 import { stripLeadingMentions } from "@o1bot/x";
 import type { AskData, PlatformStats, TokenSummary, UserLaunches, UserTrades, WalletSummary } from "./ask-data";
 import type { MentionContext, PipelineOutcome } from "./pipeline";
@@ -162,7 +162,7 @@ export function tokenAnswer(asked: string, found: TokenSummary[], siteUrl: strin
 }
 
 export function walletAnswer(w: WalletSummary, handle: string, siteUrl: string): Built {
-  const eth = w.eth.map((e) => `${amount(e.eth)} on ${chainName(e.chain)}${e.usd === null ? "" : ` (${money(e.usd)})`}`).join(", ");
+  const eth = w.eth.map((e) => `${amount(e.eth)} ${nativeSymbol(e.chain)} on ${chainName(e.chain)}${e.usd === null ? "" : ` (${money(e.usd)})`}`).join(", ");
   const quotes = w.quotes.map((q) => `${amount(q.balance, 2)} ${q.symbol} on ${chainName(q.chain)}${q.usd === null ? "" : ` (${money(q.usd)})`}`).join(", ");
   const tokens = w.tokens.map((t) => `$${t.symbol} ${tokenAmount(t.balance)}${t.usd === null ? "" : ` (${money(t.usd)})`} on ${chainName(t.chain)}`).join(", ");
   const tokensUsd = w.tokens.some((t) => t.usd !== null) ? w.tokens.reduce((s, t) => s + (t.usd ?? 0), 0) : null;
@@ -175,13 +175,13 @@ export function walletAnswer(w: WalletSummary, handle: string, siteUrl: string):
     w.tokensCount > 0 ? `o1bot tokens held: ${count(w.tokensCount)}${tokensUsd === null ? "" : `, about ${money(tokensUsd)} together`}${w.tokensCount > w.tokens.length ? `, the largest ${w.tokens.length}` : ""}: ${tokens}.` : "o1bot tokens held: none.",
     fees ? `Creator fees claimable in o1's escrow: ${fees}.` : "Creator fees claimable in o1's escrow: none.",
     w.totalUsd === null ? "Total value: unknown (no price for some of it)." : `Total value of what is listed: about ${money(w.totalUsd)}.`,
-    "To deposit, send ETH on Robinhood Chain (or Base) to the wallet address above.",
+    "To deposit, send ETH on Robinhood Chain or Base, or USDC on Arc, to the wallet address above.",
     `Profile with balances, deposit and fee claims: ${siteUrl}/me`,
   ];
   // The template keeps the figures and drops the dollar values; the facts above carry both.
   const fb = replies.askWallet({
     address: w.address,
-    eth: w.eth.map((e) => `${amount(e.eth)} on ${chainName(e.chain)}`).join(", ") || "0",
+    eth: w.eth.map((e) => `${amount(e.eth)} ${nativeSymbol(e.chain)} on ${chainName(e.chain)}`).join(", ") || "0",
     quotes: w.quotes.map((q) => `${amount(q.balance, 2)} ${q.symbol}`).join(", ") || null,
     tokens: w.tokensCount > 0 ? `${count(w.tokensCount)} o1bot ${w.tokensCount === 1 ? "token" : "tokens"} (${w.tokens.map((t) => `$${t.symbol} ${tokenAmount(t.balance)}`).join(", ")})` : null,
     fees: fees ? `claimable fees ${w.feesOwed.map((f) => `${amount(f.balance)} ${f.symbol}`).join(", ")}` : null,
