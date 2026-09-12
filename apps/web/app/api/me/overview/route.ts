@@ -37,7 +37,8 @@ export const dynamic = "force-dynamic";
  * wallet itself (launches made before the splitter existed).
  */
 
-type Asset = { address: string; symbol: string; name: string; imageUrl: string | null; decimals: number; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null };
+/** `chain` is where the balance sits: Robinhood for everything but Arc's USDC. */
+type Asset = { chain: ChainKey; address: string; symbol: string; name: string; imageUrl: string | null; decimals: number; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null };
 type FeePosition = { currency: string; symbol: string; decimals: number; owed: string; usd: number | null };
 type TradeHistoryRow = {
   id: string;
@@ -54,7 +55,8 @@ type TradeHistoryRow = {
   userMessage: string | null;
   createdAt: string;
 };
-type GasRow = { chain: string; name: string; eth: string; usd: number | null };
+/** `eth` is the chain's gas asset in human units; `symbol` names it (ETH everywhere but Arc, where USDC is the gas). */
+type GasRow = { chain: string; name: string; eth: string; symbol: string; usd: number | null };
 type FeeSplit = {
   /** The launch's fee splitter clone, o1's creator fee recipient for the token. */
   splitter: string;
@@ -267,18 +269,28 @@ export async function GET(req: Request) {
       : Promise.resolve([]),
   ]);
 
-  // ETH per chain: Robinhood (gas for everything here) and the chains a post can bridge from.
-  const originBalances = await Promise.all(BRIDGE_CHAIN_KEYS.map((key) => bridgeClient(key).getBalance({ address: wallet }).catch(() => null)));
-  const gas: GasRow[] = [
-    { chain: "robinhood", name: "Robinhood", eth: formatUnits(ethBalance, 18), usd: ethUsd === null ? null : Number(formatUnits(ethBalance, 18)) * ethUsd },
-    ...BRIDGE_CHAIN_KEYS.map((key, i) => {
-      const bal = originBalances[i] ?? null;
-      return { chain: key, name: bridgeChainDisplayName(key), eth: bal === null ? "0" : formatUnits(bal, 18), usd: bal === null || ethUsd === null ? null : Number(formatUnits(bal, 18)) * ethUsd };
-    }),
-  ];
+  // Gas per chain: Robinhood (gas for everything here), the chains a post can bridge from, and Arc, where USDC is the gas.
+  const [originBalances, arcBalance] = await Promise.all([
+    Promise.all(BRIDGE_CHAIN_KEYS.map((key) => bridgeClient(key).getBalance({ address: wallet }).catch(() => null))),
+    publicClient("arc").getBalance({ address: wallet }).catch(() => null),
+  ]);
+  // Arc's native balance has 18 decimals; it is the same USDC the ERC-20 view shows with six.
+  const arcUsdc = arcBalance === null ? null : formatUnits(arcBalance, 18);
+  const gas: GasRow[] = [{ chain: "robinhood", name: "Robinhood", eth: formatUnits(ethBalance, 18), symbol: "ETH", usd: ethUsd === null ? null : Number(formatUnits(ethBalance, 18)) * ethUsd }];
+  for (const [i, key] of BRIDGE_CHAIN_KEYS.entries()) {
+    const bal = originBalances[i] ?? null;
+    gas.push({ chain: key, name: bridgeChainDisplayName(key), eth: bal === null ? "0" : formatUnits(bal, 18), symbol: "ETH", usd: bal === null || ethUsd === null ? null : Number(formatUnits(bal, 18)) * ethUsd });
+    // Arc sits with the launch chains, right after Base.
+    if (key === "base") gas.push({ chain: "arc", name: "Arc", eth: arcUsdc ?? "0", symbol: "USDC", usd: arcUsdc === null ? null : Number(arcUsdc) });
+  }
   const assets: Asset[] = [
-    { address: zeroAddress, symbol: "ETH", name: "Ether", imageUrl: null, decimals: 18, balance: formatUnits(ethBalance, 18), usd: ethUsd === null ? null : Number(formatUnits(ethBalance, 18)) * ethUsd, kind: "native", tokenPage: null },
+    { chain: "robinhood", address: zeroAddress, symbol: "ETH", name: "Ether", imageUrl: null, decimals: 18, balance: formatUnits(ethBalance, 18), usd: ethUsd === null ? null : Number(formatUnits(ethBalance, 18)) * ethUsd, kind: "native", tokenPage: null },
   ];
+  // Arc's USDC: the gas and the only pair there, one balance whether read as native or as the ERC-20 (listed under the ERC-20 address).
+  const arcUsdcQuote = findQuote("arc", "USDC");
+  if (arcUsdc !== null && arcUsdcQuote && Number(arcUsdc) > 0) {
+    assets.push({ chain: "arc", address: arcUsdcQuote.address, symbol: "USDC", name: "USD Coin", imageUrl: null, decimals: 6, balance: arcUsdc, usd: Number(arcUsdc), kind: "native", tokenPage: null });
+  }
   for (const [i, t] of erc20s.entries()) {
     const r = balances[i];
     if (!r || r.status !== "success" || (r.result as bigint) === 0n) continue;
@@ -288,12 +300,13 @@ export async function GET(req: Request) {
       if (!q) continue;
       const human = formatUnits(raw, q.decimals);
       const px = await priceOf("robinhood", { address: getAddress(q.address), symbol: q.symbol, decimals: q.decimals });
-      assets.push({ address: q.address, symbol: q.symbol, name: q.name ?? q.symbol, imageUrl: null, decimals: q.decimals, balance: human, usd: px === null ? null : Number(human) * px, kind: "quote", tokenPage: null });
+      assets.push({ chain: "robinhood", address: q.address, symbol: q.symbol, name: q.name ?? q.symbol, imageUrl: null, decimals: q.decimals, balance: human, usd: px === null ? null : Number(human) * px, kind: "quote", tokenPage: null });
     } else {
       const row = board.find((b) => getAddress(b.token) === t.address);
       if (!row) continue;
       const human = formatUnits(raw, 18);
       assets.push({
+        chain: "robinhood",
         address: t.address,
         symbol: row.symbol,
         name: row.name,

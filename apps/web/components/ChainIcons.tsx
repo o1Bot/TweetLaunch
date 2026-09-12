@@ -74,6 +74,18 @@ export function UsdgIcon({ size = 20, className }: P) {
   );
 }
 
+export function UsdcIcon({ size = 20, className }: P) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden="true">
+      <circle cx="16" cy="16" r="16" fill="#2775CA" />
+      <circle cx="16" cy="16" r="10.5" fill="none" stroke="#fff" strokeWidth="1.6" />
+      <text x="16" y="20.6" textAnchor="middle" fontFamily="Sora, system-ui, sans-serif" fontWeight="800" fontSize="12.5" fill="#fff">
+        $
+      </text>
+    </svg>
+  );
+}
+
 export function StockIcon({ size = 20, className }: P) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden="true">
@@ -109,6 +121,8 @@ export function ChainIcon({ chain, size = 20, className }: { chain: string } & P
 
 /** The mark for a base asset by symbol: ETH, USDG, or a stock token. */
 export function AssetIcon({ symbol, kind, size = 20, className }: { symbol: string; kind: "native" | "quote" | "token" } & P) {
+  // USDC first: on Arc it is the native asset, and still USDC.
+  if (symbol.toUpperCase() === "USDC") return <UsdcIcon size={size} className={className} />;
   if (kind === "native" || symbol.toUpperCase() === "ETH" || symbol.toUpperCase() === "WETH") return <EthIcon size={size} className={className} />;
   if (symbol.toUpperCase() === "USDG") return <UsdgIcon size={size} className={className} />;
   return <StockIcon size={size} className={className} />;

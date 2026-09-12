@@ -2,7 +2,7 @@ import { erc20Abi, formatUnits, getAddress, zeroAddress, type Address } from "vi
 import { db, type Prisma } from "@o1bot/db";
 import { feeEscrowAbi, quoteUsd } from "@o1bot/executor";
 import { computeStats } from "@o1bot/market";
-import { activeFeeEscrow, chainByKey, chainKeyById, env, findQuote, INDEXED_CHAIN_KEYS, logger, parseFeeSplitConfig, publicClient, recipientShareOf, type ChainKey } from "@o1bot/shared";
+import { activeFeeEscrow, chainByKey, chainKeyById, env, findQuote, INDEXED_CHAIN_KEYS, logger, nativeSymbol, parseFeeSplitConfig, publicClient, recipientShareOf, type ChainKey } from "@o1bot/shared";
 import { COUNTED_TRADE_STATUSES } from "./store";
 
 /**
@@ -290,7 +290,8 @@ export class LiveAskData implements AskData {
         const [ethBalance, balances, ethUsd] = await Promise.all([
           client.getBalance({ address: wallet }),
           erc20s.length ? client.multicall({ allowFailure: true, contracts: erc20s.map((t) => ({ address: t.address, abi: erc20Abi, functionName: "balanceOf", args: [wallet] }) as const) }) : Promise.resolve([]),
-          quoteUsd(zeroAddress, 18, key).catch(() => null),
+          // Where the gas asset is the chain's stable (Arc: USDC), a unit of it is a dollar.
+          nativeSymbol(key) === STABLE[key] ? Promise.resolve(1) : quoteUsd(zeroAddress, 18, key).catch(() => null),
         ]);
         const ethHuman = formatUnits(ethBalance, 18);
         const ethUsdValue = ethUsd === null ? null : Number(ethHuman) * ethUsd;
