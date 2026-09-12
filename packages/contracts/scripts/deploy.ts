@@ -5,10 +5,12 @@
  *   pnpm contracts:deploy robinhood --broadcast
  *
  * Reads FEE_SPLITTER_DEPLOYER_KEY (gas payer), FEE_SPLITTER_TREASURY, FEE_SPLITTER_OWNER (defaults to the
- * deployer) and FEE_SPLITTER_PLATFORM_BPS; the o1 FeeEscrow comes from config/o1.json and the RPC from
- * RPC_<CHAIN> (or the public list). Runs `forge script script/Deploy.s.sol` and, after a broadcast, prints
- * the FEE_SPLITTER_FACTORY_<CHAIN> line to add to .env and the hosts.
+ * deployer) and FEE_SPLITTER_PLATFORM_BPS from packages/contracts/.env first (see its .env.example), then the
+ * root .env; the o1 FeeEscrow comes from config/o1.json and the RPC from RPC_<CHAIN> (or the public list).
+ * Runs `forge script script/Deploy.s.sol` and, after a broadcast, prints the FEE_SPLITTER_FACTORY_<CHAIN>
+ * line to add to the root .env and the hosts.
  */
+import "./local-env";
 import "@o1bot/shared/load-env";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
