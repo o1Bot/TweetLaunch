@@ -386,10 +386,31 @@ svg {
   border-radius: 6px;
   color: var(--ink-2);
   font-weight: 500;
+  white-space: nowrap;
 }
 .nav a:hover {
   background: var(--panel-2);
   color: var(--ink);
+}
+/* Laptops: a tighter bar before the inline nav gives way to the menu at 860px. */
+@media (max-width: 1200px) {
+  .top {
+    gap: 18px;
+  }
+  .top > .search {
+    width: 170px;
+  }
+  .acct-name {
+    max-width: 110px;
+  }
+}
+@media (max-width: 1100px) {
+  .chainsw button span {
+    display: none;
+  }
+  .chainsw button {
+    padding: 5px 6px;
+  }
 }
 
 /* footer */
