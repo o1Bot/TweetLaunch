@@ -45,6 +45,12 @@ const schema = z.object({
   FEE_SPLITTER_TREASURY: address.optional(),
   FEE_SPLITTER_OWNER: address.optional(),
   FEE_SPLITTER_PLATFORM_BPS: z.coerce.number().int().min(0).max(3000).default(2000),
+  /** Bot: private key of the small gas wallet that deploys each launch's splitter clone (`register`); unset = the first claim deploys it. */
+  FEE_SPLITTER_GAS_KEY: z
+    .string()
+    .regex(/^(0x)?[0-9a-fA-F]{64}$/, "expected a 32-byte private key in hex")
+    .transform((k) => (k.startsWith("0x") ? k : `0x${k}`))
+    .optional(),
 
   DATABASE_URL: z.string().optional(),
   REDIS_URL: z.string().optional(),

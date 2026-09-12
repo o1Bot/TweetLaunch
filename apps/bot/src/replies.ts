@@ -71,6 +71,8 @@ export type SuccessInput = {
   site?: string | null;
   /** True for a launch from the web form: there is no post to reply under, the profile shows the site instead. */
   web?: boolean;
+  /** With o1bot's fee splitter: the share of the creator fees the recipient keeps, in percent; null = all of them. */
+  creatorSharePct?: number | null;
 };
 
 /**
@@ -96,12 +98,18 @@ export function successReply(p: SuccessInput): string {
   const elsewhere = p.chain && p.chain !== "robinhood" ? chainLabel(p.chain) : null;
   const opener = (elsewhere ? SUCCESS_OPENERS.map((o) => o(p)).find((t) => t.includes(elsewhere)) : undefined) ?? SUCCESS_OPENERS[Number.isNaN(index) ? 0 : index]!(p);
   const devBuy = p.devBuyEth ? `Dev buy of ${p.devBuyEth} ${nativeOf(p.chain)} filled inside the launch.` : null;
+  const share = p.creatorSharePct ?? null;
+  const platform = share === null ? null : `o1bot keeps ${100 - share}% for buyback and burn`;
   const fees = p.feesTo
-    ? `Creator fees go to @${p.feesTo}, claimable after signing in with X at the link.`
+    ? share === null
+      ? `Creator fees go to @${p.feesTo}, claimable after signing in with X at the link.`
+      : `${share}% of the creator fees go to @${p.feesTo} (${platform}), claimable after signing in with X at the link.`
     : p.feesToFailed
       ? `The fee redirect to @${p.feesToFailed} failed, so creator fees stay with you for now.`
-      : null;
-  const feesShort = p.feesTo ? `Creator fees go to @${p.feesTo}.` : fees;
+      : share === null
+        ? null
+        : `You keep ${share}% of the creator fees (${platform}); claim them at the link.`;
+  const feesShort = p.feesTo ? (share === null ? `Creator fees go to @${p.feesTo}.` : `${share}% of creator fees go to @${p.feesTo}.`) : share === null ? fees : `You keep ${share}% of creator fees.`;
   const site = p.site ? `Its website is being built at ${p.site}; ${p.web ? "your profile shows it when it is up" : "I reply here when it is up"}.` : null;
   const siteShort = p.site ? `Site coming: ${p.site}` : null;
 

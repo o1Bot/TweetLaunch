@@ -1,10 +1,11 @@
 import type { Address, Hex } from "viem";
 import { classifyError, type LaunchErrorKind, type PreparedMetadata } from "@o1bot/executor";
-import { chainByKey, DEFAULT_CHAIN_KEY, nativeSymbol, type ChainKey, type O1Quote, type AllowedTxKind } from "@o1bot/shared";
+import { chainByKey, DEFAULT_CHAIN_KEY, nativeSymbol, recipientSharePct, soleRecipient, type ChainKey, type O1Quote, type AllowedTxKind } from "@o1bot/shared";
 import type { SignAudit } from "@o1bot/wallet";
 import { noAlerts, postUrl, txUrl } from "./alerts";
 import type { BotConfig } from "./config";
 import { ExecutionError, type AuditSink, type ExecutionResult, type WalletRef } from "./execute";
+import { noFeeSplitter } from "./fee-splitter";
 import type { PipelineDeps } from "./pipeline";
 import { formatEthCeil, replies } from "./replies";
 import type { SignedTxKindValue } from "./store";
@@ -68,7 +69,7 @@ export type LaunchCoreResult =
   | { ok: true; dryRun: true; token: Address; userText: string }
   | { ok: true; dryRun: false; token: Address; txHash: Hex; feeRecipientTxHash: Hex | null; feesToFailed: string | null; userText: string };
 
-export type LaunchCoreDeps = Pick<PipelineDeps, "store" | "config" | "prepareMetadata" | "plan" | "execute" | "setFeeRecipient" | "alerts">;
+export type LaunchCoreDeps = Pick<PipelineDeps, "store" | "config" | "prepareMetadata" | "plan" | "execute" | "setFeeRecipient" | "alerts" | "feeSplitter">;
 
 export const SIGNED_KIND: Record<AllowedTxKind, SignedTxKindValue> = {
   createLaunch: "CREATE_LAUNCH",
@@ -188,6 +189,22 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
   const plan = planned.plan;
   await store.updateLaunch(launchId, { creatorSalt: plan.salt.creatorSalt, tokenAddress: plan.salt.token, poolId: plan.simulation.poolId });
 
+  // 2b. o1bot's fee splitter, where the chain has one: the clone that will be o1's creator fee recipient.
+  // Its address follows from the token and the recipients, so it is known before anything is signed.
+  const feeSplitter = deps.feeSplitter ?? noFeeSplitter;
+  const payee = recipient?.address ?? wallet.address;
+  let split: { splitter: Address; config: { recipients: Address[]; shares: number[]; platformBps: number } } | null = null;
+  try {
+    const predicted = await feeSplitter.predict({ chainId: plan.chainId, token: plan.salt.token, ...soleRecipient(payee) });
+    if (predicted) {
+      split = { splitter: predicted.splitter, config: { ...soleRecipient(payee), platformBps: predicted.platformBps } };
+      await store.updateLaunch(launchId, { feeSplitter: split.splitter, feeSplitterConfig: split.config });
+    }
+  } catch (err) {
+    // A splitter that cannot be predicted must not block a launch: fees then go to the payee directly.
+    log.error({ launchId, err: errMessage(err) }, "fee splitter prediction failed; launching without it");
+  }
+
   // 3. Funding: exact shortfall, deposit address included where the channel allows it.
   if (plan.funding.shortfallWei > 0n) {
     const short = formatEthCeil(plan.funding.shortfallWei);
@@ -197,7 +214,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
     return { ok: false, terminal: "REJECTED", outcome: "rejected", error: "insufficient balance", userText, safeText: replies.insufficientSafe(short, siteUrl, chain) };
   }
 
-  const successText = (extra: { feesToFailed?: string | null; token?: Address } = {}) =>
+  const successText = (extra: { feesToFailed?: string | null; token?: Address; splitApplied?: boolean } = {}) =>
     replies.success({
       ticker: input.ticker,
       name: input.name,
@@ -208,6 +225,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
       devBuyEth: input.devBuyNative,
       feesTo: extra.feesToFailed ? null : (recipient?.handle ?? null),
       feesToFailed: extra.feesToFailed ?? null,
+      creatorSharePct: split && extra.splitApplied !== false ? recipientSharePct(split.config.platformBps) : null,
       site: input.tokenSiteUrl ?? null,
       web: origin.kind === "web",
     });
@@ -226,7 +244,8 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
         poolId: plan.simulation.poolId,
         route: plan.route?.label ?? null,
         gas: plan.simulation.gas.toString(),
-        feeRecipient: recipient?.address ?? null,
+        feeRecipient: split?.splitter ?? recipient?.address ?? null,
+        feeSplitter: split ? { payee, platformBps: split.config.platformBps } : null,
       },
       "dry run: would sign and broadcast",
     );
@@ -267,22 +286,34 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
   await store.updateLaunch(launchId, { status: "CONFIRMED", tokenAddress: executed.token, poolId: executed.poolId, launchTxHash: executed.txHash });
   log.info({ launchId, token: executed.token, txHash: executed.txHash }, "launch confirmed");
 
-  // 6. Optional second transaction: redirect creator fees.
+  // 6. Optional second transaction: point the creator fees at the splitter (which pays the payee and the
+  // treasury) or, without a splitter, at the "fees to" account. o1 keeps the creator's wallet otherwise.
   let feeRecipientTxHash: Hex | null = null;
   let feesToFailed: string | null = null;
-  if (recipient) {
+  let splitApplied = false;
+  const feeTarget = split?.splitter ?? recipient?.address ?? null;
+  if (feeTarget) {
     await store.updateLaunch(launchId, { status: "FEE_RECIPIENT_PENDING" });
     try {
-      feeRecipientTxHash = await deps.setFeeRecipient({ factory: plan.factory, chainId: plan.chainId, token: executed.token, recipient: recipient.address }, wallet, audit);
+      feeRecipientTxHash = await deps.setFeeRecipient({ factory: plan.factory, chainId: plan.chainId, token: executed.token, recipient: feeTarget }, wallet, audit);
       await store.updateLaunch(launchId, { status: "CONFIRMED", feeRecipientTxHash });
+      splitApplied = split !== null;
     } catch (err) {
-      feesToFailed = recipient.handle;
-      log.error({ launchId, err: errMessage(err), recipient: recipient.address }, "setCreatorFeeRecipient failed; fees stay with the creator");
-      await store.updateLaunch(launchId, { status: "CONFIRMED", error: `fee recipient: ${errMessage(err)}` });
+      // Fees stay with the creator's own wallet: a "fees to" recipient is told, a missed platform share is only logged.
+      if (recipient) feesToFailed = recipient.handle;
+      log.error({ launchId, err: errMessage(err), recipient: feeTarget }, "setCreatorFeeRecipient failed; fees stay with the creator");
+      await store.updateLaunch(launchId, { status: "CONFIRMED", error: `fee recipient: ${errMessage(err)}`, ...(split ? { feeSplitter: null } : {}) });
     }
   }
 
-  const userText = successText({ feesToFailed, token: executed.token });
+  // 7. Deploy the splitter clone from o1bot's gas wallet, best effort: fees accrue to its address either way,
+  // and the first claim deploys it when this did not.
+  if (split && splitApplied) {
+    const registerTx = await feeSplitter.register({ chainId: plan.chainId, token: executed.token, ...split.config });
+    if (registerTx) await store.updateLaunch(launchId, { feeSplitterTxHash: registerTx });
+  }
+
+  const userText = successText({ feesToFailed, token: executed.token, splitApplied });
   await store.updateLaunch(launchId, { userMessage: userText });
   return { ok: true, dryRun: false, token: executed.token, txHash: executed.txHash, feeRecipientTxHash, feesToFailed, userText };
 }

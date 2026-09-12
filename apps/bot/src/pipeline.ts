@@ -12,6 +12,7 @@ import type { BridgeChain } from "./bridge-core";
 import { handleBridge } from "./bridge-handler";
 import { maxDevBuyFor, type BotConfig } from "./config";
 import type { AuditSink, ExecutionResult, WalletRef } from "./execute";
+import type { FeeSplitterOps } from "./fee-splitter";
 import { runLaunch } from "./launch-core";
 import { clampReply, formatEthCeil, replies, stripBareAddresses } from "./replies";
 import type { O1TokenSource } from "./o1-tokens";
@@ -55,6 +56,8 @@ export type PipelineDeps = {
   plan: (req: LaunchRequest) => Promise<PlanResult>;
   execute: (plan: LaunchPlan, wallet: WalletRef, audit: AuditSink) => Promise<ExecutionResult>;
   setFeeRecipient: (input: { factory: Address; chainId: number; token: Address; recipient: Address }, wallet: WalletRef, audit: AuditSink) => Promise<Hex>;
+  /** o1bot's fee splitter: predict a launch's clone and deploy it afterwards; absent in tests, inert on chains without a factory. */
+  feeSplitter?: FeeSplitterOps;
   /** Chain reads and the signing of a trade from a post. */
   trade: TradeChain;
   /** o1's token directory, for trading tokens the bot did not launch. */
