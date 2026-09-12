@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BOT_HANDLE, CONTACT_EMAIL, LEGAL_UPDATED, SITE_NAME } from "@/components/links";
+import { feeShares } from "@/lib/fee-shares";
 
 export const metadata: Metadata = {
   title: `Terms of use — ${SITE_NAME}`,
@@ -7,6 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default function TermsPage() {
+  const { creatorPct, platformPct } = feeShares();
   return (
     <main className="wrap">
       <article className="legal">
@@ -22,7 +24,7 @@ export default function TermsPage() {
 
         <h2>1. What the service is</h2>
         <p>
-          The service turns a post on X into a token launch on o1 Launchpad, a third-party protocol on Robinhood Chain. We operate the bot, the website, and the wallets described below. We do not operate the launch contracts, the liquidity pools, or the fee escrow; those belong to o1 Launchpad. We are not affiliated with o1 Launchpad, Robinhood, X, or Privy.
+          The service turns a post on X into a token launch on o1 Launchpad, a third-party protocol on Robinhood Chain. We operate the bot, the website, the wallets described below, and the fee splitter contracts described in section 5. We do not operate the launch contracts, the liquidity pools, or the fee escrow; those belong to o1 Launchpad. We are not affiliated with o1 Launchpad, Robinhood, X, or Privy.
         </p>
 
         <h2>2. Eligibility</h2>
@@ -45,12 +47,15 @@ export default function TermsPage() {
           <li>You are responsible for the token name, ticker, image, and any text you attach. Do not use names, marks, or images you have no right to use, and do not impersonate people, companies, or existing assets.</li>
           <li>We simulate every launch before signing, but a simulation is not a guarantee. A transaction can still fail on chain; gas spent on a failed transaction is not refundable by us.</li>
           <li>A dev buy is executed in the same transaction as the launch. If it cannot complete within the slippage protection, the whole launch reverts and no token is created.</li>
-          <li>Using <code>fees to @handle</code> instructs us to point the creator fee stream at that account's wallet. The recipient does not have to accept; you remain responsible for the launch.</li>
+          <li>Using <code>fees to @handle</code> instructs us to make that account's wallet the recipient of the creator share described in section 5. The recipient does not have to accept; you remain responsible for the launch.</li>
         </ul>
 
         <h2>5. Fees</h2>
         <p>
           We do not charge for launches. Your wallet pays o1's creation fee, network gas, and any dev buy. Trading in the pool pays o1's swap fee, part of which goes to the creator and part to the platform or referrer, as documented by o1. Trades made through this website carry {SITE_NAME} as referrer, for which o1 pays us a share of that fee; traders pay nothing extra.
+        </p>
+        <p>
+          For launches made through the service, o1's creator fee recipient is a fee splitter contract we deploy for that launch. When the fees are claimed, the splitter pays {creatorPct}% to the creator (or to the account named with <code>fees to</code>) and {platformPct}% to our treasury, which we use to buy back and burn our own token. The split is fixed when the launch is made and cannot be changed for it afterwards; the splitter holds no funds between claims, and anyone, including us, may trigger a claim at any time. Fees earned before the splitter existed stay claimable from o1's escrow in full.
         </p>
 
         <h2>6. Acceptable use</h2>

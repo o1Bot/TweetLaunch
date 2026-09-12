@@ -1,4 +1,4 @@
-import { getAddress, parseAbi, type Address } from "viem";
+import { getAddress, isAddress, parseAbi, type Address } from "viem";
 import type { ChainKey } from "./chains";
 import { env } from "./env";
 
@@ -58,4 +58,26 @@ export function soleRecipient(recipient: Address): Pick<FeeSplitConfig, "recipie
 /** The recipients' share of the creator fees after the platform's, in whole percent (80 for 2000 bps). */
 export function recipientSharePct(platformBps: number): number {
   return Math.round(((FEE_SPLIT_BPS - platformBps) * 100) / FEE_SPLIT_BPS);
+}
+
+/** The recipients' part of a gross creator-fee amount: what is left after the platform's share, computed as the clone does. */
+export function recipientShareOf(amount: bigint, platformBps: number): bigint {
+  return amount - (amount * BigInt(platformBps)) / BigInt(FEE_SPLIT_BPS);
+}
+
+/**
+ * The configuration a Launch row stores (a JSON column), or null when the
+ * row has none or it is malformed: the web app and the bot only claim from
+ * a clone whose configuration they can reproduce.
+ */
+export function parseFeeSplitConfig(value: unknown): FeeSplitConfig | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Partial<Record<keyof FeeSplitConfig, unknown>>;
+  if (!Array.isArray(v.recipients) || !Array.isArray(v.shares) || typeof v.platformBps !== "number") return null;
+  if (v.recipients.length === 0 || v.recipients.length !== v.shares.length) return null;
+  if (!v.recipients.every((r): r is string => typeof r === "string" && isAddress(r))) return null;
+  if (!v.shares.every((s): s is number => typeof s === "number" && Number.isInteger(s) && s >= 0)) return null;
+  if (v.shares.reduce((a, b) => a + b, 0) !== FEE_SPLIT_BPS) return null;
+  if (!Number.isInteger(v.platformBps) || v.platformBps < 0 || v.platformBps > FEE_SPLIT_BPS) return null;
+  return { recipients: v.recipients.map((r) => getAddress(r)), shares: [...v.shares], platformBps: v.platformBps };
 }

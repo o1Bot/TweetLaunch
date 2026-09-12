@@ -1,14 +1,23 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
-import { base, robinhood } from "viem/chains";
+import { defineChain } from "viem";
+import { arc as arcBase, base, robinhood } from "viem/chains";
 import type { ReactNode } from "react";
 import { AutoSigner } from "@/components/AutoSigner";
 
 /**
+ * viem ships Arc without an RPC endpoint; the embedded wallet needs one to
+ * send there (fee claims on Arc launches). rpc.arc-scan.org answers without
+ * a key; the bot and the API use it too when RPC_ARC is unset.
+ */
+const arc = defineChain({ ...arcBase, rpcUrls: { default: { http: ["https://rpc.arc-scan.org"] } } });
+
+/**
  * Privy: X login only, one embedded Ethereum wallet per user, created on
  * first login. The bot signs launches with this wallet after the user grants
- * delegated signing (see Onboarding step 2).
+ * delegated signing (see Onboarding step 2). Every launch chain is listed so
+ * the wallet can sign fee claims on each of them from the profile.
  */
 export function Providers({ children }: { children: ReactNode }) {
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -26,7 +35,7 @@ export function Providers({ children }: { children: ReactNode }) {
         loginMethods: ["twitter"],
         embeddedWallets: { ethereum: { createOnLogin: "all-users" }, showWalletUIs: true },
         defaultChain: robinhood,
-        supportedChains: [robinhood, base],
+        supportedChains: [robinhood, base, arc],
         appearance: {
           theme: "#151D29",
           accentColor: "#2F7BFF",

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BOT_HANDLE, DOCS_URL, SITE_NAME } from "@/components/links";
+import { feeShares } from "@/lib/fee-shares";
 
 export const metadata: Metadata = {
   title: `How it works — ${SITE_NAME}`,
@@ -8,6 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default function HowItWorksPage() {
+  const { creatorPct, platformPct } = feeShares();
   return (
     <main className="wrap">
       <article className="legal how">
@@ -78,7 +80,10 @@ export default function HowItWorksPage() {
         <h2>What you get</h2>
         <ul>
           <li>A normal o1 token: same factory, same pool, same audits as a launch made on o1's own site.</li>
-          <li>You are the on-chain creator and earn 0.5% of every trade in the paired asset.</li>
+          <li>
+            You are the on-chain creator. o1 pays 0.5% of every trade in the paired asset as the creator fee; {creatorPct}% of it is yours to claim from your profile and {platformPct}% goes to{" "}
+            {SITE_NAME}&apos;s treasury for buyback and burn.
+          </li>
           <li>196 pairs on Robinhood Chain: ETH, USDG, and 194 stock tokens.</li>
         </ul>
 
