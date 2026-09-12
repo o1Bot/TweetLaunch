@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { encodeFunctionData, erc20Abi, isAddress, parseAbi, parseUnits, type Address } from "viem";
 import { AssetIcon, CHAIN_NAMES, ChainIcon } from "@/components/ChainIcons";
 import { EXT_ICON, TokenLogo, X_ICON } from "@/components/TokenLogo";
+import { chainKeyOf, TX_EXPLORER } from "@/lib/chains-web";
 import { useGrantSigner, useLinkedRefresh } from "@/lib/use-grant-signer";
 
 /**
@@ -26,7 +27,9 @@ type Me = {
 
 type Asset = { address: string; symbol: string; name: string; imageUrl: string | null; decimals: number; balance: string; usd: number | null; kind: "native" | "quote" | "token"; tokenPage: string | null };
 type LaunchSite = { slug: string; url: string; editUrl: string; status: string };
-type LaunchRow = { id: string; source: "X" | "WEB"; role: "creator" | "fee_recipient"; ticker: string; name: string; quoteSymbol: string; imageUrl: string | null; chainId: number; status: string; tokenAddress: string | null; launchTxHash: string | null; userMessage: string | null; createdAt: string; feesEarnedUsd: number | null; feesEarnedQuote: number | null; site: LaunchSite | null };
+/** o1bot's fee splitter for a launch: the clone o1 pays, whether it exists yet, and what a claim would pay the recipients now. */
+type FeeSplit = { splitter: string; factory: string | null; deployed: boolean; config: { recipients: string[]; shares: number[]; platformBps: number }; sharePct: number; currency: string; symbol: string; decimals: number; claimable: string | null; claimableUsd: number | null };
+type LaunchRow = { id: string; source: "X" | "WEB"; role: "creator" | "fee_recipient"; ticker: string; name: string; quoteSymbol: string; imageUrl: string | null; chainId: number; status: string; tokenAddress: string | null; launchTxHash: string | null; userMessage: string | null; createdAt: string; feesEarnedUsd: number | null; feesEarnedQuote: number | null; site: LaunchSite | null; feeSplit: FeeSplit | null };
 type TradeRow = { id: string; side: "BUY" | "SELL"; token: string; tokenSymbol: string; quoteSymbol: string; amountIn: string; amountOut: string | null; status: string; txHash: string | null; userMessage: string | null; createdAt: string };
 type Overview = {
   wallet: string | null;
@@ -39,9 +42,12 @@ type Overview = {
 type Settings = { enabled: boolean; maxTradeEth: string | null; defaultCapEth: string; maxCapEth: string; acceptFeeRedirects: boolean; replyLanguage: "auto" | "en" };
 
 const EXPLORER = "https://robinhoodchain.blockscout.com";
-const TX_EXPLORER = "https://rh-scan.com/tx";
 const CHAIN_ID = 4663;
 const escrowAbi = parseAbi(["function claimFor(address recipient, address currency)"]);
+const splitterAbi = parseAbi(["function claim(address currency) returns (uint256)"]);
+const splitterFactoryAbi = parseAbi(["function registerWith(address token, address[] recipients, uint16[] shares, uint16 platformBps) returns (address)"]);
+
+type SentTx = { hash: string; chainId: number };
 
 const fmt = (n: string | number, max = 6) => Number(n).toLocaleString("en-US", { maximumFractionDigits: max });
 const usd = (v: number | null) => (v === null ? "" : `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
@@ -101,7 +107,7 @@ export function Profile() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [lastTx, setLastTx] = useState<string | null>(null);
+  const [lastTx, setLastTx] = useState<SentTx | null>(null);
   const [copied, setCopied] = useState(false);
   const [sheet, setSheet] = useState<"deposit" | "withdraw" | null>(null);
   const [hideSmall, setHideSmall] = useState(true);
@@ -185,7 +191,8 @@ export function Profile() {
       try {
         const data = encodeFunctionData({ abi: escrowAbi, functionName: "claimFor", args: [overview.wallet as Address, currency as Address] });
         const result = await sendTransaction({ to: overview.fees.escrow as Address, data, chainId: CHAIN_ID });
-        setLastTx(typeof result === "string" ? result : ((result as { hash?: string }).hash ?? null));
+        const hash = typeof result === "string" ? result : ((result as { hash?: string }).hash ?? null);
+        setLastTx(hash ? { hash, chainId: CHAIN_ID } : null);
         setTimeout(() => void load(), 4000);
       } catch (err) {
         setError(err instanceof Error ? err.message : "The claim was cancelled.");
@@ -196,6 +203,41 @@ export function Profile() {
     [overview, sendTransaction, load],
   );
 
+  // Claim one launch's creator fees through its fee splitter: the clone pulls them from o1's escrow and
+  // pays the recipients and the treasury in one transaction, which anyone may send. A clone that does not
+  // exist yet is deployed first (one transaction through the factory); the claim follows after a reload.
+  const claimSplit = useCallback(
+    async (l: LaunchRow) => {
+      const split = l.feeSplit;
+      if (!split || !l.tokenAddress) return;
+      setBusy(`claim:${l.id}`);
+      setError(null);
+      setLastTx(null);
+      try {
+        let to: Address;
+        let data: `0x${string}`;
+        if (split.deployed) {
+          to = split.splitter as Address;
+          data = encodeFunctionData({ abi: splitterAbi, functionName: "claim", args: [split.currency as Address] });
+        } else if (split.factory) {
+          to = split.factory as Address;
+          data = encodeFunctionData({ abi: splitterFactoryAbi, functionName: "registerWith", args: [l.tokenAddress as Address, split.config.recipients as Address[], split.config.shares, split.config.platformBps] });
+        } else {
+          throw new Error("The fee splitter factory is not configured for this chain yet.");
+        }
+        const result = await sendTransaction({ to, data, chainId: l.chainId });
+        const hash = typeof result === "string" ? result : ((result as { hash?: string }).hash ?? null);
+        setLastTx(hash ? { hash, chainId: l.chainId } : null);
+        setTimeout(() => void load(), 4000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "The claim was cancelled.");
+      } finally {
+        setBusy(null);
+      }
+    },
+    [sendTransaction, load],
+  );
+
   const copy = useCallback(async () => {
     if (!overview?.wallet) return;
     await navigator.clipboard.writeText(overview.wallet);
@@ -204,7 +246,12 @@ export function Profile() {
   }, [overview]);
 
   const totalUsd = useMemo(() => overview?.assets.reduce((s, a) => s + (a.usd ?? 0), 0) ?? 0, [overview]);
-  const feeUsd = useMemo(() => overview?.fees.positions.reduce((s, p) => s + (p.usd ?? 0), 0) ?? 0, [overview]);
+  // Launches whose fee splitter has something to pay out, newest first as the launches come.
+  const splitClaims = useMemo(() => (overview?.launches ?? []).filter((l) => l.feeSplit !== null && l.feeSplit.claimable !== null && Number(l.feeSplit.claimable) > 0), [overview]);
+  const feeUsd = useMemo(
+    () => (overview?.fees.positions.reduce((s, p) => s + (p.usd ?? 0), 0) ?? 0) + splitClaims.reduce((s, l) => s + (l.feeSplit?.claimableUsd ?? 0), 0),
+    [overview, splitClaims],
+  );
   const shownAssets = useMemo(() => (overview?.assets ?? []).filter((a) => !hideSmall || a.kind === "native" || (a.usd ?? 0) >= 1 || Number(a.balance) > 0), [overview, hideSmall]);
 
   if (!ready) return <div className="me-empty">Loading…</div>;
@@ -350,25 +397,32 @@ export function Profile() {
         {lastTx && (
           <div className="notice">
             Transaction sent:{" "}
-            <a href={`${TX_EXPLORER}/${lastTx}`} target="_blank" rel="noreferrer">
-              {short(lastTx)} {EXT_ICON}
+            <a href={`${TX_EXPLORER[chainKeyOf(lastTx.chainId)]}/${lastTx.hash}`} target="_blank" rel="noreferrer">
+              {short(lastTx.hash)} {EXT_ICON}
             </a>
           </div>
         )}
 
-        {overview && overview.fees.positions.length > 0 && (
+        {overview && (overview.fees.positions.length > 0 || splitClaims.length > 0) && (
           <div className="claim">
             <div className="t">
               <b>{feeUsd > 0 ? `${usd(feeUsd)} in creator fees ready to claim` : "Creator fees ready to claim"}</b>
               <span>
-                {overview.fees.positions.map((p) => `${fmt(p.owed)} ${p.symbol}`).join(" · ")} · held in o1&apos;s escrow until you claim
+                {[...overview.fees.positions.map((p) => `${fmt(p.owed)} ${p.symbol}`), ...splitClaims.map((l) => `${fmt(l.feeSplit?.claimable ?? 0)} ${l.feeSplit?.symbol} from $${l.ticker}`)].join(" · ")} · held in
+                o1&apos;s escrow until you claim
+                {splitClaims.some((l) => !l.feeSplit?.deployed) ? " · a token marked \"set up\" needs one transaction to deploy its fee splitter first, then claim" : ""}
                 {rhEth && Number(rhEth.eth) === 0 ? " · needs a little ETH for gas" : ""}
               </span>
             </div>
             <div className="btns">
               {overview.fees.positions.map((p) => (
                 <button className="btn" key={p.currency} disabled={busy !== null} onClick={() => claim(p.currency)}>
-                  {busy === `claim:${p.currency}` ? "Confirm in wallet…" : overview.fees.positions.length > 1 ? `Claim ${p.symbol}` : "Claim"}
+                  {busy === `claim:${p.currency}` ? "Confirm in wallet…" : overview.fees.positions.length + splitClaims.length > 1 ? `Claim ${p.symbol}` : "Claim"}
+                </button>
+              ))}
+              {splitClaims.map((l) => (
+                <button className="btn" key={l.id} disabled={busy !== null} onClick={() => void claimSplit(l)}>
+                  {busy === `claim:${l.id}` ? "Confirm in wallet…" : l.feeSplit?.deployed ? `Claim $${l.ticker}` : `Set up $${l.ticker}`}
                 </button>
               ))}
             </div>
@@ -488,7 +542,7 @@ export function Profile() {
                     {live ? (
                       <>
                         <b>{l.feesEarnedUsd !== null ? usd(l.feesEarnedUsd) : l.feesEarnedQuote !== null ? `${fmt(l.feesEarnedQuote, 5)} ${l.quoteSymbol}` : "—"}</b>
-                        <span>fees earned</span>
+                        <span>{l.feeSplit ? `fees earned · ${l.feeSplit.sharePct}% share` : "fees earned"}</span>
                       </>
                     ) : (
                       <span className={l.status === "FAILED" ? "warn" : ""}>{STATUS_LABEL[l.status] ?? l.status.toLowerCase()}</span>
@@ -522,7 +576,7 @@ export function Profile() {
                 </div>
                 <div className="v">
                   {t.txHash ? (
-                    <a href={`${TX_EXPLORER}/${t.txHash}`} target="_blank" rel="noreferrer">
+                    <a href={`${TX_EXPLORER.robinhood}/${t.txHash}`} target="_blank" rel="noreferrer">
                       <b>{TRADE_LABEL[t.status] ?? t.status.toLowerCase()}</b>
                     </a>
                   ) : (
@@ -594,7 +648,7 @@ export function Profile() {
           assets={overview.assets.filter((a) => Number(a.balance) > 0)}
           onClose={() => setSheet(null)}
           onSent={(hash) => {
-            setLastTx(hash);
+            setLastTx({ hash, chainId: CHAIN_ID });
             setSheet(null);
             setTimeout(() => void load(), 4000);
           }}

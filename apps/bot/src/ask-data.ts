@@ -2,7 +2,7 @@ import { erc20Abi, formatUnits, getAddress, zeroAddress, type Address } from "vi
 import { db, type Prisma } from "@o1bot/db";
 import { feeEscrowAbi, quoteUsd } from "@o1bot/executor";
 import { computeStats } from "@o1bot/market";
-import { activeFeeEscrow, chainByKey, chainKeyById, env, findQuote, INDEXED_CHAIN_KEYS, logger, publicClient, type ChainKey } from "@o1bot/shared";
+import { activeFeeEscrow, chainByKey, chainKeyById, env, findQuote, INDEXED_CHAIN_KEYS, logger, parseFeeSplitConfig, publicClient, recipientShareOf, type ChainKey } from "@o1bot/shared";
 import { COUNTED_TRADE_STATUSES } from "./store";
 
 /**
@@ -320,17 +320,39 @@ export class LiveAskData implements AskData {
           }
         }
 
-        // Creator fees waiting in o1's escrow on this chain, per asset the wallet could have earned in.
+        // Creator fees waiting in o1's escrow on this chain: what it owes the wallet itself (launches made
+        // before the fee splitter) plus the recipients' share of what it owes the splitter clones of this
+        // account's launches, as creator or as the account fees were directed to.
         const escrow = activeFeeEscrow(key);
+        const splitLaunches = await db().launch.findMany({
+          where: { chainId, feeSplitter: { not: null }, tokenAddress: { not: null }, OR: [{ creator: { xUserId } }, { feeRecipient: { xUserId } }] },
+          select: { feeSplitter: true, feeSplitterConfig: true, quoteAddress: true },
+        });
+        const splitters = splitLaunches.flatMap((l) => {
+          const config = parseFeeSplitConfig(l.feeSplitterConfig);
+          return l.feeSplitter && config ? [{ splitter: getAddress(l.feeSplitter), currency: getAddress(l.quoteAddress), platformBps: config.platformBps }] : [];
+        });
         const currencies = [zeroAddress, ...quoteAddrs] as Address[];
         const owed = await client.multicall({
           allowFailure: true,
-          contracts: currencies.map((c) => ({ address: escrow, abi: feeEscrowAbi, functionName: "owed", args: [wallet, c] }) as const),
+          contracts: [
+            ...currencies.map((c) => ({ address: escrow, abi: feeEscrowAbi, functionName: "owed", args: [wallet, c] }) as const),
+            ...splitters.map((s) => ({ address: escrow, abi: feeEscrowAbi, functionName: "owed", args: [s.splitter, s.currency] }) as const),
+          ],
         });
-        for (const [i, currency] of currencies.entries()) {
+        const owedByCurrency = new Map<Address, bigint>();
+        const credit = (currency: Address, amount: bigint) => {
+          if (amount > 0n) owedByCurrency.set(currency, (owedByCurrency.get(currency) ?? 0n) + amount);
+        };
+        currencies.forEach((c, i) => {
           const r = owed[i];
-          if (!r || r.status !== "success" || (r.result as bigint) === 0n) continue;
-          const amount = r.result as bigint;
+          if (r?.status === "success") credit(c, r.result as bigint);
+        });
+        splitters.forEach((s, i) => {
+          const r = owed[currencies.length + i];
+          if (r?.status === "success") credit(s.currency, recipientShareOf(r.result as bigint, s.platformBps));
+        });
+        for (const [currency, amount] of owedByCurrency) {
           const q = currency === zeroAddress ? { symbol: "ETH", decimals: 18, address: zeroAddress } : findQuote(key, currency);
           if (!q) continue;
           const human = formatUnits(amount, q.decimals);

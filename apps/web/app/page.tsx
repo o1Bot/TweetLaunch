@@ -4,6 +4,7 @@ import { Board } from "@/components/Board";
 import { DOCS_URL } from "@/components/links";
 import { selectedChain } from "@/lib/chain-select";
 import { CHAIN_LABEL } from "@/lib/chains-web";
+import { feeShares } from "@/lib/fee-shares";
 import { boardTotals, listBoardTokens } from "@/lib/market";
 import type { TokenRow } from "@/lib/types";
 
@@ -19,6 +20,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
     dbError = err instanceof Error ? err.message : String(err);
   }
   const totals = await boardTotals(rows);
+  const { creatorPct, platformPct } = feeShares();
 
   return (
     <main className="wrap">
@@ -63,7 +65,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
           </div>
           <div>
             <b>0.5%</b>
-            <span>Of every trade to the creator</span>
+            <span>
+              Creator fee on every trade: {creatorPct}% to the creator, {platformPct}% to buyback and burn
+            </span>
           </div>
         </div>
       </section>
