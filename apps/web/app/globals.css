@@ -393,7 +393,7 @@ svg {
   color: var(--ink);
 }
 /* Laptops: a tighter bar before the inline nav gives way to the menu at 860px. */
-@media (max-width: 1200px) {
+@media (max-width: 1280px) {
   .top {
     gap: 18px;
   }

@@ -189,7 +189,7 @@ describe("questions answered from the data", () => {
   });
 
   it("answers platform statistics with the template when there is no composer", async () => {
-    h.askData.stats = { launches: { total: 85, robinhood: 85, base: 0 }, trades: 4321, volume24hUsd: 12300, volumeAllUsd: 1230000, latest: { symbol: "CAT", chain: "robinhood", launchedAt: cat.launchedAt } };
+    h.askData.stats = { launches: { total: 85, robinhood: 85, base: 0, arc: 0 }, trades: 4321, volume24hUsd: 12300, volumeAllUsd: 1230000, latest: { symbol: "CAT", chain: "robinhood", launchedAt: cat.launchedAt } };
     const out = await processMention(post("how many tokens have you launched?"), h.deps);
     expect(out).toMatchObject({ outcome: "replied", kind: "ask" });
     const text = h.x.replies[0]?.text ?? "";
@@ -203,11 +203,11 @@ describe("questions answered from the data", () => {
 
   it("scopes statistics to the chain the post named", async () => {
     h.script.parse = ask({ chain: "base" });
-    h.askData.stats = { launches: { total: 2, robinhood: 0, base: 2 }, trades: 10, volume24hUsd: null, volumeAllUsd: null, latest: null };
+    h.askData.stats = { launches: { total: 2, robinhood: 0, base: 2, arc: 0 }, trades: 10, volume24hUsd: null, volumeAllUsd: null, latest: null };
     await processMention(post("how many on base?"), h.deps);
     expect(h.x.replies[0]?.text).toContain("2 tokens launched through o1bot on Base, unknown traded");
 
-    h.askData.stats = { launches: { total: 0, robinhood: 0, base: 0 }, trades: 0, volume24hUsd: null, volumeAllUsd: null, latest: null };
+    h.askData.stats = { launches: { total: 0, robinhood: 0, base: 0, arc: 0 }, trades: 0, volume24hUsd: null, volumeAllUsd: null, latest: null };
     await processMention(post("how many on base?", { id: "5001" }), h.deps);
     expect(h.x.replies[1]?.text).toContain("No token has been launched through o1bot on Base yet");
   });
@@ -363,7 +363,7 @@ describe("questions answered from the data", () => {
 
   it("posts the composed answer when there is one, with the facts and the post's language", async () => {
     h = harness({ compose: true });
-    h.askData.stats = { launches: { total: 85, robinhood: 85, base: 0 }, trades: 4321, volume24hUsd: 12300, volumeAllUsd: 1230000, latest: null };
+    h.askData.stats = { launches: { total: 85, robinhood: 85, base: 0, arc: 0 }, trades: 4321, volume24hUsd: 12300, volumeAllUsd: 1230000, latest: null };
     h.composeResult = "85 tokens so far, $12.3K traded in the last 24h.";
     h.script.parse = ask({ language: "id" });
     await processMention(post("how many tokens have you launched so far?"), h.deps);

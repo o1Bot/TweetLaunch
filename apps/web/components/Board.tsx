@@ -14,12 +14,17 @@ import { BoardTable } from "./BoardTable";
 type Filter = "all" | "new" | "eth" | "usd" | "stk";
 type Sort = "vol24" | "volAll" | "mcap" | "change" | "newest";
 
+// Arc pairs with USDC only, so its board has no pair chips.
 const filtersFor = (chain: ChainKey): Array<{ id: Filter; label: string }> => [
   { id: "all", label: "All launches" },
   { id: "new", label: "New (24h)" },
-  { id: "eth", label: "ETH pairs" },
-  { id: "stk", label: "Stock pairs" },
-  { id: "usd", label: chain === "base" ? "USDC pairs" : "USDG pairs" },
+  ...(chain === "arc"
+    ? []
+    : [
+        { id: "eth" as const, label: "ETH pairs" },
+        { id: "stk" as const, label: "Stock pairs" },
+        { id: "usd" as const, label: chain === "robinhood" ? "USDG pairs" : "USDC pairs" },
+      ]),
 ];
 
 const SORTS: Array<{ id: Sort; label: string }> = [

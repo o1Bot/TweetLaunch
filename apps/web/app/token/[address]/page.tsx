@@ -6,9 +6,9 @@ import { Chart } from "@/components/Chart";
 import { SwapPanel } from "@/components/SwapPanel";
 import { EXT_ICON, PAIR_CLASS, STOCK_ICON, TokenLogo, X_ICON } from "@/components/TokenLogo";
 import { TokenTabs } from "@/components/TokenTabs";
-import { CHAIN_LABEL, EXPLORER, o1TokenUrl } from "@/lib/chains-web";
+import { CHAIN_LABEL, CHAIN_SHORT, EXPLORER, o1TokenUrl } from "@/lib/chains-web";
 import { shortAddress, timeAgo } from "@/lib/ipfs";
-import { getTokenDetail } from "@/lib/market";
+import { getTokenDetail, swapsAvailable } from "@/lib/market";
 import { fetchTokenMetadata } from "@/lib/metadata";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +65,7 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
                 <span style={{ color: "var(--ink-3)", fontWeight: 500 }}>{t.symbol}</span>
                 <span className="chain">
                   <i />
-                  Robinhood
+                  {CHAIN_SHORT[t.chain]}
                 </span>
                 <span className={PAIR_CLASS[t.quoteKind]}>
                   {t.quoteKind === "stk" && STOCK_ICON}
@@ -174,7 +174,19 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
         </div>
 
         <aside>
-          <SwapPanel token={t.token} chainId={t.chainId} symbol={t.symbol} quoteSymbol={t.quoteSymbol} quoteKind={t.quoteKind} launchedAt={t.launchedAt} />
+          {swapsAvailable(t.chain) ? (
+            <SwapPanel token={t.token} chainId={t.chainId} symbol={t.symbol} quoteSymbol={t.quoteSymbol} quoteKind={t.quoteKind} launchedAt={t.launchedAt} />
+          ) : (
+            <div className="card2">
+              <h3>Trade</h3>
+              <p style={{ color: "var(--ink-2)", lineHeight: 1.5, margin: "8px 0 14px" }}>
+                Trading {t.symbol} from this site is not open on {CHAIN_LABEL[t.chain]} yet: the chain has no Universal Router. Trade it on o1 for now; the chart and trades here stay live.
+              </p>
+              <a className="btn-p" href={o1TokenUrl(t.token, t.chain)} target="_blank" rel="noreferrer">
+                Trade on o1 {EXT_ICON}
+              </a>
+            </div>
+          )}
           <div className="card2">
             <h3>Pool</h3>
             <div className="kv">
@@ -209,7 +221,7 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
             </div>
             <div className="kv">
               <span>Factory</span>
-              <b>o1 · Robinhood Chain</b>
+              <b>o1 · {CHAIN_LABEL[t.chain]}</b>
             </div>
           </div>
         </aside>

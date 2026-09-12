@@ -79,11 +79,15 @@ export async function quoteUsd(quoteAddress: string, quoteDecimals: number, chai
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
   let value: number | null = null;
   try {
-    const { weth, usdg } = addresses(chain);
     const addr = getAddress(quoteAddress);
-    if (addr === usdg) value = 1;
-    else if (addr === zeroAddress) value = await usdgPerAsset(weth, 18, chain);
-    else value = await usdgPerAsset(addr, quoteDecimals, chain);
+    // The chain's stable is a dollar by definition and needs none of the swap
+    // addresses (Arc lists no wrapped native token: USDC is the gas there).
+    const stable = findQuote(chain, STABLE[chain]);
+    if (stable && addr === stable.address) value = 1;
+    else {
+      const { weth } = addresses(chain);
+      value = addr === zeroAddress ? await usdgPerAsset(weth, 18, chain) : await usdgPerAsset(addr, quoteDecimals, chain);
+    }
   } catch {
     value = null;
   }

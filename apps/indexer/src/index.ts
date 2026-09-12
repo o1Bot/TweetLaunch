@@ -92,7 +92,8 @@ async function main() {
   const store: Store = DRY || !dbConfigured() ? new MemoryStore() : new PrismaStore();
   if (!DRY && !dbConfigured()) logger.warn("DATABASE_URL not set: running in memory, nothing will be persisted");
   const chains = INDEXED_CHAIN_KEYS.map((key) => {
-    const cfg: ScanConfig = { ...DEFAULT_SCAN, poolManager: o1Chain(key).uniswapV4.poolManager, hook: activeHook(key) };
+    // rpc.arc-scan.org answers eth_getLogs for at most 10 000 blocks (checked 2026-09-13); the adaptive scan would find that by failing, this saves the round trips.
+    const cfg: ScanConfig = { ...DEFAULT_SCAN, ...(key === "arc" ? { rangeMax: 10_000n } : {}), poolManager: o1Chain(key).uniswapV4.poolManager, hook: activeHook(key) };
     const progress: ScanProgress = { range: cfg.rangeInit, ranges: 0, errors: 0, swaps: 0 };
     return { key, cfg, progress };
   });

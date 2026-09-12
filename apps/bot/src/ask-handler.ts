@@ -84,7 +84,7 @@ export function statsAnswer(s: PlatformStats, scope: ChainKey | null, siteUrl: s
     `Subject: o1bot.exchange statistics${scope ? ` on ${chainName(scope)}` : ""}: tokens launched through the bot and trading on their pools.`,
     scope
       ? `Tokens launched through o1bot on ${chainName(scope)}: ${count(s.launches.total)}.`
-      : `Tokens launched through o1bot: ${count(s.launches.total)} in total (${count(s.launches.robinhood)} on Robinhood Chain, ${count(s.launches.base)} on Base).`,
+      : `Tokens launched through o1bot: ${count(s.launches.total)} in total (${count(s.launches.robinhood)} on Robinhood Chain, ${count(s.launches.base)} on Base, ${count(s.launches.arc)} on Arc).`,
     `Trades on those tokens since launch: ${count(s.trades)}.`,
     `Trading volume, last 24 hours: ${volume(s.volume24hUsd)}.`,
     `Trading volume, all time: ${volume(s.volumeAllUsd)}.`,
@@ -95,6 +95,7 @@ export function statsAnswer(s: PlatformStats, scope: ChainKey | null, siteUrl: s
     total: s.launches.total,
     robinhood: s.launches.robinhood,
     base: s.launches.base,
+    arc: s.launches.arc,
     scope: scope ? chainName(scope) : null,
     vol24: volume(s.volume24hUsd),
     volAll: volume(s.volumeAllUsd),

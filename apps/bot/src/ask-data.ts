@@ -17,7 +17,7 @@ import { COUNTED_TRADE_STATUSES } from "./store";
 export type ChainScope = ChainKey | null;
 
 export type PlatformStats = {
-  launches: { total: number; robinhood: number; base: number };
+  launches: { total: number; robinhood: number; base: number; arc: number };
   trades: number;
   volume24hUsd: number | null;
   volumeAllUsd: number | null;
@@ -237,7 +237,7 @@ export class LiveAskData implements AskData {
     const count = (key: ChainKey) => pools.filter((p) => keyOf(p.chainId) === key).length;
     const newest = pools[0];
     return {
-      launches: { total: pools.length, robinhood: count("robinhood"), base: count("base") },
+      launches: { total: pools.length, robinhood: count("robinhood"), base: count("base"), arc: count("arc") },
       trades,
       volume24hUsd: vol24,
       volumeAllUsd: volAll,
@@ -439,7 +439,7 @@ export function liveAskData(now?: () => Date): AskData {
 
 /** Seeded by tests; empty by default, which is also what a DB-less dry run answers with. */
 export class MemoryAskData implements AskData {
-  stats: PlatformStats = { launches: { total: 0, robinhood: 0, base: 0 }, trades: 0, volume24hUsd: null, volumeAllUsd: null, latest: null };
+  stats: PlatformStats = { launches: { total: 0, robinhood: 0, base: 0, arc: 0 }, trades: 0, volume24hUsd: null, volumeAllUsd: null, latest: null };
   tokens: TokenSummary[] = [];
   wallets = new Map<string, WalletSummary>();
   launches = new Map<string, UserLaunches>();

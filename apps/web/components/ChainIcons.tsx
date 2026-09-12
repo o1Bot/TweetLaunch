@@ -57,6 +57,11 @@ export function RobinhoodIcon({ size = 20, className }: P) {
   return <img src="/chains/robinhood.png" width={size} height={size} alt="" className={className} style={{ borderRadius: "50%", display: "block" }} aria-hidden="true" />;
 }
 
+/** Arc's mark, from the logo the chain publishes, served from /public. */
+export function ArcIcon({ size = 20, className }: P) {
+  return <img src="/chains/arc.jpg" width={size} height={size} alt="" className={className} style={{ borderRadius: "50%", display: "block" }} aria-hidden="true" />;
+}
+
 export function UsdgIcon({ size = 20, className }: P) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden="true">
@@ -80,7 +85,7 @@ export function StockIcon({ size = 20, className }: P) {
 }
 
 /** Display names for the chains the profile shows, keyed like the API rows. */
-export const CHAIN_NAMES: Record<string, string> = { robinhood: "Robinhood", base: "Base", ethereum: "Ethereum", arbitrum: "Arbitrum", optimism: "Optimism" };
+export const CHAIN_NAMES: Record<string, string> = { robinhood: "Robinhood", base: "Base", arc: "Arc", ethereum: "Ethereum", arbitrum: "Arbitrum", optimism: "Optimism" };
 
 /** The chain's mark by its key, for badges and the gas card. */
 export function ChainIcon({ chain, size = 20, className }: { chain: string } & P) {
@@ -89,6 +94,8 @@ export function ChainIcon({ chain, size = 20, className }: { chain: string } & P
       return <RobinhoodIcon size={size} className={className} />;
     case "base":
       return <BaseIcon size={size} className={className} />;
+    case "arc":
+      return <ArcIcon size={size} className={className} />;
     case "ethereum":
       return <EthIcon size={size} className={className} />;
     case "arbitrum":
