@@ -13,6 +13,7 @@ import { FakeXClient, HttpXClient, type XClient, type XMention } from "@o1bot/x"
 import { liveAskData, MemoryAskData } from "./ask-data";
 import { botConfig, type BotConfig } from "./config";
 import { executeLaunchPlan, setCreatorFeeRecipient } from "./execute";
+import { liveFeeSplitter } from "./fee-splitter";
 import { liveO1Tokens } from "./o1-tokens";
 import { dryRunTradeChain, liveTradeChain } from "./trade-chain";
 import { processMention, type PipelineDeps } from "./pipeline";
@@ -166,6 +167,8 @@ function buildDeps(cfg: BotConfig, args: CliArgs, store: BotStore, x: XClient): 
     plan: (req: LaunchRequest) => planLaunch(req, { fundSimulation: true }),
     execute: (plan, wallet, audit) => executeLaunchPlan(plan, wallet, audit),
     setFeeRecipient: (input, wallet, audit) => setCreatorFeeRecipient(input, wallet, audit),
+    // Inert on chains without FEE_SPLITTER_FACTORY_<CHAIN>; predicts through the RPC, registers from the gas wallet.
+    feeSplitter: liveFeeSplitter(),
     trade: robinhoodRpcConfigured ? liveTradeChain() : dryRunTradeChain(),
     o1Tokens: liveO1Tokens(),
     bridge: robinhoodRpcConfigured ? liveBridgeChain() : dryRunBridgeChain(),

@@ -357,6 +357,66 @@ describe("processMention", () => {
     expect(h.store.signedTxs.map((t) => t.kind)).toEqual(["CREATE_LAUNCH", "SET_CREATOR_FEE_RECIPIENT"]);
   });
 
+  describe("with o1bot's fee splitter on the chain", () => {
+    const SPLITTER: Address = getAddress("0x5555555555555555555555555555555555555555");
+    const REGISTER_TX: Hex = `0x${"55".repeat(32)}`;
+    const calls: { predict: Array<{ token: Address; recipients: Address[]; shares: number[] }>; register: Array<{ token: Address; recipients: Address[]; platformBps: number }> } = { predict: [], register: [] };
+    beforeEach(() => {
+      calls.predict = [];
+      calls.register = [];
+      h.deps.feeSplitter = {
+        predict: async (input) => {
+          calls.predict.push({ token: input.token, recipients: input.recipients, shares: input.shares });
+          return { splitter: SPLITTER, platformBps: 2_000 };
+        },
+        register: async (input) => {
+          calls.register.push({ token: input.token, recipients: input.recipients, platformBps: input.platformBps });
+          return REGISTER_TX;
+        },
+      };
+    });
+
+    it("makes the clone the fee recipient of a plain launch, registers it and tells the creator the share", async () => {
+      const out = await processMention(ALICE, h.deps);
+      expect(out).toMatchObject({ outcome: "launched", feeRecipientTxHash: FEE_TX });
+      expect(calls.predict).toEqual([{ token: TOKEN, recipients: [ALICE_WALLET], shares: [10_000] }]);
+      expect(h.feeCalls).toEqual([{ token: TOKEN, recipient: SPLITTER }]);
+      expect(calls.register).toEqual([{ token: TOKEN, recipients: [ALICE_WALLET], platformBps: 2_000 }]);
+      expect(h.store.launches[0]).toMatchObject({ feeSplitter: SPLITTER, feeSplitterConfig: { recipients: [ALICE_WALLET], shares: [10_000], platformBps: 2_000 }, feeSplitterTxHash: REGISTER_TX });
+      expect(h.x.replies[0]?.text).toContain("80% of the creator fees");
+      expect(h.x.replies[0]?.text).toContain("20% for buyback and burn");
+      expect(h.store.signedTxs.map((t) => t.kind)).toEqual(["CREATE_LAUNCH", "SET_CREATOR_FEE_RECIPIENT"]);
+    });
+
+    it("routes a fees-to launch through a clone whose sole recipient is that account", async () => {
+      h.x.users.set("bob", { id: "222", username: "bob", name: "Bob", profileImageUrl: null });
+      h.script.parse = launchCmd({ feesToHandle: "@bob" });
+      const out = await processMention(ALICE, h.deps);
+      expect(out.outcome).toBe("launched");
+      expect(calls.predict[0]).toMatchObject({ recipients: [BOB_WALLET] });
+      expect(h.feeCalls).toEqual([{ token: TOKEN, recipient: SPLITTER }]);
+      expect(h.x.replies[0]?.text).toContain("80% of the creator fees go to @bob");
+    });
+
+    it("launches without the splitter when the prediction fails, and says nothing about a share", async () => {
+      h.deps.feeSplitter = { predict: async () => { throw new Error("rpc down"); }, register: async () => null };
+      const out = await processMention(ALICE, h.deps);
+      expect(out.outcome).toBe("launched");
+      expect(h.feeCalls).toEqual([]);
+      expect(h.store.launches[0]?.feeSplitter).toBeUndefined();
+      expect(h.x.replies[0]?.text).not.toContain("%");
+    });
+
+    it("forgets the splitter and keeps the fees with the creator when the recipient transaction fails", async () => {
+      h.deps.setFeeRecipient = async () => { throw new Error("nonce too low"); };
+      const out = await processMention(ALICE, h.deps);
+      expect(out).toMatchObject({ outcome: "launched", feeRecipientTxHash: null });
+      expect(calls.register).toEqual([]);
+      expect(h.store.launches[0]).toMatchObject({ feeSplitter: null });
+      expect(h.x.replies[0]?.text).not.toContain("%");
+    });
+  });
+
   it("tells the user when the fees-to handle does not exist", async () => {
     h.script.parse = launchCmd({ feesToHandle: "@nobody" });
     const out = await processMention(ALICE, h.deps);

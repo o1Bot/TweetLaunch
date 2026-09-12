@@ -1,5 +1,6 @@
 import { getAddress } from "viem";
 import { db, Prisma } from "@o1bot/db";
+import type { FeeSplitConfig } from "@o1bot/shared";
 
 /**
  * Persistence the pipeline needs, behind an interface so tests and dry runs
@@ -89,6 +90,10 @@ export type LaunchPatch = {
   poolId?: string | null;
   launchTxHash?: string | null;
   feeRecipientTxHash?: string | null;
+  /** o1bot's fee splitter clone used as o1's creator fee recipient, its configuration and its register transaction. */
+  feeSplitter?: string | null;
+  feeSplitterConfig?: FeeSplitConfig;
+  feeSplitterTxHash?: string | null;
   error?: string | null;
   creatorSalt?: string | null;
   metadataUri?: string | null;

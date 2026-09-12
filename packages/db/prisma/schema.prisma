@@ -134,6 +134,12 @@ model Launch {
   poolId         String?
   launchTxHash   String?
   feeRecipientTxHash String?
+  /// o1bot's fee splitter clone set as o1's creator fee recipient; null = the creator's (or the fees-to) wallet directly.
+  feeSplitter        String?
+  /// The clone's configuration (recipients, shares, platformBps): what registers it and what a claim needs.
+  feeSplitterConfig  Json?
+  /// The register transaction, once the clone exists on chain.
+  feeSplitterTxHash  String?
   /// Internal error detail for operators.
   error          String?
   /// What the user is told about the outcome (the reply text for X launches).
