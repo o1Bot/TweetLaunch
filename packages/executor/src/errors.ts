@@ -22,6 +22,8 @@ export const LAUNCH_ERROR_KINDS = [
   "ticker_collides_with_stock",
   "registry_drift",
   "unknown_revert",
+  /** Privy's enclave refused to sign: a policy rule or its rolling cap. Not the chain, not retryable. */
+  "policy_denied",
   "rpc_error",
   "unknown",
 ] as const;
@@ -100,10 +102,12 @@ export function classifyError(err: unknown): LaunchError {
       return { kind: "insufficient_balance", message: err.shortMessage };
     }
     if (/execution reverted/i.test(err.message)) return { kind: "unknown_revert", message: err.shortMessage };
+    if (/policy violation/i.test(err.message)) return { kind: "policy_denied", message: err.shortMessage };
     return { kind: "rpc_error", message: err.shortMessage };
   }
   if (err instanceof Error) {
     if (/insufficient funds/i.test(err.message)) return { kind: "insufficient_balance", message: err.message };
+    if (/policy violation/i.test(err.message)) return { kind: "policy_denied", message: err.message };
     return { kind: "unknown", message: err.message };
   }
   return { kind: "unknown", message: String(err) };

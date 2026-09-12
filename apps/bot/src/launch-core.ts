@@ -91,6 +91,7 @@ export const FAILURE_DETAIL: Partial<Record<LaunchErrorKind, string>> = {
   creation_disabled: "o1 has paused new launches",
   registry_drift: "o1 rotated its factory and the bot needs an update",
   rpc_error: "the chain RPC did not respond",
+  policy_denied: "the bot's signing permission refused this transaction; the team has been alerted",
   unknown_revert: "the factory rejected the transaction",
   config_error: "factory configuration mismatch",
   token_check_failed: "token address prediction mismatch",

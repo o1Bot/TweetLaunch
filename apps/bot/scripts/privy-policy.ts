@@ -34,7 +34,15 @@
  *   pnpm privy:policy --owner <quorumId>  # reuse an existing owner key quorum instead of creating one
  *   pnpm privy:policy --aggregation <id>  # reuse the existing 24h aggregation (apps get at most 10)
  *   pnpm privy:policy --daily-cap 25      # rolling 24h cap on signed value across all wallets, in ETH (default 25)
+ *   pnpm privy:policy --arc-aggregation <id>  # reuse the existing 24h aggregation for Arc (value there is native USDC)
+ *   pnpm privy:policy --daily-cap-usdc 2000   # rolling 24h cap on value signed on Arc, in USDC (default 2000)
  *   pnpm privy:policy --force             # replace PRIVY_POLICY_ID (users must grant the signer again)
+ *
+ * Arc's value is native USDC with 18 decimals, so its launch rule counts
+ * against its own aggregation with a USDC cap; the ETH aggregation is
+ * limited to the ETH chains. Sharing one aggregation denied every Arc
+ * launch above 25 USDC (2026-09-13). An aggregation created before that
+ * date counts every chain, so do not pass it as --aggregation again.
  */
 import "@o1bot/shared/load-env";
 import { generateKeyPairSync } from "node:crypto";
@@ -106,6 +114,7 @@ async function main() {
   const originChainIds = BRIDGE_CHAIN_KEYS.map((k) => String(bridgeChainByKey(k).id));
   const depositAbi = [{ type: "function", name: "depositNative", stateMutability: "payable", inputs: [{ name: "to", type: "address" }, { name: "id", type: "bytes32" }], outputs: [] }];
   const dailyCapWei = parseEther(argValue("--daily-cap") ?? "25");
+  const dailyCapUsdcWei = parseEther(argValue("--daily-cap-usdc") ?? "2000");
   const { router, permit2 } = universalRouterOf(key);
   const erc20ApproveAbi = [{ type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ name: "", type: "bool" }] }];
 
@@ -142,19 +151,34 @@ async function main() {
     perTxCapWei: BigInt(o1Chain("arc").snapshot.nativeLaunchFeeRaw) + parseEther(env().MAX_DEV_BUY_USDC),
   };
 
-  // 2. Aggregation: value signed by the signer over a rolling day, across all wallets and chains.
+  // 2. Aggregations: value signed by the signer over a rolling day, across all wallets. One for the chains whose
+  // value is ETH (Robinhood, Base, the bridge origins), one for Arc, whose value is native USDC: the two units
+  // cannot share a cap.
   let aggregationId = argValue("--aggregation");
   if (!aggregationId) {
     const aggregation = await privyPost("aggregations", {
-      name: "o1bot signer: value signed per rolling 24h",
+      name: "o1bot signer: ETH value signed per rolling 24h",
       method: "eth_signTransaction",
       metric: { field_source: "ethereum_transaction", field: "value", function: "sum" },
       window: { type: "rolling", seconds: 86_400 },
-      conditions: [],
+      conditions: [{ field_source: "ethereum_transaction", field: "chain_id", operator: "in", value: [chainId, base.chainId, ...originChainIds] }],
       owner_id: ownerId,
     });
     aggregationId = String(aggregation.id ?? "");
     if (!aggregationId) throw new Error("Privy returned no aggregation id");
+  }
+  let arcAggregationId = argValue("--arc-aggregation");
+  if (!arcAggregationId) {
+    const aggregation = await privyPost("aggregations", {
+      name: "o1bot signer: USDC value signed on Arc per rolling 24h",
+      method: "eth_signTransaction",
+      metric: { field_source: "ethereum_transaction", field: "value", function: "sum" },
+      window: { type: "rolling", seconds: 86_400 },
+      conditions: [{ field_source: "ethereum_transaction", field: "chain_id", operator: "eq", value: arc.chainId }],
+      owner_id: ownerId,
+    });
+    arcAggregationId = String(aggregation.id ?? "");
+    if (!arcAggregationId) throw new Error("Privy returned no aggregation id for Arc");
   }
 
   // 3. The policy itself.
@@ -300,7 +324,7 @@ async function main() {
           tx("to", "eq", arc.factory),
           tx("value", "lte", arc.perTxCapWei.toString()),
           { field_source: "ethereum_calldata", field: "function_name", abi: abiFunctions(arcLaunchFactoryAbi, LAUNCH_FUNCTIONS), operator: "in", value: LAUNCH_FUNCTIONS },
-          { field_source: "reference", field: `aggregation.${aggregationId}`, operator: "lte", value: dailyCapWei.toString() },
+          { field_source: "reference", field: `aggregation.${arcAggregationId}`, operator: "lte", value: dailyCapUsdcWei.toString() },
         ],
       },
       {
@@ -329,11 +353,11 @@ async function main() {
   writeFileSync(envPath, next);
   mkdirSync(join(root, "notes"), { recursive: true });
   const docPath = join(root, "notes", "privy-policy.json");
-  writeFileSync(docPath, `${JSON.stringify({ policy_id: policyId, aggregation_id: aggregationId, owner_key_quorum_id: ownerId, request: policyBody }, null, 2)}\n`);
+  writeFileSync(docPath, `${JSON.stringify({ policy_id: policyId, aggregation_id: aggregationId, arc_aggregation_id: arcAggregationId, owner_key_quorum_id: ownerId, request: policyBody }, null, 2)}\n`);
 
-  console.log(`policy created: ${policyId} (owner key quorum ${ownerId}, aggregation ${aggregationId})`);
+  console.log(`policy created: ${policyId} (owner key quorum ${ownerId}, aggregations ${aggregationId} for ETH chains, ${arcAggregationId} for Arc)`);
   console.log(
-    `per-transaction cap ${formatEther(perTxCapWei)} ETH (launch), ${formatEther(arc.perTxCapWei)} USDC (launch on Arc), ${formatEther(tradeCapWei)} ETH (trade), ${formatEther(bridgeCapWei)} ETH (bridge deposit), rolling 24h cap ${formatEther(dailyCapWei)} across all wallets and chains (ETH and native USDC counted alike)`,
+    `per-transaction cap ${formatEther(perTxCapWei)} ETH (launch), ${formatEther(arc.perTxCapWei)} USDC (launch on Arc), ${formatEther(tradeCapWei)} ETH (trade), ${formatEther(bridgeCapWei)} ETH (bridge deposit); rolling 24h caps ${formatEther(dailyCapWei)} ETH (Robinhood, Base, bridge origins) and ${formatEther(dailyCapUsdcWei)} USDC (Arc), across all wallets`,
   );
   console.log(`written to .env: ${VARS.join(", ")}; policy document in ${docPath}`);
   if (ownerKeyPath) console.log(`owner private key written to ${ownerKeyPath}: move it offline and delete the file`);
