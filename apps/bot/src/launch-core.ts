@@ -22,11 +22,12 @@ import type { SignedTxKindValue } from "./store";
 export type LaunchOrigin = { kind: "x"; tweetId: string; tweetUrl: string } | { kind: "web" };
 
 /**
- * Chains o1's Public API prepares launches for (checked 2026-09-12: Base,
- * Robinhood, Monad). Only there can o1 pin the metadata in its own account;
- * elsewhere (Arc) o1bot pins through its own Pinata straight away.
+ * Chains o1's Public API prepares launches for (its /config lists Base,
+ * Robinhood, Monad and, since 2026-09-12, Arc). Only there can o1 pin the
+ * metadata in its own account; elsewhere o1bot pins through its own Pinata
+ * straight away, and a failed o1 pin falls back to that anyway.
  */
-const O1_PIN_CHAIN_IDS = new Set([8453, 4663]);
+const O1_PIN_CHAIN_IDS = new Set([8453, 4663, 5042]);
 
 export type LaunchCoreInput = {
   launchId: string;

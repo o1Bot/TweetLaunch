@@ -1,6 +1,15 @@
-import { createPublicClient, fallback, http, type Chain, type PublicClient } from "viem";
-import { arc, base, robinhood } from "viem/chains";
+import { createPublicClient, defineChain, fallback, http, type Chain, type PublicClient } from "viem";
+import { arc as arcBase, base, robinhood } from "viem/chains";
 import { env } from "./env";
+
+/**
+ * viem's Arc definition carries no Multicall3 entry, so `multicall` refuses
+ * the chain; the canonical deployment is there (code verified 2026-09-12).
+ */
+const arc = defineChain({
+  ...arcBase,
+  contracts: { ...arcBase.contracts, multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" } },
+});
 
 /**
  * Chains o1 launches can run on through o1bot. v1 was Robinhood Chain only
