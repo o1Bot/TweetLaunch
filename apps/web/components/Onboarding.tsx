@@ -157,8 +157,8 @@ export function Onboarding() {
         <div className="sp">
           <p>
             o1 charges {me?.creationFeeEth ?? "0.001"} ETH per launch, plus gas. Send at least that to your o1bot wallet
-            on Robinhood Chain. The bot will not post a launch it cannot pay for. It replies telling you the balance is
-            short instead.
+            on Robinhood Chain (the same address takes ETH on Base and USDC on Arc for launches there). The bot will not
+            post a launch it cannot pay for. It replies telling you the balance is short instead.
           </p>
           <div className="walletbox">
             <div className="wb-row">

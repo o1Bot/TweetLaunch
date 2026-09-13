@@ -276,7 +276,7 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
       const kind = err.txHash ? null : classifyError(err.cause).kind;
       // The balance moved between the funding check and the broadcast.
       if (kind === "insufficient_balance") {
-        return fail("REJECTED", `execute: ${err.message}`, replies.insufficientUnknown(wallet.address), { safeText: replies.insufficientSafeUnknown(siteUrl) });
+        return fail("REJECTED", `execute: ${err.message}`, replies.insufficientUnknown(wallet.address, chain), { safeText: replies.insufficientSafeUnknown(siteUrl, chain) });
       }
       const detail = err.txHash ? "the transaction reverted on chain" : ((kind && FAILURE_DETAIL[kind]) ?? "the transaction could not be sent");
       return fail("FAILED", `execute: ${err.message}`, replies.launchFailed(detail), { launchTxHash: err.txHash });

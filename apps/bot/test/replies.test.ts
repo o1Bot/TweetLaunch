@@ -116,3 +116,18 @@ describe("templates", () => {
     for (const s of samples) expect(fitsX(s), s).toBe(true);
   });
 });
+
+describe("shortfall replies name the chain's own gas asset", () => {
+  const wallet = "0x2b38D0b6F1E5B5168423766c56f311044cf4997A";
+  it("says USDC on Arc, ETH on Robinhood Chain and Base", () => {
+    expect(replies.insufficientUnknown(wallet, "arc")).toContain("enough USDC for this launch. Send USDC on Arc to");
+    expect(replies.insufficient("1.5", wallet, "arc")).toContain("1.5 USDC short for this launch. Send USDC on Arc to");
+    expect(replies.insufficientSafeUnknown("https://o1bot.exchange", "arc")).toContain("enough USDC");
+    expect(replies.insufficientUnknown(wallet, "base")).toContain("Send ETH on Base to");
+    expect(replies.insufficientUnknown(wallet)).toContain("Send ETH on Robinhood Chain to");
+  });
+
+  it("tells a newcomer how to fund on every chain", () => {
+    expect(replies.notRegistered("https://o1bot.exchange")).toContain("ETH on Robinhood Chain or Base, USDC on Arc");
+  });
+});

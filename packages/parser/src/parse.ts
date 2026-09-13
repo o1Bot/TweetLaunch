@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { env, logger, o1Chain, requireEnv } from "@o1bot/shared";
+import { env, logger, o1Chain, recipientSharePct, requireEnv } from "@o1bot/shared";
 import { normalizeParseOutput, type ParseResult } from "./normalize";
 import { buildSystemPrompt, buildUserMessage, type MentionInput, type PromptContext } from "./prompt";
 import { ParseOutputSchema } from "./schema";
@@ -51,6 +51,8 @@ export function promptContext(overrides: Partial<PromptContext> = {}): PromptCon
     docsUrl: (e.DOCS_URL ?? `${siteUrl}/how-it-works`).replace(/\/$/, ""),
     creationFee: chain.snapshot.nativeLaunchFeeDisplay,
     creatorShare: `${(creatorBps / 100).toString()}%`,
+    creatorKeeps: `${recipientSharePct(e.FEE_SPLITTER_PLATFORM_BPS)}%`,
+    treasuryShare: `${100 - recipientSharePct(e.FEE_SPLITTER_PLATFORM_BPS)}%`,
     ...overrides,
   };
 }

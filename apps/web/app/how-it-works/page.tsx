@@ -33,7 +33,7 @@ export default function HowItWorksPage() {
             <span className="n">2</span>
             <div>
               <b>Top up the launch fee</b>
-              <p>Send ETH on Robinhood Chain to your wallet. A plain launch needs o1's 0.001 ETH creation fee plus gas, about 0.002 ETH in total. Add more if you want a dev buy.</p>
+              <p>Send the gas asset of the chain you launch on to your wallet: ETH on Robinhood Chain or Base, USDC on Arc. A plain launch needs o1's creation fee plus gas, about 0.002 ETH on Robinhood Chain or Base and about 2.1 USDC on Arc. Add more if you want a dev buy.</p>
             </div>
           </li>
           <li>

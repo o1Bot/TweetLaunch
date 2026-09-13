@@ -77,6 +77,8 @@ model Mention {
   status        MentionStatus @default(RECEIVED)
   error         String?
   replyTweetId  String?
+  /// What the bot posted (or would have, in a dry run), as sent: the record for reviewing answers.
+  replyText     String?
 
   launch Launch?
 
