@@ -510,3 +510,49 @@ describe("processMention", () => {
     expect(h.store.mentions[0]?.error).toContain("reply failed");
   });
 });
+
+describe("answering a clarify question by replying to it", () => {
+  let h: Harness;
+  beforeEach(() => {
+    resetEnvCache();
+    h = harness();
+  });
+
+  it("hands the parser the bot's earlier reading of the same poster's command", async () => {
+    const inputs: Array<Parameters<PipelineDeps["parse"]>[0]> = [];
+    h.deps.parse = async (input) => {
+      inputs.push(input);
+      h.parseCalls++;
+      const first = inputs.length === 1;
+      return {
+        result: first ? { kind: "clarify", question: "Which name?", missing: ["name"], language: "en", reason: "no name" } : h.script.parse,
+        raw: first ? { kind: "clarify", ticker: "VLY", name: null, pair: "ETH", chain: "base", missing: ["name"], question: "Which name?" } : { scripted: true },
+        model: "test",
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      };
+    };
+    const attempt: XMention = { ...ALICE, id: "3000", text: "@o1bot_exchange launch a token vlyai on base ticker $Vly pairing ETH" };
+    expect(await processMention(attempt, h.deps)).toMatchObject({ outcome: "replied", kind: "clarify" });
+    const clarifyTweet = h.x.replies[0]?.inReplyTo === "3000" ? h.store.mentions[0]?.replyTweetId : null;
+    expect(clarifyTweet).toBe("reply-1");
+    expect(inputs[0]?.previous).toBeUndefined();
+
+    const answer: XMention = { ...ALICE, id: "3001", text: "@o1bot_exchange Vly AI", referenced: [{ type: "replied_to", id: "reply-1", authorId: "bot" }] };
+    await processMention(answer, h.deps);
+    expect(inputs[1]?.previous).toEqual({ fields: { ticker: "VLY", name: null, pair: "ETH", chain: "base" }, missing: ["name"] });
+    expect(inputs[1]?.isReply).toBe(true);
+  });
+
+  it("gives the parser nothing when the reply is to someone else's clarify", async () => {
+    const inputs: Array<Parameters<PipelineDeps["parse"]>[0]> = [];
+    h.deps.parse = async (input) => {
+      inputs.push(input);
+      return { result: h.script.parse, raw: { scripted: true }, model: "test", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
+    };
+    const { id } = await h.store.insertMention({ tweetId: "4000", authorXUserId: "999", authorHandle: "bob", text: "launch $X", mediaUrl: null, language: "en", postedAt: null });
+    await h.store.updateMention(id, { status: "CLARIFY", parse: { kind: "clarify", ticker: "X", name: null, pair: "ETH", chain: null, missing: ["name"] }, replyTweetId: "reply-bob" });
+    const answer: XMention = { ...ALICE, id: "4001", text: "@o1bot_exchange Some Name", referenced: [{ type: "replied_to", id: "reply-bob", authorId: "bot" }] };
+    await processMention(answer, h.deps);
+    expect(inputs[0]?.previous).toBeUndefined();
+  });
+});

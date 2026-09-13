@@ -5,6 +5,7 @@ import { activeFactory, chainByKey, chainDisplayName, cryptoQuotes, DEFAULT_CHAI
 import { checkSlug, slugFromTicker } from "@o1bot/sites";
 import type { EnsureWalletInput, LinkedUser, LinkStatus } from "@o1bot/wallet";
 import { stripLeadingMentions, XPostError, type XClient, type XMention } from "@o1bot/x";
+import { findEarlierAttempt } from "./clarify-followup";
 import { noAlerts, postUrl, type Alerter } from "./alerts";
 import type { AskData } from "./ask-data";
 import { handleAsk } from "./ask-handler";
@@ -175,10 +176,13 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
     }
   };
 
-  // 2. Parse.
+  // 2. Parse. A reply to one of the bot's own clarify questions carries the earlier reading, so the answer completes it.
+  const previous = await findEarlierAttempt(store, mention);
+  if (previous) log.info({ missing: previous.missing }, "post answers an earlier clarify question");
   let parsed: ParsedMention;
   try {
     parsed = await deps.parse({
+      previous,
       text: stripLeadingMentions(mention.text),
       authorHandle: mention.authorHandle,
       hasImage: Boolean(mention.imageUrl),

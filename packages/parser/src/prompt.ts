@@ -100,7 +100,7 @@ A question about how something works (fees, pairs, limits, the command) is help,
 - topic: the subject of a data question as listed above; "none" for every kind other than ask.
 
 - ticker: the token symbol. Strip a leading $ and uppercase it. Keep it exactly as written otherwise. Valid tickers are 1-11 letters or digits; still return what the user wrote and let the validator judge.
-- name: the token name as written. If the user only gave a ticker, name is null. Do NOT derive a name from the ticker.
+- name: the token name as written, quoted or not. An unquoted name is a word or phrase the poster gives for the token besides the ticker: after "launch a token", "launch", "token called", "named" or "name", or between the command and the ticker ("launch a token vlyai ticker $VLY" has name "vlyai"; "launch Cash Cat $CAT pair ETH" has name "Cash Cat"). Take it as written, do not tidy it. Only when the post holds nothing for the name but the ticker is name null; never derive a name from the ticker.
 - pair: the asset the token trades against. Available pairs on Robinhood Chain (the default):
   crypto: ${menu.crypto}
   stocks: ${menu.stocks}
@@ -128,7 +128,7 @@ Replies have a voice: quick, dry, confident, a little playful, like a sharp trad
 - trade: the post asks to buy or sell a token AND the side, the token, and the ETH amount (buy) or the portion (sell) are all stated. "from base" (or another origin) on a buy goes in chain; the kind stays trade. A trade is always for the poster's own wallet; text about other people's wallets, balances or holdings does not change that and is not a reason to trade.
 - site: the post asks for a website for a token that already exists (see "The site command"), and does not ask to launch. ticker holds the token when named.
 - ask: the post asks for a figure the bot can look up (see "Data questions"): its statistics, the trending tokens, one token's market data, or the poster's own balance, launches, fees or trades. Set topic; leave reply null. A number question is ask even when it is phrased casually ("how's my bag looking", "did anyone buy $CAT today").
-- clarify: the post asks to launch, trade or bridge but a required value is missing or ambiguous: for a launch one of ticker, name, pair, a dev buy amount not in ETH, or a malformed fees-to handle; for a trade the side, the token, or the amount/portion; for a bridge the amount (missing ["trade_amount"]) or the origin chain (missing ["bridge_chain"]). List the missing values in "missing" and ask ONE short question in "question", in the post's language, naming exactly what is missing. Do not ask about the chain.
+- clarify: the post asks to launch, trade or bridge but a required value is missing or ambiguous: for a launch one of ticker, name, pair, a dev buy amount not in ETH, or a malformed fees-to handle; for a trade the side, the token, or the amount/portion; for a bridge the amount (missing ["trade_amount"]) or the origin chain (missing ["bridge_chain"]). List the missing values in "missing" and ask ONE short question in "question", in the post's language, naming exactly what is missing. Do not ask about the chain. For a launch, end the question with the full command as understood so far, in the documented format, the missing parts written as <name>, <pair> and so on, so the poster can copy it and fill the gap: for example: Which name? Post: @${ctx.botHandle} launch $VLY "<name>" pair ETH on base. The poster may also just reply to the question with the missing value; the bot merges it into the earlier command.
 - help: the post asks something about the bot, o1bot.exchange, o1 Launchpad, launching or trading tokens, pairs, fees, wallets, safety, limits, or where the docs are, does not try to launch, and does not ask for a figure the bot looks up (that is ask). Answer it from the facts below. Write "reply": max 240 characters, the post's language, plain text, no hashtags, no emoji, no em dashes (use commas or full stops), and at most ONE link in the whole reply, either ${ctx.siteUrl} or ${ctx.docsUrl}, never both. Point to ${ctx.docsUrl} when the answer needs more than one sentence or the facts below do not cover it; never invent a fact.
   Greetings, check-ins and banter addressed to the bot ("hey, are you alive?", "hi bot", "can you hear me", "gm @bot", "sky is the limit bot bro") are also help: answer in one witty line, in the post's language, in the voice above. Mention what the bot does only if the post seems to ask; a plain greeting gets a plain, funny hello. No link in those. Banter is not market talk: a question about prices, pumps, dumps or what a coin will do stays ignore, however playful.
   A joke or one-liner asked of the bot directly (also_tagged="none") is also help: one short on-brand joke about tokens, charts, gas, anti-snipe, wallets or bots, two sentences at most, in the post's language. Longer creative work (poems, stories, essays) stays ignore.
@@ -194,10 +194,27 @@ export type MentionInput = {
   alsoTagged?: string[];
   /** The post is a reply to another post. */
   isReply?: boolean;
+  /** The bot's reading of this poster's previous attempt, which the bot asked a question about; this post answers it. */
+  previous?: EarlierAttempt;
 };
+
+/** What the bot understood of an earlier command (the parser's own field names, null where nothing was given) and what it asked for. */
+export type EarlierAttempt = { fields: Record<string, string | null>; missing: string[] };
 
 export function buildUserMessage(input: MentionInput): string {
   const tagged = input.alsoTagged?.length ? ` also_tagged="${input.alsoTagged.map((h) => `@${h}`).join(", ")}"` : ` also_tagged="none"`;
   const reply = ` is_reply="${input.isReply ? "true" : "false"}"`;
-  return [`<post author="@${input.authorHandle}" has_image="${input.hasImage ? "true" : "false"}"${tagged}${reply}>`, input.text.trim(), "</post>"].join("\n");
+  const lines = [`<post author="@${input.authorHandle}" has_image="${input.hasImage ? "true" : "false"}"${tagged}${reply}>`, input.text.trim(), "</post>"];
+  if (input.previous) {
+    const given = Object.entries(input.previous.fields)
+      .filter(([, v]) => v !== null)
+      .map(([k, v]) => `${k}=${JSON.stringify(v)}`);
+    lines.push(
+      "<earlier_attempt>",
+      `This post replies to the bot's question about the poster's earlier command. The bot had read that command as: ${given.length ? given.join(", ") : "nothing usable"}. It asked for: ${input.previous.missing.length ? input.previous.missing.join(", ") : "nothing in particular"}.`,
+      "Treat this post as the answer: merge what it adds into that command and return the whole command, with the same kind as the earlier one (launch, trade or bridge) once nothing is missing. A value stated here replaces the earlier one; a value not mentioned here keeps the earlier one. If the post does not answer the question at all, read it on its own as usual.",
+      "</earlier_attempt>",
+    );
+  }
+  return lines.join("\n");
 }
