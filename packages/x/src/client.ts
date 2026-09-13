@@ -170,16 +170,24 @@ export class HttpXClient implements XClient {
   }
 
   async postReply(text: string, inReplyToTweetId: string): Promise<string> {
+    return this.createPost({ text, reply: { in_reply_to_tweet_id: inReplyToTweetId } }, "post reply");
+  }
+
+  async postTweet(text: string): Promise<string> {
+    return this.createPost({ text }, "post");
+  }
+
+  private async createPost(payload: { text: string; reply?: { in_reply_to_tweet_id: string } }, what: string): Promise<string> {
     const url = `${API}/2/tweets`;
     const res = await fetch(url, {
       method: "POST",
       headers: { Authorization: oauthAuthorizationHeader("POST", url, this.oauth()), "Content-Type": "application/json" },
-      body: JSON.stringify({ text, reply: { in_reply_to_tweet_id: inReplyToTweetId } }),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(20_000),
     });
     const body = await res.text().catch(() => "");
     if (res.status === 429) throw new XRateLimitError("post", resetAtFromHeaders(res.headers));
-    if (!res.ok) throw new XPostError(`post reply HTTP ${res.status}: ${body.replace(/\s+/g, " ").slice(0, 200)}`, res.status, body.slice(0, 500));
+    if (!res.ok) throw new XPostError(`${what} HTTP ${res.status}: ${body.replace(/\s+/g, " ").slice(0, 200)}`, res.status, body.slice(0, 500));
     const json = JSON.parse(body) as { data?: { id: string } };
     return json.data?.id ?? "";
   }
@@ -188,6 +196,7 @@ export class HttpXClient implements XClient {
 /** In-memory client for tests and dry runs: feeds scripted mentions, records replies. */
 export class FakeXClient implements XClient {
   replies: Array<{ text: string; inReplyTo: string }> = [];
+  posts: string[] = [];
   users = new Map<string, XUser>();
   constructor(private mentions: XMention[] = []) {}
 
@@ -208,5 +217,9 @@ export class FakeXClient implements XClient {
   async postReply(text: string, inReplyToTweetId: string): Promise<string> {
     this.replies.push({ text, inReplyTo: inReplyToTweetId });
     return `reply-${this.replies.length}`;
+  }
+  async postTweet(text: string): Promise<string> {
+    this.posts.push(text);
+    return `post-${this.posts.length}`;
   }
 }

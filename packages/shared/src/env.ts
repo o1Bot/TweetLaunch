@@ -23,6 +23,10 @@ const schema = z.object({
     .default("true")
     .transform((v) => v !== "false" && v !== "0"),
   SITE_URL: z.url().default("http://localhost:3000"),
+  /** Daily recap post from the bot's own account (launches, volume, trades of the last 24 hours); off unless true. */
+  RECAP_ENABLED: bool,
+  /** Hour of the day, UTC, from which the recap is posted (13 = 20:00 in Jakarta). */
+  RECAP_HOUR_UTC: z.coerce.number().int().min(0).max(23).default(13),
   /** Public docs URL the bot may link in help replies. Defaults to the site's how-it-works page. */
   DOCS_URL: z.url().optional(),
   /** Sandbox domain the agent-built token sites are served on (<slug>.<domain>), separate from the app so their scripts never share its origin; the web project needs the wildcard domain attached. */
