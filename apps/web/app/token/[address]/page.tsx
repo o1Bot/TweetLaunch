@@ -21,7 +21,9 @@ export async function generateMetadata({ params }: { params: Promise<{ address: 
   return {
     title: `${t.name} (${t.symbol}) — o1bot.exchange`,
     description: `${t.symbol} paired with ${t.quoteSymbol} on ${CHAIN_LABEL[t.chain]}, launched from a post${t.creator.xHandle ? ` by @${t.creator.xHandle}` : ""}.`,
-    openGraph: { title: `${t.name} (${t.symbol})`, images: [t.imageUrl ?? "/logo.png"] },
+    // The image is app/token/[address]/opengraph-image.tsx: logo, chain and live figures.
+    openGraph: { title: `${t.name} (${t.symbol})`, type: "website" },
+    twitter: { card: "summary_large_image", site: "@o1bot_exchange" },
   };
 }
 

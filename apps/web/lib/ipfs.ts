@@ -11,6 +11,8 @@ export const O1_GATEWAY = "https://sapphire-negative-junglefowl-959.mypinata.clo
 const trim = (g: string) => g.replace(/\/$/, "");
 const GATEWAY = trim(process.env.IPFS_GATEWAY ?? PUBLIC_GATEWAY);
 const GATEWAYS = Array.from(new Set([GATEWAY, trim(O1_GATEWAY), trim(PUBLIC_GATEWAY)]));
+/** Hostnames of those gateways: the only places the server itself fetches token images from. */
+export const GATEWAY_HOSTS: readonly string[] = GATEWAYS.map((g) => new URL(g).hostname);
 
 /** `ipfs://CID` → URL on the primary gateway; anything else is returned unchanged. */
 export function ipfsToHttp(uri: string | null | undefined): string | null {

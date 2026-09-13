@@ -23,6 +23,8 @@ const config: NextConfig = {
   // Keep native/worker-thread packages out of the bundle. Pure-JS dependencies of workspace packages
   // (sanitize-html) must be bundled: they are not resolvable from apps/web at runtime on Vercel.
   serverExternalPackages: ["pino", "pino-pretty", "@prisma/client", "@prisma/adapter-pg", "pg", "sharp"],
+  // The link preview images read their fonts from assets/fonts at request time; ship the files with those routes.
+  outputFileTracingIncludes: { "/opengraph-image": ["./assets/fonts/*"], "/token/[address]/opengraph-image": ["./assets/fonts/*"] },
 };
 
 export default config;
