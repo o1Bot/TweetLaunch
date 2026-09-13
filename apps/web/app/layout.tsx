@@ -7,14 +7,21 @@ import { Providers } from "./providers";
 import "./globals.css";
 import "./market.css";
 
+/** Absolute base for the preview images and other metadata URLs; the deployment's SITE_URL, else the public site. */
+const metadataBase = new URL((process.env.SITE_URL?.trim() || "https://o1bot.exchange").replace(/\/$/, ""));
+
+// The preview image itself comes from app/opengraph-image.tsx (and, per token, app/token/[address]/opengraph-image.tsx).
 export const metadata: Metadata = {
+  metadataBase,
   title: "o1bot.exchange — launch on o1 from a post",
   description: "Mention @o1bot_exchange on X to launch a token on o1 Launchpad. Your wallet, your creator fees.",
   openGraph: {
     title: "o1bot.exchange",
     description: "Mention @o1bot_exchange on X to launch a token on o1 Launchpad. Your wallet, your creator fees.",
-    images: ["/logo.png"],
+    siteName: "o1bot.exchange",
+    type: "website",
   },
+  twitter: { card: "summary_large_image", site: "@o1bot_exchange" },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
