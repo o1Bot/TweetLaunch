@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { formatPct, formatPrice, formatUsd } from "@o1bot/market";
+import { CHAIN_SHORT } from "@/lib/chains-web";
 import { timeAgo } from "@/lib/ipfs";
 import type { TokenRow } from "@/lib/types";
 import { PAIR_CLASS, STOCK_ICON, TokenLogo, X_ICON } from "./TokenLogo";
@@ -26,7 +27,7 @@ export function BoardTable({ rows, emptyText }: { rows: TokenRow[]; emptyText?: 
               <span className="sym">{t.symbol}</span>
               <span className="chain">
                 <i />
-                Robinhood
+                {CHAIN_SHORT[t.chain]}
               </span>
               {t.siteUrl && <span className="tag site">site</span>}
               {t.source === "DEV" && <span className="tag dev">dev</span>}

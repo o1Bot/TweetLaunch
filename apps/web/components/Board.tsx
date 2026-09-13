@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ChainKey } from "@/lib/chains-web";
 import type { TokenRow } from "@/lib/types";
+import { BoardGrid } from "./BoardGrid";
 import { BoardTable } from "./BoardTable";
 
 /**
@@ -13,6 +14,8 @@ import { BoardTable } from "./BoardTable";
 
 type Filter = "all" | "new" | "eth" | "usd" | "stk";
 type Sort = "vol24" | "volAll" | "mcap" | "change" | "newest";
+/** Cards with the logo large, or the table with the origin post per row. */
+type View = "grid" | "list";
 
 // Arc pairs with USDC only, so its board has no pair chips.
 const filtersFor = (chain: ChainKey): Array<{ id: Filter; label: string }> => [
@@ -43,24 +46,26 @@ const usdOrQuote = (usd: number | null, quote: number | null) => usd ?? quote ??
 export function Board({ rows, chain = "robinhood" }: { rows: TokenRow[]; chain?: ChainKey }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("vol24");
+  const [view, setView] = useState<View>("grid");
   const FILTERS = filtersFor(chain);
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as { filter?: Filter; sort?: Sort };
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as { filter?: Filter; sort?: Sort; view?: View };
       if (saved.filter && FILTERS.some((f) => f.id === saved.filter)) setFilter(saved.filter);
       if (saved.sort && SORTS.some((s) => s.id === saved.sort)) setSort(saved.sort);
+      if (saved.view === "grid" || saved.view === "list") setView(saved.view);
     } catch {
       // No storage, no memory: defaults are fine.
     }
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ filter, sort }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ filter, sort, view }));
     } catch {
       // Ignore.
     }
-  }, [filter, sort]);
+  }, [filter, sort, view]);
 
   const counts = useMemo(() => {
     const now = Date.now();
@@ -107,6 +112,21 @@ export function Board({ rows, chain = "robinhood" }: { rows: TokenRow[]; chain?:
           </button>
         ))}
         <div className="grow" />
+        <div className="views" role="group" aria-label="Layout">
+          <button type="button" className={view === "grid" ? "on" : ""} aria-pressed={view === "grid"} title="Cards" onClick={() => setView("grid")}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+              <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+              <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+              <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+              <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+            </svg>
+          </button>
+          <button type="button" className={view === "list" ? "on" : ""} aria-pressed={view === "list"} title="List" onClick={() => setView("list")}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+        </div>
         <label className="sort">
           Sort by
           <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort the board">
@@ -118,7 +138,11 @@ export function Board({ rows, chain = "robinhood" }: { rows: TokenRow[]; chain?:
           </select>
         </label>
       </div>
-      <BoardTable rows={shown} emptyText={filter === "all" ? undefined : `No ${FILTERS.find((f) => f.id === filter)?.label.toLowerCase()} yet.`} />
+      {view === "grid" ? (
+        <BoardGrid rows={shown} emptyText={filter === "all" ? undefined : `No ${FILTERS.find((f) => f.id === filter)?.label.toLowerCase()} yet.`} />
+      ) : (
+        <BoardTable rows={shown} emptyText={filter === "all" ? undefined : `No ${FILTERS.find((f) => f.id === filter)?.label.toLowerCase()} yet.`} />
+      )}
     </>
   );
 }
