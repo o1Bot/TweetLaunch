@@ -31,6 +31,8 @@ export interface XClient {
   lookupUser(handle: string): Promise<UserLookup>;
   /** Post a reply under a post; returns the new post id. */
   postReply(text: string, inReplyToTweetId: string): Promise<string>;
+  /** Post on the bot's own timeline (the daily recap); returns the new post id. */
+  postTweet(text: string): Promise<string>;
 }
 
 export class XPostError extends Error {
