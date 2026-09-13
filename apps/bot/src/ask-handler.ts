@@ -269,7 +269,7 @@ export async function handleAsk(cmd: AskCommand, ctx: MentionContext): Promise<P
     const link = await deps.resolveLink(mention.authorId);
     if (!link.linked) {
       log.info({ reason: link.reason, topic: cmd.topic }, "poster is not registered; no personal numbers to show");
-      const r = await reply(replies.askNotRegistered(siteUrl));
+      const r = await reply(link.reason === "signer_stale" ? replies.permissionStale(siteUrl) : replies.askNotRegistered(siteUrl));
       await setMention("NOT_REGISTERED", { error: link.reason });
       return { outcome: "replied", kind: "not_registered", reply: r.posted || config.dryRun ? r.text : null };
     }

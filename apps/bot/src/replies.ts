@@ -132,6 +132,14 @@ export const replies = {
   notRegistered: (siteUrl: string) =>
     `Three steps first: 1) sign in with X at ${siteUrl} and allow signing, 2) send a little ETH on Robinhood Chain to the wallet it shows, 3) post the full launch command again. Then I launch from your wallet.`,
 
+  /** The poster granted signing under an earlier policy; the wallet and its funds are fine, only the grant needs renewing. */
+  permissionStale: (siteUrl: string) =>
+    `Your signing permission for o1bot needs a quick update (our safety rules changed). Sign in with X at ${siteUrl}, press "Update permission" on your profile, then post the command again. Your wallet and funds are untouched.`,
+
+  /** What an unlinked poster is told, by why they are unlinked. */
+  forUnlinked: (reason: "no_account" | "never_logged_in" | "no_embedded_wallet" | "signer_stale" | "not_delegated", siteUrl: string) =>
+    reason === "signer_stale" ? replies.permissionStale(siteUrl) : replies.notRegistered(siteUrl),
+
   unsupportedChain: () =>
     `Launches run on Robinhood Chain by default, on Base with "on base" or on Arc with "on arc". Trades run on Robinhood; ETH can be bridged in from Base, Ethereum, Arbitrum or Optimism with "bridge 0.1 ETH from base".`,
 

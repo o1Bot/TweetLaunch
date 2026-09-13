@@ -255,7 +255,7 @@ async function handleLaunch(cmd: LaunchCommand, ctx: MentionContext): Promise<Pi
   const link = await deps.resolveLink(mention.authorId);
   if (!link.linked) {
     log.info({ reason: link.reason }, "poster is not registered");
-    const r = await reply(replies.notRegistered(config.siteUrl));
+    const r = await reply(replies.forUnlinked(link.reason, config.siteUrl));
     await setMention("NOT_REGISTERED", { error: link.reason });
     return { outcome: "replied", kind: "not_registered", reply: r.posted || config.dryRun ? r.text : null };
   }
