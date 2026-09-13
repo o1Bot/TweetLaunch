@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ReactNode } from "react";
 import type { ChainKey } from "./chains-web";
+import { isAllowedImageUrl } from "./image-policy";
 
 /**
  * Shared pieces of the link preview images (Open Graph / X cards) rendered
@@ -74,12 +75,17 @@ export async function ogOptions(): Promise<{ width: number; height: number; font
   return fonts.length ? { ...OG_SIZE, fonts } : { ...OG_SIZE };
 }
 
-/** A remote image as a data URL so the renderer never waits on a slow gateway; null when it cannot be fetched in time. */
+/**
+ * A gateway image as a data URL so the renderer never waits on a slow
+ * gateway; null when the URL is not a gateway URL, the gateway redirects
+ * (redirects are not followed: the target would be unvetted), or the fetch
+ * does not finish in time.
+ */
 export async function inlineImage(url: string | null, timeoutMs = 4000): Promise<string | null> {
-  if (!url) return null;
+  if (!url || !isAllowedImageUrl(url)) return null;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-    if (!res.ok) return null;
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), redirect: "manual" });
+    if (res.status !== 200) return null;
     const type = res.headers.get("content-type")?.split(";")[0] ?? "image/png";
     if (!type.startsWith("image/") || type === "image/svg+xml") return null;
     const buf = Buffer.from(await res.arrayBuffer());
