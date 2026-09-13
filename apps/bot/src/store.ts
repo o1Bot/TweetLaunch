@@ -196,6 +196,8 @@ export interface BotStore {
   getCursor(id: string): Promise<string | null>;
   /** A processed post by row id, for replies that come later (a site that finished building). */
   getMention(id: string): Promise<MentionRecord | null>;
+  /** The mention the bot answered with the given post, with its stored parser output; for clarify follow-ups. */
+  mentionByReplyTweetId(replyTweetId: string): Promise<{ id: string; authorXUserId: string; status: MentionStatusValue; parse: unknown } | null>;
   setCursor(id: string, value: string): Promise<void>;
   insertMention(m: NewMention): Promise<{ id: string; created: boolean }>;
   updateMention(id: string, patch: MentionPatch): Promise<void>;
@@ -233,6 +235,10 @@ export class PrismaBotStore implements BotStore {
   async getMention(id: string) {
     const row = await db().mention.findUnique({ where: { id }, select: { id: true, tweetId: true, authorXUserId: true, authorHandle: true, language: true } });
     return row ?? null;
+  }
+  async mentionByReplyTweetId(replyTweetId: string) {
+    const row = await db().mention.findFirst({ where: { replyTweetId }, select: { id: true, authorXUserId: true, status: true, parse: true } });
+    return row ? { id: row.id, authorXUserId: row.authorXUserId, status: row.status, parse: row.parse } : null;
   }
   async getCursor(id: string) {
     const row = await db().botCursor.findUnique({ where: { id } });
@@ -441,6 +447,10 @@ export class MemoryBotStore implements BotStore {
   async getMention(id: string) {
     const m = this.mentions.find((x) => x.id === id);
     return m ? { id: m.id, tweetId: m.tweetId, authorXUserId: m.authorXUserId, authorHandle: m.authorHandle, language: m.language } : null;
+  }
+  async mentionByReplyTweetId(replyTweetId: string) {
+    const m = this.mentions.find((x) => x.replyTweetId === replyTweetId);
+    return m ? { id: m.id, authorXUserId: m.authorXUserId, status: m.status, parse: m.parse } : null;
   }
   async getCursor(id: string) {
     return this.cursors.get(id) ?? null;
