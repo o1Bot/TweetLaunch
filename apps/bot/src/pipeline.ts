@@ -134,6 +134,7 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
   const reply = async (text: string, opts: { safe?: string; raw?: boolean } = {}): Promise<ReplyResult> => {
     if (config.dryRun) {
       log.info({ reply: text }, "dry run: would reply");
+      await store.updateMention(mentionId, { replyText: text });
       return { text, tweetId: null, posted: false, error: null };
     }
     const sent = await store.replyCountSince(mention.authorId, startOfUtcDay(now()));
@@ -148,7 +149,7 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
     const localized = clampReply(opts.raw ? text : await deps.localize(text, replyLanguage));
     try {
       const tweetId = await deps.x.postReply(localized, mention.id);
-      await store.updateMention(mentionId, { replyTweetId: tweetId });
+      await store.updateMention(mentionId, { replyTweetId: tweetId, replyText: localized });
       return { text: localized, tweetId, posted: true, error: null };
     } catch (err) {
       // X blocks bare crypto addresses from young authentications. Use the reply's own address-free
@@ -159,7 +160,7 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
           log.warn({ own: Boolean(opts.safe) }, "X refused a crypto address in the reply; sending the address-free variant");
           try {
             const tweetId = await deps.x.postReply(safe, mention.id);
-            await store.updateMention(mentionId, { replyTweetId: tweetId });
+            await store.updateMention(mentionId, { replyTweetId: tweetId, replyText: safe });
             return { text: safe, tweetId, posted: true, error: null };
           } catch (err2) {
             err = err2;

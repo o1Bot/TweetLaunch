@@ -130,7 +130,7 @@ export function successReply(p: SuccessInput): string {
 
 export const replies = {
   notRegistered: (siteUrl: string) =>
-    `Three steps first: 1) sign in with X at ${siteUrl} and allow signing, 2) send a little ETH on Robinhood Chain to the wallet it shows, 3) post the full launch command again. Then I launch from your wallet.`,
+    `Three steps first: 1) sign in with X at ${siteUrl} and allow signing, 2) fund the wallet it shows (ETH on Robinhood Chain or Base, USDC on Arc), 3) post the full launch command again. Then I launch from your wallet.`,
 
   /** The poster granted signing under an earlier policy; the wallet and its funds are fine, only the grant needs renewing. */
   permissionStale: (siteUrl: string) =>

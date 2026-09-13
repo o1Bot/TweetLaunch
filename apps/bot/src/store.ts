@@ -34,7 +34,7 @@ export type NewMention = {
 
 export type MentionRecord = { id: string; tweetId: string; authorXUserId: string; authorHandle: string; language: string | null };
 
-export type MentionPatch = { status?: MentionStatusValue; parse?: unknown; error?: string | null; replyTweetId?: string | null; language?: string | null };
+export type MentionPatch = { status?: MentionStatusValue; parse?: unknown; error?: string | null; replyTweetId?: string | null; replyText?: string | null; language?: string | null };
 
 export type UserUpsert = {
   xUserId: string;
