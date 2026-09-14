@@ -2,6 +2,7 @@ import { createWalletClient, fallback, getAddress, http, parseEventLogs, type Ad
 import { factoryAbiFor, type LaunchPlan } from "@o1bot/executor";
 import { activeFeeEscrow, buildAllowlist, chainByKey, chainKeyById, DEFAULT_CHAIN_KEY, logger, publicClient, rpcUrls, type ChainKey, type TxAllowlist } from "@o1bot/shared";
 import { guardedAccount, type SignAudit } from "@o1bot/wallet";
+import { isUnknownLaunchToken, retryWhileTokenUnknown } from "./fee-recipient-retry";
 
 /**
  * The only place in the bot that signs and broadcasts. A plan from
@@ -98,21 +99,27 @@ export async function setCreatorFeeRecipient(
   input: { factory: Address; chainId: number; token: Address; recipient: Address },
   wallet: WalletRef,
   audit: AuditSink,
-  opts: { client?: PublicClient } = {},
+  opts: { client?: PublicClient; retryDelaysMs?: readonly number[] } = {},
 ): Promise<Hex> {
   const key = keyOf(input.chainId);
   const client = opts.client ?? publicClient(key);
   const abi = factoryAbiFor(key);
   const args = [getAddress(input.token), getAddress(input.recipient)] as const;
-  // Simulate first so a revert (wrong creator, unknown token) never costs gas.
-  await client.simulateContract({ address: input.factory, abi, functionName: "setCreatorFeeRecipient", args, account: wallet.address });
   const walletClient = await walletFor(wallet, input.factory, input.chainId, audit);
-  let txHash: Hex;
-  try {
-    txHash = await walletClient.writeContract({ address: input.factory, abi, functionName: "setCreatorFeeRecipient", args });
-  } catch (err) {
-    throw new ExecutionError(`fee recipient broadcast failed: ${err instanceof Error ? err.message : String(err)}`, null, err);
-  }
+  // Simulate first so a revert (wrong creator, unknown token) never costs gas. Right after a launch the RPC can
+  // answer from a node that has not seen the launch block yet; that one revert is retried, nothing else is.
+  const txHash = await retryWhileTokenUnknown(
+    async (): Promise<Hex> => {
+      await client.simulateContract({ address: input.factory, abi, functionName: "setCreatorFeeRecipient", args, account: wallet.address });
+      try {
+        return await walletClient.writeContract({ address: input.factory, abi, functionName: "setCreatorFeeRecipient", args });
+      } catch (err) {
+        if (isUnknownLaunchToken(err)) throw err;
+        throw new ExecutionError(`fee recipient broadcast failed: ${err instanceof Error ? err.message : String(err)}`, null, err);
+      }
+    },
+    { delaysMs: opts.retryDelaysMs, onRetry: (retry, delayMs) => logger.warn({ token: input.token, retry, delayMs }, "factory does not know the token yet; retrying the fee recipient") },
+  );
   const receipt = await client.waitForTransactionReceipt({ hash: txHash, timeout: RECEIPT_TIMEOUT_MS });
   if (receipt.status !== "success") throw new ExecutionError("setCreatorFeeRecipient reverted on chain", txHash);
   logger.info({ txHash, token: input.token, recipient: input.recipient }, "creator fee recipient set");
