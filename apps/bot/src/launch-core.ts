@@ -300,9 +300,23 @@ export async function runLaunch(input: LaunchCoreInput, deps: LaunchCoreDeps, lo
       await store.updateLaunch(launchId, { status: "CONFIRMED", feeRecipientTxHash });
       splitApplied = split !== null;
     } catch (err) {
-      // Fees stay with the creator's own wallet: a "fees to" recipient is told, a missed platform share is only logged.
+      // Fees stay with the creator's own wallet: a "fees to" recipient is told, a missed platform share raises an alert
+      // (the creator was not told about a split, so it is not applied afterwards without them).
       if (recipient) feesToFailed = recipient.handle;
       log.error({ launchId, err: errMessage(err), recipient: feeTarget }, "setCreatorFeeRecipient failed; fees stay with the creator");
+      if (split) {
+        (deps.alerts ?? noAlerts).send({
+          kind: "fee_split_missed",
+          title: `Fee split missed: $${input.ticker}`,
+          key: `fee-split:${executed.token}`,
+          fields: [
+            ["User", `@${author.handle}`],
+            ["Token", `${siteUrl}/token/${executed.token}`],
+            ["Launch tx", txUrl(executed.txHash, chain)],
+            ["Error", errMessage(err)],
+          ],
+        });
+      }
       await store.updateLaunch(launchId, { status: "CONFIRMED", error: `fee recipient: ${errMessage(err)}`, ...(split ? { feeSplitter: null } : {}) });
     }
   }

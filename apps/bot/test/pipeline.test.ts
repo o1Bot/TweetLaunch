@@ -10,6 +10,7 @@ import type { BotConfig } from "../src/config";
 import type { WalletRef } from "../src/execute";
 import { processMention, type PipelineDeps } from "../src/pipeline";
 import { MemoryAskData } from "../src/ask-data";
+import type { Alert } from "../src/alerts";
 import { MemorySiteStore } from "../src/site-store";
 import { MemoryBotStore } from "../src/store";
 import { noO1Tokens } from "../src/o1-tokens";
@@ -418,13 +419,19 @@ describe("processMention", () => {
       expect(h.x.replies[0]?.text).not.toContain("%");
     });
 
-    it("forgets the splitter and keeps the fees with the creator when the recipient transaction fails", async () => {
+    it("forgets the splitter, keeps the fees with the creator and alerts when the recipient transaction fails", async () => {
+      const sent: Alert[] = [];
+      h.deps.alerts = { send: (a) => void sent.push(a) };
       h.deps.setFeeRecipient = async () => { throw new Error("nonce too low"); };
       const out = await processMention(ALICE, h.deps);
       expect(out).toMatchObject({ outcome: "launched", feeRecipientTxHash: null });
       expect(calls.register).toEqual([]);
       expect(h.store.launches[0]).toMatchObject({ feeSplitter: null });
       expect(h.x.replies[0]?.text).not.toContain("%");
+      const missed = sent.filter((a) => a.kind === "fee_split_missed");
+      expect(missed).toHaveLength(1);
+      expect(missed[0]?.fields).toContainEqual(["Token", `https://o1bot.exchange/token/${TOKEN}`]);
+      expect(missed[0]?.fields).toContainEqual(["Error", "nonce too low"]);
     });
   });
 
