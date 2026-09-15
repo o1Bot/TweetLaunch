@@ -1,5 +1,6 @@
 import type { TokenStats } from "@o1bot/market";
 import type { ChainKey } from "./chains-web";
+import type { FeeTo } from "./fee-recipient";
 
 export type QuoteKind = "eth" | "usd" | "stk";
 
@@ -30,6 +31,8 @@ export type TokenRow = {
   launchedAt: string;
   launchTxHash: string;
   creator: Creator;
+  /** Where the creator fees go: the "fees to" account or the creator, and the share through o1bot's fee splitter. */
+  feeTo: FeeTo;
   post: GenesisPost | null;
   stats: TokenStats;
   tradeCount: number;

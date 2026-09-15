@@ -25,6 +25,8 @@ export function BoardGrid({ rows, emptyText }: { rows: TokenRow[]; emptyText?: s
         const change = t.stats.change24hPct;
         const mcap = t.stats.mcapUsd !== null ? formatUsd(t.stats.mcapUsd) : formatPrice(t.stats.mcapQuote, t.quoteSymbol);
         const vol = t.stats.volume24hUsd !== null ? formatUsd(t.stats.volume24hUsd) : formatPrice(t.stats.volume24hQuote, t.quoteSymbol);
+        // The account the fees go to leads when it is not the one that launched the token.
+        const who = t.feeTo.isOther ? t.feeTo : t.creator;
         return (
           <Link className="card" href={`/token/${t.token}`} key={t.token}>
             <TokenLogo symbol={t.symbol} imageUrl={t.imageUrl} className="card-logo" />
@@ -48,9 +50,12 @@ export function BoardGrid({ rows, emptyText }: { rows: TokenRow[]; emptyText?: s
               <span className={change !== null && change < 0 ? "down" : "up"}>{formatPct(change)}</span>
               <small>{vol} 24h</small>
             </div>
-            <div className="card-foot">
-              {t.creator.xAvatarUrl ? <img src={t.creator.xAvatarUrl} alt="" referrerPolicy="no-referrer" /> : X_ICON}
-              <span>{t.creator.xHandle ? `@${t.creator.xHandle}` : `${t.creator.wallet.slice(0, 6)}…${t.creator.wallet.slice(-4)}`}</span>
+            <div className="card-foot" title={t.feeTo.isOther ? `Creator fees go to this account; launched by ${t.creator.xHandle ? `@${t.creator.xHandle}` : t.creator.wallet}` : undefined}>
+              {who.xAvatarUrl ? <img src={who.xAvatarUrl} alt="" referrerPolicy="no-referrer" /> : X_ICON}
+              <span>
+                {t.feeTo.isOther ? "fees to " : ""}
+                {who.xHandle ? `@${who.xHandle}` : `${who.wallet.slice(0, 6)}…${who.wallet.slice(-4)}`}
+              </span>
               <em>{timeAgo(t.launchedAt)}</em>
             </div>
           </Link>

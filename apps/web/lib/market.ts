@@ -1,12 +1,13 @@
-import { getAddress, isAddress, zeroAddress } from "viem";
+import { getAddress, isAddress, parseAbi, zeroAddress } from "viem";
 import { db, dbConfigured, Prisma, type Pool } from "@o1bot/db";
 import { buildCandles, computeStats, TIMEFRAMES, type Candle, type Timeframe, type TokenStats } from "@o1bot/market";
-import { env, o1Chain } from "@o1bot/shared";
+import { env, o1Chain, parseFeeSplitConfig, publicClient, recipientSharePct } from "@o1bot/shared";
 import { CHAIN_IDS, CHAIN_KEYS, chainKeyOf, type ChainKey } from "./chains-web";
 import { ipfsToHttp } from "./ipfs";
 import { readBurned } from "./burn";
 import { quoteUsd } from "./quote-usd";
 import { siteUrlFor } from "./site-domain";
+import { resolveFeeTo, type FeeTo } from "./fee-recipient";
 import type { Creator, GenesisPost, QuoteKind, TokenDetail, TokenRow, TradeRow } from "./types";
 
 /**
@@ -16,7 +17,7 @@ import type { Creator, GenesisPost, QuoteKind, TokenDetail, TokenRow, TradeRow }
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const include = { launch: { include: { mention: true, creator: true } } } as const;
+const include = { launch: { include: { mention: true, creator: true, feeRecipient: true } } } as const;
 type PoolWithLaunch = Prisma.PoolGetPayload<{ include: typeof include }>;
 
 /** Whether the site can route a swap on the chain: it needs o1's Universal Router and Permit2 there, which Arc has none of yet. */
@@ -83,6 +84,31 @@ function creatorOf(pool: PoolWithLaunch): Creator {
   return { wallet: pool.creatorWallet, xHandle: u?.xHandle ?? null, xName: u?.xName ?? null, xAvatarUrl: u?.xAvatarUrl ?? null };
 }
 
+const creatorRightsAbi = parseAbi([
+  "function creatorRights(address token) view returns ((address originalCreator, address currentCreator, address pendingCreator, address creatorFeeRecipient, bytes32 poolId, bool metadataEditable))",
+]);
+
+/** o1's creator fee recipient for the token, read from its factory; null when the read fails (the launch record is shown then). */
+async function feeRecipientOnChain(pool: Pool): Promise<string | null> {
+  try {
+    const rights = await publicClient(chainKeyOf(pool.chainId)).readContract({ address: getAddress(pool.factory), abi: creatorRightsAbi, functionName: "creatorRights", args: [getAddress(pool.token)] });
+    return rights.creatorFeeRecipient;
+  } catch {
+    return null;
+  }
+}
+
+/** Where the creator fees go: the "fees to" account or the creator, through o1bot's splitter when there is one, checked against `onChain` when given, else against the launch record. */
+function feeToOf(pool: PoolWithLaunch, onChain: string | null): FeeTo {
+  const launch = pool.launch;
+  const config = launch?.feeSplitter ? parseFeeSplitConfig(launch.feeSplitterConfig) : null;
+  const r = launch?.feeRecipient;
+  const named = r ? { wallet: r.walletAddress ?? config?.recipients[0] ?? "", xHandle: r.xHandle, xName: r.xName ?? null, xAvatarUrl: r.xAvatarUrl ?? null } : null;
+  const splitter = launch?.feeSplitter && config ? { address: launch.feeSplitter, sharePct: recipientSharePct(config.platformBps) } : null;
+  // The recipient transaction (to the splitter or the named wallet) is what moves o1's payouts; a launch whose transaction never confirmed still pays the creator.
+  return resolveFeeTo({ creator: creatorOf(pool), named, splitter, pointed: Boolean(launch?.feeRecipientTxHash), onChain });
+}
+
 function postOf(pool: PoolWithLaunch): GenesisPost | null {
   const m = pool.launch?.mention;
   return m ? { tweetId: m.tweetId, text: m.text, postedAt: m.postedAt ? m.postedAt.toISOString() : null } : null;
@@ -104,6 +130,7 @@ function toRow(pool: PoolWithLaunch, extra: PoolExtra, siteUrl: string | null = 
     launchedAt: pool.launchedAt.toISOString(),
     launchTxHash: pool.launchTxHash,
     creator: creatorOf(pool),
+    feeTo: feeToOf(pool, null),
     post: postOf(pool),
     stats: extra.stats,
     tradeCount: extra.tradeCount,
@@ -155,9 +182,10 @@ export async function getTokenDetail(address: string): Promise<TokenDetail | nul
   if (!pool) return null;
   if (pool.source === "DEV" && !env().SHOW_DEV_TOKENS) return null;
   const burned = await readBurned([token], chainKeyOf(pool.chainId));
-  const [extra, trades, sites] = await Promise.all([statsFor(pool, burned.get(token) ?? 0n), getTrades(token, 30), liveSitesFor([token])]);
+  const [extra, trades, sites, onChainRecipient] = await Promise.all([statsFor(pool, burned.get(token) ?? 0n), getTrades(token, 30), liveSitesFor([token]), feeRecipientOnChain(pool)]);
   return {
     ...toRow(pool, extra, sites.get(token.toLowerCase()) ?? null),
+    feeTo: feeToOf(pool, onChainRecipient),
     poolId: pool.poolId,
     tickSpacing: pool.tickSpacing,
     hook: pool.hook,
