@@ -316,7 +316,7 @@ export function Profile() {
               {ICON.withdraw}
               Withdraw
             </button>
-            <Link className="act" href="/">
+            <Link className="act" href="/swap">
               {ICON.swap}
               Swap
             </Link>
