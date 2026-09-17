@@ -3,7 +3,7 @@ import { formatPct, formatPrice, formatUsd } from "@o1bot/market";
 import { CHAIN_SHORT } from "@/lib/chains-web";
 import { timeAgo } from "@/lib/ipfs";
 import type { TokenRow } from "@/lib/types";
-import { PAIR_CLASS, STOCK_ICON, TokenLogo, X_ICON } from "./TokenLogo";
+import { PAIR_CLASS, PairMark, TokenLogo, X_ICON } from "./TokenLogo";
 
 export function BoardTable({ rows, emptyText }: { rows: TokenRow[]; emptyText?: string }) {
   return (
@@ -59,7 +59,7 @@ export function BoardTable({ rows, emptyText }: { rows: TokenRow[]; emptyText?: 
           </div>
           <div className="hide">
             <span className={PAIR_CLASS[t.quoteKind]}>
-              {t.quoteKind === "stk" && STOCK_ICON}
+              <PairMark symbol={t.quoteSymbol} kind={t.quoteKind} />
               {t.quoteSymbol}
             </span>
           </div>

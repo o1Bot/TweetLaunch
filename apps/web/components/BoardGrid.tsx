@@ -4,7 +4,7 @@ import { CHAIN_SHORT } from "@/lib/chains-web";
 import { timeAgo } from "@/lib/ipfs";
 import type { TokenRow } from "@/lib/types";
 import { ChainIcon } from "./ChainIcons";
-import { PAIR_CLASS, STOCK_ICON, TokenLogo, X_ICON } from "./TokenLogo";
+import { PAIR_CLASS, PairMark, TokenLogo, X_ICON } from "./TokenLogo";
 
 /**
  * The board as a grid of cards: the logo large, then ticker, pair and chain,
@@ -33,7 +33,7 @@ export function BoardGrid({ rows, emptyText }: { rows: TokenRow[]; emptyText?: s
             <div className="card-head">
               <b className="card-sym">{t.symbol}</b>
               <span className={PAIR_CLASS[t.quoteKind]}>
-                {t.quoteKind === "stk" && STOCK_ICON}
+                <PairMark symbol={t.quoteSymbol} kind={t.quoteKind} />
                 {t.quoteSymbol}
               </span>
               <span className="card-chain" title={CHAIN_SHORT[t.chain]}>

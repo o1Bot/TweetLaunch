@@ -26,6 +26,8 @@ import { listBoardTokens } from "@/lib/market";
 import { quoteUsd } from "@/lib/quote-usd";
 import { sitesForLaunches, type LaunchSiteInfo } from "@/lib/sites";
 
+import { logoFor } from "@/lib/logos";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -284,12 +286,12 @@ export async function GET(req: Request) {
     if (key === "base") gas.push({ chain: "arc", name: "Arc", eth: arcUsdc ?? "0", symbol: "USDC", usd: arcUsdc === null ? null : Number(arcUsdc) });
   }
   const assets: Asset[] = [
-    { chain: "robinhood", address: zeroAddress, symbol: "ETH", name: "Ether", imageUrl: null, decimals: 18, balance: formatUnits(ethBalance, 18), usd: ethUsd === null ? null : Number(formatUnits(ethBalance, 18)) * ethUsd, kind: "native", tokenPage: null },
+    { chain: "robinhood", address: zeroAddress, symbol: "ETH", name: "Ether", imageUrl: logoFor("ETH"), decimals: 18, balance: formatUnits(ethBalance, 18), usd: ethUsd === null ? null : Number(formatUnits(ethBalance, 18)) * ethUsd, kind: "native", tokenPage: null },
   ];
   // Arc's USDC: the gas and the only pair there, one balance whether read as native or as the ERC-20 (listed under the ERC-20 address).
   const arcUsdcQuote = findQuote("arc", "USDC");
   if (arcUsdc !== null && arcUsdcQuote && Number(arcUsdc) > 0) {
-    assets.push({ chain: "arc", address: arcUsdcQuote.address, symbol: "USDC", name: "USD Coin", imageUrl: null, decimals: 6, balance: arcUsdc, usd: Number(arcUsdc), kind: "native", tokenPage: null });
+    assets.push({ chain: "arc", address: arcUsdcQuote.address, symbol: "USDC", name: "USD Coin", imageUrl: logoFor("USDC"), decimals: 6, balance: arcUsdc, usd: Number(arcUsdc), kind: "native", tokenPage: null });
   }
   for (const [i, t] of erc20s.entries()) {
     const r = balances[i];
@@ -300,7 +302,7 @@ export async function GET(req: Request) {
       if (!q) continue;
       const human = formatUnits(raw, q.decimals);
       const px = await priceOf("robinhood", { address: getAddress(q.address), symbol: q.symbol, decimals: q.decimals });
-      assets.push({ chain: "robinhood", address: q.address, symbol: q.symbol, name: q.name ?? q.symbol, imageUrl: null, decimals: q.decimals, balance: human, usd: px === null ? null : Number(human) * px, kind: "quote", tokenPage: null });
+      assets.push({ chain: "robinhood", address: q.address, symbol: q.symbol, name: q.name ?? q.symbol, imageUrl: logoFor(q.symbol), decimals: q.decimals, balance: human, usd: px === null ? null : Number(human) * px, kind: "quote", tokenPage: null });
     } else {
       const row = board.find((b) => getAddress(b.token) === t.address);
       if (!row) continue;
