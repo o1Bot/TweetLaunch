@@ -5,7 +5,7 @@ import { formatPrice, formatUsd } from "@o1bot/market";
 import { ChainIcon } from "@/components/ChainIcons";
 import { Chart } from "@/components/Chart";
 import { SwapPanel } from "@/components/SwapPanel";
-import { EXT_ICON, STOCK_ICON, TokenLogo, X_ICON } from "@/components/TokenLogo";
+import { EXT_ICON, PairMark, TokenLogo, X_ICON } from "@/components/TokenLogo";
 import { TokenTabs } from "@/components/TokenTabs";
 import { CHAIN_LABEL, CHAIN_SHORT, EXPLORER, o1TokenUrl, type ChainKey } from "@/lib/chains-web";
 import type { Account } from "@/lib/fee-recipient";
@@ -99,7 +99,7 @@ export default async function TokenPage({ params }: { params: Promise<{ address:
                     {CHAIN_SHORT[t.chain]}
                   </span>
                   <span className={`pair ${t.quoteKind}`}>
-                    {t.quoteKind === "stk" && STOCK_ICON}
+                    <PairMark symbol={t.quoteSymbol} kind={t.quoteKind} />
                     {t.quoteSymbol} pool
                   </span>
                   {t.source === "DEV" && <span className="tag dev">dev</span>}

@@ -1,3 +1,4 @@
+import { logoFor } from "@/lib/logos";
 /**
  * Inline logos for the chains and base assets the profile shows, so nothing
  * depends on a third-party image host. Simplified marks, brand colours.
@@ -121,6 +122,8 @@ export function ChainIcon({ chain, size = 20, className }: { chain: string } & P
 
 /** The mark for a base asset by symbol: ETH, USDG, or a stock token. */
 export function AssetIcon({ symbol, kind, size = 20, className }: { symbol: string; kind: "native" | "quote" | "token" } & P) {
+  const logo = logoFor(symbol);
+  if (logo) return <img src={logo} alt="" width={size} height={size} className={className} style={{ borderRadius: "50%", display: "block", objectFit: "cover" }} />;
   // USDC first: on Arc it is the native asset, and still USDC.
   if (symbol.toUpperCase() === "USDC") return <UsdcIcon size={size} className={className} />;
   if (kind === "native" || symbol.toUpperCase() === "ETH" || symbol.toUpperCase() === "WETH") return <EthIcon size={size} className={className} />;

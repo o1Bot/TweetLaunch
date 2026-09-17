@@ -3,6 +3,7 @@ import { db, dbConfigured } from "@o1bot/db";
 import { cryptoQuotes, env, publicClient, stockQuotes } from "@o1bot/shared";
 import { NATIVE_SYMBOL, type ChainKey } from "./chains-web";
 import { ipfsToHttp } from "./ipfs";
+import { logoFor } from "./logos";
 import type { QuoteKind } from "./types";
 
 /**
@@ -38,13 +39,13 @@ export async function swapCatalog(chain: ChainKey): Promise<CatalogToken[]> {
   if (cached && Date.now() - cached.at < CATALOG_TTL_MS) return cached.tokens;
   const tokens: CatalogToken[] = [];
   // Arc's gas asset is USDC, which LI.FI knows only as the ERC-20 at 0x3600…; it is in the crypto quotes below.
-  if (chain !== "arc") tokens.push({ address: zeroAddress, symbol: NATIVE_SYMBOL[chain], name: chain === "robinhood" ? "Ether on Robinhood Chain" : "Ether", decimals: 18, kind: "native", imageUrl: null, balance: null, o1: null });
+  if (chain !== "arc") tokens.push({ address: zeroAddress, symbol: NATIVE_SYMBOL[chain], name: chain === "robinhood" ? "Ether on Robinhood Chain" : "Ether", decimals: 18, kind: "native", imageUrl: logoFor(NATIVE_SYMBOL[chain]), balance: null, o1: null });
   for (const q of cryptoQuotes(chain)) {
     if (getAddress(q.address.toLowerCase()) === zeroAddress) continue;
-    tokens.push({ address: getAddress(q.address.toLowerCase()), symbol: q.symbol, name: q.name ?? q.symbol, decimals: q.decimals, kind: "crypto", imageUrl: null, balance: null, o1: null });
+    tokens.push({ address: getAddress(q.address.toLowerCase()), symbol: q.symbol, name: q.name ?? q.symbol, decimals: q.decimals, kind: "crypto", imageUrl: logoFor(q.symbol), balance: null, o1: null });
   }
   for (const q of stockQuotes(chain)) {
-    tokens.push({ address: getAddress(q.address.toLowerCase()), symbol: q.symbol, name: q.name ?? q.symbol, decimals: q.decimals, kind: "stock", imageUrl: null, balance: null, o1: null });
+    tokens.push({ address: getAddress(q.address.toLowerCase()), symbol: q.symbol, name: q.name ?? q.symbol, decimals: q.decimals, kind: "stock", imageUrl: logoFor(q.symbol), balance: null, o1: null });
   }
   if (dbConfigured()) {
     const showDev = Boolean(env().SHOW_DEV_TOKENS);
