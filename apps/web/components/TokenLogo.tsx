@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ipfsCandidates, symbolColor } from "@/lib/ipfs";
+import { logoFor } from "@/lib/logos";
 
 /** The next gateway to try for the same CID, or null when every one has failed. */
 function fallbackFor(url: string, tried: string[]): string | null {
@@ -43,6 +44,13 @@ export const STOCK_ICON = (
     <path d="M15 7h6v6" />
   </svg>
 );
+
+/** The mark inside a pool chip: the quote asset’s logo when the site has one, else the stock glyph for stock pairs. */
+export function PairMark({ symbol, kind }: { symbol: string; kind: "eth" | "usd" | "stk" }) {
+  const logo = logoFor(symbol);
+  if (logo) return <img className="pm" src={logo} alt="" width={14} height={14} style={{ borderRadius: "50%", display: "block", objectFit: "cover" }} />;
+  return kind === "stk" ? STOCK_ICON : null;
+}
 
 export const X_ICON = (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

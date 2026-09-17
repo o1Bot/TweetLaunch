@@ -6,6 +6,7 @@ import { encodeFunctionData, erc20Abi, maxUint256, type Address, type Hex } from
 import { symbolColor } from "@/lib/ipfs";
 import { chainKeyOf, EXPLORER } from "@/lib/chains-web";
 import { ANTI_SNIPE_SECONDS, encodeExactInputSwap, permit2Abi, routerLayoutFor, type PoolKey } from "@/lib/v4-swap";
+import { logoFor } from "@/lib/logos";
 
 /**
  * Buy / sell through o1's launch pool. The quote API prepares the pool key,
@@ -172,6 +173,7 @@ export function SwapPanel({ token, chainId = 4663, symbol, quoteSymbol, quoteKin
     }
   }, [quote, wallet, side, symbol, quoteSymbol, send, sendTransaction, chainId]);
 
+  const quoteLogo = logoFor(quoteSymbol);
   const feePct = quote ? quote.antiSnipe.feeBps / 100 : left > 0 ? Math.round(1 + (98 * left) / ANTI_SNIPE_SECONDS) : 1;
   const secondsLeft = quote?.antiSnipe.active ? quote.antiSnipe.secondsLeft : left;
   const balanceIn = quote?.balances?.in ?? null;
@@ -181,9 +183,13 @@ export function SwapPanel({ token, chainId = 4663, symbol, quoteSymbol, quoteKin
   const chip = (kind: "quote" | "token") =>
     kind === "quote" ? (
       <span className="asset">
-        <span className="c" style={{ background: quoteKind === "stk" ? "var(--stock)" : quoteKind === "usd" ? "var(--up)" : "var(--blue)" }}>
-          {quoteKind === "stk" ? quoteSymbol[0] : quoteKind === "usd" ? "$" : "Ξ"}
-        </span>
+        {quoteLogo ? (
+          <img className="c" src={quoteLogo} alt="" style={{ objectFit: "cover" }} />
+        ) : (
+          <span className="c" style={{ background: quoteKind === "stk" ? "var(--stock)" : quoteKind === "usd" ? "var(--up)" : "var(--blue)" }}>
+            {quoteKind === "stk" ? quoteSymbol[0] : quoteKind === "usd" ? "$" : "Ξ"}
+          </span>
+        )}
         {quoteSymbol}
       </span>
     ) : (
