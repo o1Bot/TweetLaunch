@@ -20,6 +20,7 @@ export async function SiteHeader() {
       {/* Three links keep the bar readable on a laptop next to the chain switch, search and account. The brand is the board; Docs live in the footer, the hero and the menu. */}
       <nav className="nav" aria-label="Main">
         <Link href="/launch">Launch</Link>
+        <Link href="/swap">Swap</Link>
         <Link href="/sites">Sites</Link>
         <Link href="/how-it-works">How it works</Link>
       </nav>

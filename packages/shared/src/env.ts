@@ -138,6 +138,11 @@ const schema = z.object({
   RELAY_API_URL: z.string().default("https://api.relay.link"),
   /** Optional: Relay app key, attributes volume to o1bot for fee sharing. Quotes work without it. */
   RELAY_API_KEY: z.string().optional(),
+  /** LI.FI (li.quest) routes the site's swaps for tokens that are not o1 launches: stocks, USDG, anything with a pool. */
+  LIFI_API_KEY: z.string().optional(),
+  LIFI_INTEGRATOR: z.string().default("o1bot"),
+  /** Integrator fee on those swaps as a fraction ("0.002" = 0.2%), paid to the wallet registered at portal.li.fi; empty = no fee. */
+  LIFI_FEE: z.string().optional(),
 
   /** Operator alerts on Telegram (failed launches and trades, refused replies, the poller failing, crashes). */
   ALERT_TELEGRAM_BOT_TOKEN: z.string().optional(),
