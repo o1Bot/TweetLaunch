@@ -39,6 +39,8 @@ type Overview = {
   fees: { escrow: string; positions: Array<{ currency: string; symbol: string; decimals: number; owed: string; usd: number | null }> };
   gas: Array<{ chain: string; name: string; eth: string; symbol: string; usd: number | null }>;
 };
+type TransferRow = { id: string; direction: "sent" | "received"; chainId: number; token: string; symbol: string; decimals: number; amount: string; address: string | null; handle: string | null; name: string | null; avatarUrl: string | null; txHash: string; createdAt: string };
+type Transfers = { sent: TransferRow[]; received: TransferRow[] };
 type Settings = { enabled: boolean; maxTradeEth: string | null; defaultCapEth: string; maxCapEth: string; acceptFeeRedirects: boolean; replyLanguage: "auto" | "en" };
 
 const EXPLORER = "https://robinhoodchain.blockscout.com";
@@ -105,6 +107,7 @@ export function Profile() {
   const [sheet, setSheet] = useState<"deposit" | "withdraw" | null>(null);
   const [hideSmall, setHideSmall] = useState(true);
   const [capDraft, setCapDraft] = useState<string | null>(null);
+  const [transfers, setTransfers] = useState<Transfers | null>(null);
 
   const auth = useCallback(async () => {
     const token = await getAccessToken();
@@ -114,8 +117,9 @@ export function Profile() {
   const load = useCallback(async () => {
     const headers = await auth();
     if (!headers) return;
-    const [meRes, ovRes, stRes] = await Promise.all([fetch("/api/me", { headers }), fetch("/api/me/overview", { headers }), fetch("/api/me/trading", { headers })]);
+    const [meRes, ovRes, stRes, trRes] = await Promise.all([fetch("/api/me", { headers }), fetch("/api/me/overview", { headers }), fetch("/api/me/trading", { headers }), fetch("/api/me/send", { headers })]);
     if (meRes.ok) setMe((await meRes.json()) as Me);
+    if (trRes.ok) setTransfers((await trRes.json()) as Transfers);
     if (ovRes.ok) setOverview((await ovRes.json()) as Overview);
     else setError(`Could not load your profile (HTTP ${ovRes.status}).`);
     if (stRes.ok) setSettings((await stRes.json()) as Settings);
@@ -314,7 +318,7 @@ export function Profile() {
             </button>
             <button className="act" onClick={() => setSheet("withdraw")} disabled={!overview?.wallet}>
               {ICON.withdraw}
-              Withdraw
+              Send
             </button>
             <Link className="act" href="/swap">
               {ICON.swap}
@@ -592,6 +596,36 @@ export function Profile() {
           </section>
         )}
 
+        {transfers && (transfers.sent.length > 0 || transfers.received.length > 0) && (
+          <section>
+            <div className="sec-h">
+              <h2 className="sora">Sent and received</h2>
+              <span>{transfers.sent.length + transfers.received.length} total</span>
+            </div>
+            {[...transfers.received, ...transfers.sent]
+              .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+              .slice(0, 30)
+              .map((t) => (
+                <div className="xfer" key={t.id}>
+                  {t.avatarUrl ? <img src={t.avatarUrl} alt="" referrerPolicy="no-referrer" /> : <span className="ph">{t.handle ? X_ICON : "0x"}</span>}
+                  <span className="n">
+                    <span>
+                      {t.direction === "received" ? "From" : "To"} {t.handle ? `@${t.handle}` : t.address ? short(t.address) : "a wallet"}
+                    </span>
+                    <small>{when(t.createdAt)}</small>
+                  </span>
+                  <span className={`amt ${t.direction === "received" ? "in" : ""}`}>
+                    {t.direction === "received" ? "+" : "−"}
+                    {fmt(t.amount, 6)} {t.symbol}
+                  </span>
+                  <a href={`${TX_EXPLORER[chainKeyOf(t.chainId)]}/${t.txHash}`} target="_blank" rel="noreferrer" aria-label="View transaction">
+                    {EXT_ICON}
+                  </a>
+                </div>
+              ))}
+          </section>
+        )}
+
         <section>
           <div className="sec-h">
             <h2 className="sora">From posts</h2>
@@ -647,8 +681,9 @@ export function Profile() {
 
       {sheet === "deposit" && overview?.wallet && <DepositSheet wallet={overview.wallet} onClose={() => setSheet(null)} />}
       {sheet === "withdraw" && overview?.wallet && (
-        <WithdrawSheet
-          assets={overview.assets.filter((a) => a.chain === "robinhood" && Number(a.balance) > 0)}
+        <SendSheet
+          wallet={overview.wallet}
+          auth={auth}
           onClose={() => setSheet(null)}
           onSent={(hash) => {
             setLastTx({ hash, chainId: CHAIN_ID });
@@ -704,21 +739,82 @@ function DepositSheet({ wallet, onClose }: { wallet: string; onClose: () => void
   );
 }
 
-function WithdrawSheet({ assets, onClose, onSent, send }: { assets: Asset[]; onClose: () => void; onSent: (hash: string) => void; send: (to: Address, data: `0x${string}` | undefined, value: bigint | undefined) => Promise<string> }) {
-  const [asset, setAsset] = useState(assets[0]?.address ?? "");
+type SendTok = { address: string; symbol: string; name: string; decimals: number; kind: "native" | "crypto" | "stock" | "o1" | "custom"; imageUrl: string | null; balance: string | null };
+type Resolved =
+  | { kind: "address"; address: string }
+  | { kind: "handle"; handle: string; xUserId: string | null; name: string | null; avatarUrl: string | null; address: string; status: "self" | "linked" | "pregenerated" };
+
+const KIND_ORDER: Record<SendTok["kind"], number> = { native: 0, crypto: 1, stock: 2, o1: 3, custom: 4 };
+
+/**
+ * Send any token this wallet holds to an X handle or an address. A handle
+ * resolves to that account's o1bot wallet; an account that has never been
+ * here gets a pregenerated wallet, as `fees to` does, and claims it by
+ * logging in with X. The user's own wallet signs; the bot is not involved.
+ */
+function SendSheet({ wallet, auth, onClose, onSent, send }: { wallet: string; auth: () => Promise<Record<string, string> | null>; onClose: () => void; onSent: (hash: string) => void; send: (to: Address, data: `0x${string}` | undefined, value: bigint | undefined) => Promise<string> }) {
+  const [tokens, setTokens] = useState<SendTok[]>([]);
+  const [asset, setAsset] = useState("");
   const [to, setTo] = useState("");
+  const [resolved, setResolved] = useState<Resolved | null>(null);
+  const [resolving, setResolving] = useState(false);
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const chosen = assets.find((a) => a.address === asset) ?? null;
+  const chosen = tokens.find((t) => t.address === asset) ?? null;
+
+  // Every token the wallet holds on Robinhood Chain: gas, stablecoins, stocks, launches, anything with a balance.
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/swap/tokens?chain=robinhood&wallet=${wallet}`)
+      .then((r) => r.json())
+      .then((json: { tokens?: SendTok[] }) => {
+        if (!live) return;
+        const held = (json.tokens ?? []).filter((t) => Number(t.balance ?? 0) > 0).sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.symbol.localeCompare(b.symbol));
+        setTokens(held);
+        setAsset((cur) => cur || held[0]?.address || "");
+      })
+      .catch(() => live && setError("Could not load your tokens."));
+    return () => {
+      live = false;
+    };
+  }, [wallet]);
+
+  // Resolve the recipient once typing pauses.
+  useEffect(() => {
+    const raw = to.trim();
+    setResolved(null);
+    if (!raw) return;
+    let live = true;
+    const t = setTimeout(async () => {
+      setResolving(true);
+      try {
+        const headers = await auth();
+        if (!headers) return;
+        const res = await fetch("/api/me/send/resolve", { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ to: raw }) });
+        const json = (await res.json()) as Resolved & { error?: string };
+        if (!live) return;
+        if (!res.ok) {
+          setError(json.error ?? `HTTP ${res.status}`);
+          return;
+        }
+        setError(null);
+        setResolved(json);
+      } catch {
+        if (live) setError("Could not look that up.");
+      } finally {
+        if (live) setResolving(false);
+      }
+    }, 500);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [to, auth]);
 
   const submit = async () => {
-    if (!chosen) return;
+    if (!chosen || !resolved) return;
     setError(null);
-    if (!isAddress(to)) {
-      setError("The destination is not a valid address.");
-      return;
-    }
     let raw: bigint;
     try {
       raw = parseUnits(amount.trim(), chosen.decimals);
@@ -730,19 +826,25 @@ function WithdrawSheet({ assets, onClose, onSent, send }: { assets: Asset[]; onC
       setError("The amount must be above zero.");
       return;
     }
-    if (raw > parseUnits(chosen.balance, chosen.decimals)) {
-      setError(`You hold ${fmt(chosen.balance, 6)} ${chosen.symbol}.`);
+    if (raw > parseUnits(chosen.balance ?? "0", chosen.decimals)) {
+      setError(`You hold ${fmt(chosen.balance ?? "0", 6)} ${chosen.symbol}.`);
       return;
     }
     setBusy(true);
     try {
+      const dest = resolved.address as Address;
       // Native ETH is a plain transfer; anything else is an ERC-20 transfer, both signed by the user's own wallet.
-      const hash =
-        chosen.kind === "native"
-          ? await send(to as Address, undefined, raw)
-          : await send(chosen.address as Address, encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [to as Address, raw] }), undefined);
-      if (hash) onSent(hash);
-      else onClose();
+      const hash = chosen.kind === "native" ? await send(dest, undefined, raw) : await send(chosen.address as Address, encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [dest, raw] }), undefined);
+      if (!hash) {
+        onClose();
+        return;
+      }
+      const headers = await auth();
+      if (headers) {
+        const record = { chainId: CHAIN_ID, token: chosen.kind === "native" ? "native" : chosen.address, symbol: chosen.symbol, decimals: chosen.decimals, amount: amount.trim(), to: dest, toHandle: resolved.kind === "handle" ? resolved.handle : null, toXUserId: resolved.kind === "handle" ? resolved.xUserId : null, txHash: hash };
+        void fetch("/api/me/send", { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify(record) }).catch(() => undefined);
+      }
+      onSent(hash);
     } catch (err) {
       setError(err instanceof Error ? err.message : "The transfer was cancelled.");
     } finally {
@@ -750,37 +852,59 @@ function WithdrawSheet({ assets, onClose, onSent, send }: { assets: Asset[]; onC
     }
   };
 
+  const statusLine =
+    resolved?.kind === "handle"
+      ? resolved.status === "self"
+        ? "That is your own wallet."
+        : resolved.status === "linked"
+          ? "Has an o1bot wallet; lands there instantly."
+          : "Not on o1bot yet. A wallet was just made for them; they claim it by logging in with X at o1bot.exchange."
+      : resolved
+        ? "A plain address on Robinhood Chain."
+        : null;
+
   return (
     <div className="me-sheet-bg" onClick={onClose} role="presentation">
-      <div className="me-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Withdraw">
-        <h3 className="sora">Withdraw</h3>
-        <p>Send an asset from this wallet to another address on Robinhood Chain. You confirm it in the wallet; the bot is not involved.</p>
+      <div className="me-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Send">
+        <h3 className="sora">Send</h3>
+        <p>Send any token from this wallet to an X handle or an address on Robinhood Chain. You confirm it in the wallet; the bot is not involved.</p>
         <label>
           Asset
           <select value={asset} onChange={(e) => setAsset(e.target.value)}>
-            {assets.map((a) => (
+            {tokens.length === 0 && <option value="">Nothing to send yet</option>}
+            {tokens.map((a) => (
               <option key={a.address} value={a.address}>
-                {a.symbol} · {fmt(a.balance, 6)}
+                {a.symbol} · {fmt(a.balance ?? "0", 6)}
               </option>
             ))}
           </select>
         </label>
         <label>
           To
-          <input value={to} onChange={(e) => setTo(e.target.value.trim())} placeholder="0x…" spellCheck={false} />
+          <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="@handle or 0x…" spellCheck={false} autoComplete="off" />
         </label>
+        {(resolving || resolved) && (
+          <div className="send-who">
+            {resolved?.kind === "handle" ? resolved.avatarUrl ? <img src={resolved.avatarUrl} alt="" referrerPolicy="no-referrer" /> : <span className="ph">{X_ICON}</span> : <span className="ph">0x</span>}
+            <span className="n">
+              <b>{resolving && !resolved ? "Looking up…" : resolved?.kind === "handle" ? (resolved.name ?? `@${resolved.handle}`) : short(resolved?.address ?? "")}</b>
+              {resolved?.kind === "handle" && <small>{`@${resolved.handle} · ${short(resolved.address)}`}</small>}
+              {statusLine && <small>{statusLine}</small>}
+            </span>
+          </div>
+        )}
         <label>
           Amount
           <span className="amt">
             <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.0" />
-            <button type="button" onClick={() => chosen && setAmount(chosen.balance)}>
+            <button type="button" onClick={() => chosen && setAmount(chosen.balance ?? "")}>
               Max
             </button>
           </span>
         </label>
         {error && <div className="alert">{error}</div>}
         <div className="me-sheet-acts">
-          <button className="btn-p" disabled={busy || !chosen} onClick={() => void submit()}>
+          <button className="btn-p" disabled={busy || !chosen || !resolved} onClick={() => void submit()}>
             {busy ? "Confirm in wallet…" : `Send ${chosen?.symbol ?? ""}`}
           </button>
           <button className="btn-s" onClick={onClose}>

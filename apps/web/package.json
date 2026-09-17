@@ -18,6 +18,7 @@
     "@o1bot/sites": "workspace:*",
     "@o1bot/swap": "workspace:*",
     "@o1bot/wallet": "workspace:*",
+    "@o1bot/x": "workspace:*",
     "@privy-io/react-auth": "^3.40.0",
     "next": "^16.3.4",
     "react": "^19.2.8",

@@ -46,8 +46,35 @@ model User {
   trades         Trade[]
   bridges        Bridge[]
   sites          TokenSite[]
+  transfersSent     Transfer[] @relation("TransferFrom")
+  transfersReceived Transfer[] @relation("TransferTo")
 
   @@index([xHandle])
+}
+
+/// A token sent from the profile to another wallet, by X handle or address. The
+/// browser signs the transfer; this row is the history both sides see.
+model Transfer {
+  id          String   @id @default(cuid())
+  fromXUserId String
+  from        User     @relation("TransferFrom", fields: [fromXUserId], references: [xUserId])
+  /// The recipient's X user when the transfer named a handle; null for a plain address.
+  toXUserId   String?
+  to          User?    @relation("TransferTo", fields: [toXUserId], references: [xUserId])
+  toHandle    String?
+  toAddress   String
+  chainId     Int
+  /// Token address, or "native" for the chain's gas asset.
+  token       String
+  symbol      String
+  decimals    Int
+  /// Human amount as sent, decimal string.
+  amount      String
+  txHash      String   @unique
+  createdAt   DateTime @default(now())
+
+  @@index([fromXUserId, createdAt])
+  @@index([toXUserId, createdAt])
 }
 
 enum MentionStatus {
