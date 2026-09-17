@@ -2285,3 +2285,93 @@ body {
   font-size: 13px;
   white-space: nowrap;
 }
+
+/* Send sheet: the recipient once a handle or address resolves. */
+.send-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.send-who img,
+.send-who .ph {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex: none;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  background: var(--panel);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+.send-who .n {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+.send-who .n b {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.send-who .n small {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* Transfers list on the profile. */
+.xfer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.xfer:first-of-type {
+  border-top: 0;
+}
+.xfer img,
+.xfer .ph {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: var(--panel-2);
+  color: var(--ink-2);
+  font-size: 10px;
+  font-weight: 700;
+}
+.xfer .n {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.xfer .n small {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.xfer .amt {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.xfer .amt.in {
+  color: var(--up);
+}
+.xfer a {
+  color: var(--ink-3);
+  flex: none;
+}
