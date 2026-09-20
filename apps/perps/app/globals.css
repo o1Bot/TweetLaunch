@@ -268,7 +268,7 @@ tbody tr:hover {
 /* Chart beside the tape on a laptop; stacked on a phone, chart first. */
 .mgrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   gap: 16px;
   align-items: start;
 }
@@ -298,7 +298,7 @@ tbody tr:hover {
 }
 /* lightweight-charts fills its container, so the height has to come from here. */
 .canvas {
-  height: 440px;
+  height: 404px;
   width: 100%;
 }
 .nobars {
@@ -324,7 +324,7 @@ tbody tr:hover {
   font-size: 13px;
 }
 .tradescroll {
-  max-height: 460px;
+  max-height: 260px;
   overflow-y: auto;
 }
 table.trades {
@@ -343,4 +343,90 @@ table.trades tbody td {
 }
 table.trades tbody tr:nth-child(odd) {
   background: rgba(255, 255, 255, 0.015);
+}
+
+/* ---------- order book ---------- */
+.rail {
+  display: grid;
+  gap: 16px;
+}
+.bookh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.status {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.status.live {
+  color: var(--up);
+}
+.status.reconnecting {
+  color: var(--down);
+}
+
+.bside {
+  padding: 4px 0;
+}
+/* Four columns: the bar is absolutely placed behind price/size/total. */
+.brow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 2px 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.brow > span:not(.bar) {
+  position: relative;
+  text-align: right;
+}
+.brow > span:first-of-type:not(.bar) {
+  text-align: left;
+}
+.bar {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  right: 0;
+  border-radius: 2px;
+  pointer-events: none;
+}
+.bar.bid {
+  background: rgba(62, 208, 130, 0.14);
+}
+.bar.ask {
+  background: rgba(255, 110, 94, 0.14);
+}
+
+.spread {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 14px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+}
+.spread .mid {
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.02em;
 }

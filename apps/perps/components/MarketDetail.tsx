@@ -2,6 +2,7 @@ import { displaySymbol, maxLeverage, type MarketType } from "@o1bot/lighter";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Chart } from "@/components/Chart";
+import { OrderBook } from "@/components/OrderBook";
 import { Trades } from "@/components/Trades";
 import { MAX_BARS, toBars, windowFor } from "@/lib/candles";
 import { changePct, leverage, price, usd } from "@/lib/format";
@@ -86,7 +87,10 @@ export async function MarketDetail({ symbol, type }: { symbol: string; type: Mar
 
       <div className="mgrid">
         <Chart marketId={market.market_id} initialBars={candles} initialResolution={DEFAULT_RESOLUTION} />
-        <Trades trades={trades} />
+        <div className="rail">
+          <OrderBook marketId={market.market_id} />
+          <Trades trades={trades} />
+        </div>
       </div>
 
       <p className="note">
