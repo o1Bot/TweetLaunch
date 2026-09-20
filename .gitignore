@@ -5,6 +5,7 @@ dist/
 coverage/
 *.tsbuildinfo
 apps/web/next-env.d.ts
+apps/perps/next-env.d.ts
 packages/db/generated/
 .vercel/
 
