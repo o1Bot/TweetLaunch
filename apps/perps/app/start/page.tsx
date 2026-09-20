@@ -15,21 +15,54 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Start trading — o1bot perps" };
 
-const STEPS = [
+/**
+ * Two ways in, and they are not equivalent. A Lighter account belongs to one L1
+ * address, and its L2 API key is registered by a ChangePubKey that address
+ * signs. That single fact decides everything below:
+ *
+ *   - Sign in with X → a Privy embedded wallet o1bot can sign for → the server
+ *     can register and hold the L2 key → orders can come from the terminal AND
+ *     from a post.
+ *   - Connect your own wallet → you sign ChangePubKey in the browser and the
+ *     key stays in the local vault → the terminal works and from-a-post cannot,
+ *     because no server ever holds a key to sign with.
+ *
+ * The second is not a reduced version of the first, it is the choice to keep
+ * custody, so the page states the trade instead of burying it.
+ *
+ * Using both means two L1 addresses, therefore two Lighter accounts and two
+ * separate pools of collateral. Never render them as one balance.
+ */
+const PATHS = [
   {
-    n: 2,
-    title: "Link a Lighter account",
-    body: "Sign once with your wallet to register an API key in o1bot's own slot. The key stays encrypted in your browser and is never sent to a server.",
+    key: "x",
+    title: "Sign in with X",
+    body: "o1bot creates a wallet for your X account and can sign for it, so orders work from the terminal and from a post.",
+    trades: "Terminal + from a post",
   },
+  {
+    key: "wallet",
+    title: "Connect a wallet",
+    body: "You sign in the browser and your Lighter key never leaves it. o1bot cannot trade for you, which also means a post cannot.",
+    trades: "Terminal only",
+  },
+] as const;
+
+const STEPS = [
   {
     n: 3,
     title: "Fund it",
-    body: "Move USDC onto Lighter. Your collateral sits with the venue — o1bot never holds it and cannot withdraw it.",
+    // Deposit stays on the venue for now. Moving a user's money is the highest
+    // risk surface in the app, and Lighter's own flow already does it: the
+    // cross-chain route needs an intent-address endpoint that is not public and
+    // has to be traced from their frontend first, and the direct route is
+    // Ethereum mainnet gas. We are the screen, not the exchange.
+    body: "Deposit USDC through Lighter's own flow. Your collateral sits with the venue — o1bot never holds it and cannot withdraw it.",
   },
   {
     n: 4,
     title: "Set a cap, then trade",
-    body: "Choose the most a single order may risk. Trade from the terminal here, or later from a post on X.",
+    body: "Choose the most a single order may risk. The cap is enforced here, not only by the venue.",
   },
 ] as const;
 
@@ -46,7 +79,8 @@ export default async function StartPage() {
       <header className="head">
         <h1 className="grad">Start trading.</h1>
         <p>
-          Four steps, once. After that the terminal and the bot both work from the same account.
+          Four steps, once. How you link decides what you get afterwards: the terminal either way,
+          and orders from a post only where o1bot can sign for the wallet.
         </p>
       </header>
 
@@ -100,6 +134,27 @@ export default async function StartPage() {
 function Steps() {
   return (
     <>
+      <section className="panel gate pending">
+        <div className="gateh">
+          <h2>2. Link a Lighter account</h2>
+          <span className="soon">not open yet</span>
+        </div>
+        <p>Two ways in. They give you different things, so pick on that basis.</p>
+        <div className="paths">
+          {PATHS.map((p) => (
+            <div key={p.key} className="path">
+              <h3>{p.title}</h3>
+              <p>{p.body}</p>
+              <span className="tag">{p.trades}</span>
+            </div>
+          ))}
+        </div>
+        <p className="fine">
+          Each wallet is its own Lighter account with its own collateral. Using both does not pool
+          them.
+        </p>
+      </section>
+
       {STEPS.map((s) => (
         <section key={s.n} className="panel gate pending">
           <div className="gateh">
