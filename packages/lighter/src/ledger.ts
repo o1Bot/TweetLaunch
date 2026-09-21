@@ -5,8 +5,8 @@
 // ledger and the submitted order can never disagree (disagreement = P0). Fee
 // values are in ppm (1e6 scale, 200 = 2.0 bps), exactly as sent to the signer.
 
-// 2.0 bps — the rate NockTrade runs, and under the measured systemConfig
-// ceilings (perps 10 bps, spot 100 bps). o1bot's own rate is not decided yet;
+// 2.0 bps — a starting value, under the measured systemConfig ceilings (perps
+// 10 bps, spot 100 bps). The rate this product charges is not decided yet;
 // read the live ceiling from systemConfig and never hardcode it there.
 export const DEFAULT_TAKER_FEE_PPM = 200;
 // Free on purpose — acquisition. The plumbing carries it anyway so turning it

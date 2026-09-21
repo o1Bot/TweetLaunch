@@ -21,18 +21,25 @@ export const L2_CHAIN_ID = Number(
 );
 
 /**
- * API key slot this app registers (0–255 per account). Each app that writes a
- * key must own a distinct slot: `ChangePubKey` on an occupied slot replaces the
- * key already there and silently breaks whoever depended on it.
+ * The API key slot this app registers into (0–255 per Lighter account).
  *
- * Known slot map:
- *   0 — Lighter's own frontend (confirmed from a live "Register Lighter Account"
- *       message: `api key index: 0x0000000000000000`)
- *   3 — NockTrade (nocktrade.xyz)
- *   4 — o1bot (this app)
+ * A slot holds exactly one key, and `ChangePubKey` on an occupied slot REPLACES
+ * what is there. The displaced key stops working immediately, with no error to
+ * whoever was using it, so a slot must never be written unless it is ours or
+ * known to be free.
  *
- * A user may run several of these against one Lighter account, so never reuse a
- * slot that is not ours.
+ * Measured against a live mainnet account on 2026-09-21 via
+ * `/api/v1/apikeys?account_index=…&api_key_index=…`:
+ *
+ *   slot 0   — occupied; the venue's own frontend registers here (its
+ *              "Register Lighter Account" message shows api key index 0)
+ *   slot 255 — occupied, carrying the same public key as slot 0; treat as
+ *              reserved by the venue
+ *   slot 4   — empty (response code 21109)
+ *
+ * Code 21109 is the venue's "no key in this slot" answer, so occupancy is
+ * checkable before writing. Do that before registering a real key: another
+ * integrator the user already trusts may hold this slot on their account.
  */
 export const API_KEY_INDEX = 4;
 

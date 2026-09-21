@@ -17,9 +17,11 @@ describe("eligibility", () => {
     }
   });
 
-  it("carries the full list from the terms, not the shorter one in the reference docs", () => {
-    // The reference repo listed Switzerland, the UAE and Singapore, which the
-    // terms do not restrict, and omitted these, which they do.
+  it("pins the ones a shorter summary of this venue tends to get wrong", () => {
+    // These eleven are in the terms and are the easiest to leave out, while
+    // Switzerland, the UAE and Singapore are widely assumed to be restricted
+    // here and are not named at all. Both halves are asserted so a future edit
+    // to the list cannot quietly drift in either direction.
     for (const code of ["CN", "KP", "RU", "UA", "CU", "IR", "VE", "SD", "BY", "MM", "SY"]) {
       expect(eligibility(code).status).toBe("restricted");
     }

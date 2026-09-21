@@ -13,12 +13,11 @@ function size(v: string): string {
 
 /**
  * `is_maker_ask` describes the resting side, so a true value means the taker
- * lifted the ask and therefore bought. The venue does not document this and the
- * reference implementation never used the field, so it was measured instead: over
- * 100 consecutive BTC trades on 2026-09-20, the `true` group printed a mean
- * $3.00 above the `false` group (n = 48 vs 52) — about one spread, on the ask
- * side. Good evidence, not proof; recheck against a known own-order fill before
- * anything depends on it beyond tape colour.
+ * lifted the ask and therefore bought. The venue does not document this, so it
+ * was measured: over 100 consecutive BTC trades on 2026-09-20, the `true` group
+ * printed a mean $3.00 above the `false` group (n = 48 vs 52) — about one
+ * spread, on the ask side. Good evidence, not proof; recheck against a known
+ * own-order fill before anything depends on it beyond tape colour.
  */
 function takerSide(t: Trade): "buy" | "sell" {
   return t.is_maker_ask ? "buy" : "sell";
