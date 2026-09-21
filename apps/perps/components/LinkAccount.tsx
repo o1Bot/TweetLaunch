@@ -1,8 +1,10 @@
 "use client";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { createLighterClient } from "@o1bot/lighter";
 import { useEffect, useState } from "react";
 import type { LinkStatus } from "@/lib/account";
+import { registerApiKey, vaultKey } from "@/lib/register";
 import { usd } from "@/lib/format";
 
 function short(a: string): string {
@@ -23,6 +25,9 @@ export function LinkAccount() {
   const { wallets } = useWallets();
   const [status, setStatus] = useState<LinkStatus | null>(null);
   const [checking, setChecking] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const wallet = wallets[0];
   const address = wallet?.address;
@@ -43,6 +48,42 @@ export function LinkAccount() {
       alive = false;
     };
   }, [address]);
+
+  const accountIndex = status?.state === "linked" ? status.account.index : null;
+
+  useEffect(() => {
+    if (accountIndex === null) {
+      setRegistered(false);
+      return;
+    }
+    try {
+      setRegistered(localStorage.getItem(vaultKey(accountIndex)) !== null);
+    } catch {
+      setRegistered(false);
+    }
+  }, [accountIndex]);
+
+  async function register() {
+    if (accountIndex === null || !wallet || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const provider = await wallet.getEthereumProvider();
+      const signMessage = (message: string) =>
+        provider.request({ method: "personal_sign", params: [message, wallet.address] }) as Promise<string>;
+
+      await registerApiKey({
+        client: createLighterClient(),
+        accountIndex,
+        signMessage,
+      });
+      setRegistered(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "registration failed");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (!ready) return <p className="muted">Loading…</p>;
 
@@ -104,10 +145,23 @@ export function LinkAccount() {
         <p className="down">Could not check with the venue: {status.message}.</p>
       )}
 
-      <p className="fine">
-        Registering a signing key is the next step and is not built yet — nothing here signs
-        anything.
-      </p>
+      {status?.state === "linked" &&
+        (registered ? (
+          <p className="up">A signing key is registered for this account on this device.</p>
+        ) : (
+          <div className="linkrow">
+            <button type="button" className="btn" onClick={() => void register()} disabled={busy}>
+              {busy ? "Waiting for two signatures…" : "Register a signing key"}
+            </button>
+            <span className="fine">
+              Two signatures: one derives the local encryption key and authorises nothing, one
+              registers the key with the venue. The key is encrypted in this browser and never
+              sent anywhere.
+            </span>
+          </div>
+        ))}
+
+      {error && <p className="down">Registration failed: {error}</p>}
     </div>
   );
 }

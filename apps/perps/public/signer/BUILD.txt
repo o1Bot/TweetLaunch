@@ -14,3 +14,14 @@ GenerateAPIKey returns distinct {publicKey, privateKey} pairs of 82 characters
 
 Size: 14.1 MB raw, 4.0 MB gzipped. Load it lazily — only when the user is about
 to sign — never on a page that merely reads markets.
+
+ChangePubKey scheme verified 2026-09-21 against this exact build:
+  messageToSign matches the venue's template, with hex-padded fields
+    ("account index: 0x0000000000000032" for account 50, api key index 0x…04)
+  txInfo carries an empty L1Sig field, so the wallet signature merges into the
+    same JSON payload rather than travelling beside it
+  personal_sign over messageToSign recovers to the signing address (65 bytes,
+    v = 28; the venue normalises 27/28 down to 0/1)
+  txType is 8
+
+Not verified: the broadcast itself, which needs a wallet that owns the account.
