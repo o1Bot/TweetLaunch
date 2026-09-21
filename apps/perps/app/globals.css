@@ -582,3 +582,17 @@ table.trades tbody tr:nth-child(odd) {
 .linked p {
   margin-top: 8px;
 }
+
+/* ---------- deposit ---------- */
+.deposit {
+  margin-top: 12px;
+}
+.deposit p {
+  font-size: 14.5px;
+  color: var(--ink-2);
+}
+.amt {
+  width: 190px;
+  color: var(--ink);
+  font-family: ui-monospace, monospace;
+}
