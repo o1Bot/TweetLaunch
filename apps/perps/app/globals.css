@@ -546,3 +546,39 @@ table.trades tbody tr:nth-child(odd) {
   margin-top: 10px;
   display: inline-flex;
 }
+
+/* ---------- account linking ---------- */
+.linkrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 14px 0 8px;
+}
+.btn {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--blue-deep);
+  color: #fff;
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.btn:hover {
+  filter: brightness(1.08);
+}
+.addr {
+  font-family: ui-monospace, monospace;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+.linked p {
+  margin-top: 8px;
+}

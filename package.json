@@ -14,6 +14,7 @@
     "db:generate": "pnpm --filter @o1bot/db generate",
     "db:migrate": "pnpm --filter @o1bot/db migrate",
     "db:push": "pnpm --filter @o1bot/db push",
+    "signer:build": "bash scripts/build-signer.sh",
     "o1:sync": "tsx scripts/sync-o1-config.ts",
     "abi:vendor": "tsx scripts/vendor-abi.ts",
     "logos:fetch": "tsx scripts/logos/fetch.ts",

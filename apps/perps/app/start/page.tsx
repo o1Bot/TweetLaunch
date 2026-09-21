@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { Attest } from "@/components/Attest";
+import { LinkAccount } from "@/components/LinkAccount";
 import {
   RESTRICTED_COUNTRIES,
   TERMS_FETCHED_AT,
@@ -134,10 +135,9 @@ export default async function StartPage() {
 function Steps() {
   return (
     <>
-      <section className="panel gate pending">
+      <section className="panel gate">
         <div className="gateh">
           <h2>2. Link a Lighter account</h2>
-          <span className="soon">not open yet</span>
         </div>
         <p>Two ways in. They give you different things, so pick on that basis.</p>
         <div className="paths">
@@ -149,6 +149,7 @@ function Steps() {
             </div>
           ))}
         </div>
+        <LinkAccount />
         <p className="fine">
           Each wallet is its own Lighter account with its own collateral. Using both does not pool
           them.
@@ -167,8 +168,9 @@ function Steps() {
         </section>
       ))}
       <p className="note">
-        Steps 2 to 4 are not built yet — nothing here places an order or moves money. The market
-        pages are live and read-only in the meantime.
+        Linking shows which Lighter account an address has; registering a signing key, funding and
+        the order ticket are not built yet, so nothing here signs anything, places an order or
+        moves money. The market pages are live and read-only in the meantime.
       </p>
     </>
   );
