@@ -1,75 +1,106 @@
-import { maxLeverage } from "@o1bot/lighter";
-import { MarketTable, type MarketRow } from "@/components/MarketTable";
-import { MARKETS_REVALIDATE_SECONDS, lighter, revalidating } from "@/lib/lighter";
+import Link from "next/link";
+import { TopBar } from "@/components/TopBar";
+import { changePct, price, usd } from "@/lib/format";
+import { loadPerps } from "@/lib/markets";
 
 export const revalidate = 60;
 
-async function loadMarkets(): Promise<{ rows: MarketRow[]; error?: string }> {
-  try {
-    const res = await lighter.orderBookDetails(revalidating(MARKETS_REVALIDATE_SECONDS));
-
-    const perps: MarketRow[] = res.order_book_details.map((m) => ({
-      marketId: m.market_id,
-      symbol: m.symbol,
-      type: "perp",
-      lastPrice: m.last_trade_price,
-      changePct: m.daily_price_change,
-      volumeUsd: m.daily_quote_token_volume,
-      // min_initial_margin_fraction is in basis points; the package turns it into a cap.
-      maxLeverage: maxLeverage(m),
-    }));
-
-    const spot: MarketRow[] = res.spot_order_book_details.map((m) => ({
-      marketId: m.market_id,
-      symbol: m.symbol,
-      type: "spot",
-      lastPrice: m.last_trade_price,
-      changePct: m.daily_price_change,
-      volumeUsd: m.daily_quote_token_volume,
-      maxLeverage: null,
-    }));
-
-    // Busiest first: with 240+ markets an alphabetical list buries everything
-    // anyone actually trades.
-    const rows = [...perps, ...spot].sort((a, b) => b.volumeUsd - a.volumeUsd);
-    return { rows };
-  } catch (e) {
-    // The venue being unreachable is not a crash — say so and keep the page up.
-    return { rows: [], error: e instanceof Error ? e.message : "unknown error" };
-  }
-}
-
-export default async function MarketsPage() {
-  const { rows, error } = await loadMarkets();
-  const perpCount = rows.filter((r) => r.type === "perp").length;
-  const spotCount = rows.length - perpCount;
+export default async function HomePage() {
+  const { rows, error } = await loadPerps();
+  const best = rows.reduce((m, r) => Math.max(m, r.maxLeverage), 0);
 
   return (
-    <main className="wrap">
-      <header className="head">
-        <h1 className="grad">Perps on Lighter.</h1>
-        <p>
-          Stocks, gold, oil, treasuries, FX and pre-IPO — quoted in USDC. o1bot builds and routes
-          the order; Lighter matches and settles, and holds the collateral.
-        </p>
-        <p className="venue">
-          {error ? "Markets unavailable" : `${rows.length} markets live · ${perpCount} perp · ${spotCount} spot`}
-        </p>
-      </header>
+    <>
+      <TopBar />
+      <main className="page">
+        <section className="hero">
+          <span className="eyebrow">
+            <i />
+            In development on perps.o1bot.exchange
+          </span>
+          <h1>Perps you can open from a post.</h1>
+          <p>
+            Long or short crypto and tokenised stocks with USDC margin. Trade in the terminal, or —
+            once it ships — mention the bot on X and it signs from a wallet you authorised, inside
+            caps you set. Lighter matches and settles every order and holds the collateral.
+          </p>
+          <div className="cmd">
+            <b>@o1bot_exchange</b> long <em>$NVDA</em> 5x with 500 usdc
+          </div>
+          <div className="cta2">
+            <Link className="btn p" href={rows[0] ? `/perps/${rows[0].symbol}` : "/start"}>
+              Open the terminal
+            </Link>
+            <Link className="btn" href="/start">
+              Set up an account
+            </Link>
+          </div>
+        </section>
 
-      {error ? (
-        <div className="err">
-          Could not reach Lighter: {error}. Nothing is cached yet, so this page has no prices to
-          show. It will recover on its own once the venue answers.
-        </div>
-      ) : (
-        <MarketTable rows={rows} />
-      )}
+        {/* Four numbers, each one true. The fee cards the design calls for would
+            say what o1bot charges; it has no integrator account on the venue
+            yet, so it charges nothing, and that is what these say. */}
+        <section className="hstats">
+          <div>
+            <b>{error ? "—" : rows.length}</b>
+            <span>Perp markets, crypto and RWA</span>
+          </div>
+          <div>
+            <b>{error ? "—" : `${best}x`}</b>
+            <span>Highest leverage on the venue</span>
+          </div>
+          <div>
+            <b>0%</b>
+            <span>o1bot fee — no integrator account yet</span>
+          </div>
+          <div>
+            <b>USDC</b>
+            <span>Margin and settlement</span>
+          </div>
+        </section>
 
-      <p className="note">
-        Trading is not open here yet — this page reads the venue, nothing more. Lighter is
-        unavailable in several jurisdictions; eligibility is checked before any account is linked.
-      </p>
-    </main>
+        <section>
+          <div className="sech">
+            <h2>Markets</h2>
+            <span>{error ? "Venue unreachable" : "Pick one to open the terminal"}</span>
+          </div>
+
+          {error ? (
+            <div className="err gate">
+              Could not reach Lighter: {error}. Nothing is cached yet, so there are no prices to
+              show. It recovers on its own once the venue answers.
+            </div>
+          ) : (
+            <div className="mgrid">
+              {rows.map((m) => {
+                const c = changePct(m.changePct);
+                return (
+                  <Link key={m.symbol} className="mcard" href={`/perps/${m.symbol}`}>
+                    <div className="t">
+                      <i className={m.category === "crypto" ? "c" : "k"} />
+                      <b>{m.symbol}</b>
+                      <em>{m.maxLeverage}x</em>
+                    </div>
+                    <div className="p">{price(m.lastPrice)}</div>
+                    <div className="r">
+                      <b className={c.cls}>{c.text}</b>
+                      <span>24h</span>
+                    </div>
+                    <div className="k">
+                      <span>
+                        Vol <b>{usd(m.volumeUsd)}</b>
+                      </span>
+                      <span>
+                        OI <b>{usd(m.openInterestUsd)}</b>
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </main>
+    </>
   );
 }

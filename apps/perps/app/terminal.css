@@ -1,0 +1,756 @@
+/* Terminal shell, reproduced from o1bot-perps-demo.html. The market page is an
+   app, not a document: fixed height, no page scroll, each column scrolls itself. */
+
+/* The bar between the top chrome and the grid; the grid's height subtracts it. */
+.tbar {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px;
+  border-top: 1px solid var(--line);
+}
+.tbar .back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 9px;
+  border-radius: 7px;
+}
+.tbar .back:hover {
+  background: var(--panel);
+  color: var(--ink);
+}
+.tbar b {
+  font-family: "Sora", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.tbar span {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.tbar .grow {
+  flex: 1;
+}
+
+.tapp {
+  display: grid;
+  grid-template-columns: 252px 1fr 214px 306px;
+  gap: 1px;
+  background: var(--line);
+  border-top: 1px solid var(--line);
+  height: calc(100vh - 52px - 40px);
+}
+.tcol {
+  background: var(--paper);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ch {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  flex: none;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ch .grow {
+  flex: 1;
+}
+
+/* ---------- markets rail ---------- */
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 10px 8px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border-radius: 9px;
+  color: var(--ink-3);
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  outline: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.segs {
+  display: flex;
+  gap: 4px;
+  padding: 0 10px 8px;
+}
+.segs button {
+  flex: 1;
+  padding: 6px;
+  border: 0;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  background: var(--panel);
+  cursor: pointer;
+}
+.segs button.on {
+  background: var(--panel-3);
+  color: var(--ink);
+}
+.mkts {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 6px 8px;
+}
+.mkt {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 8px;
+  border-radius: 9px;
+}
+.mkt:hover {
+  background: var(--hover);
+}
+.mkt.on {
+  background: var(--panel);
+}
+.mkt .s {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  min-width: 0;
+}
+.mkt .s i {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  flex: none;
+}
+.mkt .s i.c {
+  background: var(--blue);
+}
+.mkt .s i.k {
+  background: var(--stock);
+}
+.mkt .f {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+.mkt .r {
+  text-align: right;
+}
+.mkt .r b {
+  display: block;
+  font-weight: 600;
+}
+.mkt .r span {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ---------- market header ---------- */
+.mhead {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  flex: none;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+.mhead .name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 20px;
+}
+.mhead .name h1 {
+  font-family: "Sora", sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+.tagp {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--panel-2);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.tagp.k {
+  background: var(--stock-soft);
+  color: var(--stock);
+}
+.mhead .px {
+  padding-right: 24px;
+}
+.mhead .px b {
+  font-family: "Sora", sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  display: block;
+  white-space: nowrap;
+}
+.mhead .px span {
+  font-size: 12px;
+  font-weight: 600;
+}
+.mstats {
+  display: flex;
+  gap: 22px;
+  flex: 1;
+}
+.mstats div span {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.mstats div b {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.tf {
+  display: flex;
+  gap: 2px;
+  background: var(--panel);
+  border-radius: 7px;
+  padding: 2px;
+  flex: none;
+}
+.tf button {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-3);
+  font-weight: 600;
+  background: none;
+  cursor: pointer;
+}
+.tf button.on {
+  background: var(--panel-3);
+  color: var(--ink);
+}
+
+.chartwrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* ---------- blotter ---------- */
+.btabs {
+  flex: none;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  height: 236px;
+}
+.btabs .bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  flex: none;
+}
+.btabs .bar button {
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-3);
+  background: none;
+  cursor: pointer;
+}
+.btabs .bar button.on {
+  background: var(--panel);
+  color: var(--ink);
+}
+.btabs .bar button i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-left: 6px;
+}
+.btabs .bar .grow {
+  flex: 1;
+}
+.pane {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 10px 10px;
+}
+.tr {
+  display: grid;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.tr.hd {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+}
+.tr:not(.hd):hover {
+  background: var(--hover);
+}
+.pos .tr {
+  grid-template-columns: 150px 92px 1fr 1fr 1fr 1fr 1fr;
+}
+.fil .tr {
+  grid-template-columns: 150px 1fr 1fr 1fr 1fr;
+}
+.sidetag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.sidetag.l {
+  background: var(--up-soft);
+  color: var(--up);
+}
+.sidetag.s {
+  background: var(--down-soft);
+  color: var(--down);
+}
+.mini {
+  font-size: 11px;
+  color: var(--ink-3);
+  display: block;
+  margin-top: 2px;
+}
+.bempty {
+  padding: 26px 8px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+/* ---------- order book ---------- */
+.obh {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  padding: 0 12px 6px;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.obh span:not(:first-child) {
+  text-align: right;
+}
+.ob {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* Both sides hug the spread: asks sit at the bottom of their half, bids at the
+   top of theirs, so the book reads outward from the middle. The demo aligns
+   them the other way, which is invisible in a short column and leaves a gap
+   around the spread in a tall one. */
+.obside {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+.obside.ask {
+  justify-content: flex-end;
+}
+.obr {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  padding: 2.5px 12px;
+  font-size: 12.5px;
+}
+.obr span:not(:first-child) {
+  text-align: right;
+  color: var(--ink-2);
+}
+.obr b {
+  position: relative;
+  z-index: 1;
+  font-weight: 500;
+}
+.obr .bar {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  opacity: 0.14;
+}
+.obr.b .bar {
+  background: var(--up);
+}
+.obr.a .bar {
+  background: var(--down);
+}
+.obr.b b {
+  color: var(--up);
+}
+.obr.a b {
+  color: var(--down);
+}
+.obspread {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  margin: 3px 0;
+  background: var(--panel);
+}
+.obspread b {
+  font-family: "Sora", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.obspread span {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* ---------- order panel ---------- */
+.order {
+  padding: 10px 12px 14px;
+  overflow-y: auto;
+}
+.seg2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  background: var(--panel);
+  border-radius: 9px;
+  padding: 3px;
+}
+.seg2 button {
+  padding: 9px;
+  border: 0;
+  border-radius: 7px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink-3);
+  font-size: 14px;
+  background: none;
+  cursor: pointer;
+}
+.seg2 button.l.on {
+  background: var(--up);
+  color: var(--paper);
+}
+.seg2 button.s.on {
+  background: var(--down);
+  color: var(--paper);
+}
+.types {
+  display: flex;
+  gap: 3px;
+  margin-top: 10px;
+}
+.types button {
+  flex: 1;
+  padding: 7px;
+  border: 0;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  background: var(--panel);
+  cursor: pointer;
+}
+.types button.on {
+  background: var(--panel-3);
+  color: var(--ink);
+}
+.fld {
+  margin-top: 9px;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 9px 12px;
+}
+.fld .l {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.fld .l b {
+  color: var(--ink-2);
+  font-weight: 600;
+  cursor: pointer;
+}
+.fld .in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.fld input {
+  flex: 1;
+  min-width: 0;
+  outline: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: "Sora", sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.fld .u {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+.quick {
+  display: flex;
+  gap: 5px;
+  margin-top: 8px;
+}
+.quick button {
+  flex: 1;
+  padding: 6px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--panel);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.quick button:hover {
+  background: var(--panel-2);
+}
+.levrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.levrow b {
+  font-family: "Sora", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--panel-2);
+  margin-top: 9px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ink);
+  cursor: pointer;
+}
+.ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.kv2 {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  margin-top: 8px;
+}
+.kv2 b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.kv2 b.warn {
+  color: var(--amber);
+}
+.cta {
+  margin-top: 13px;
+  width: 100%;
+  padding: 13px;
+  border: 0;
+  border-radius: 10px;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  color: var(--paper);
+  background: var(--up);
+  cursor: pointer;
+}
+.cta.s {
+  background: var(--down);
+}
+.cta:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cta.neutral {
+  background: var(--blue-deep);
+  color: #fff;
+}
+.hr {
+  height: 1px;
+  background: var(--line);
+  margin: 14px 0;
+}
+
+/* from a post */
+.post {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 12px;
+}
+.post .h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.post .h b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.post .cmd {
+  margin-top: 9px;
+  background: var(--panel-2);
+  border-radius: 9px;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.post .cmd em {
+  font-style: normal;
+  color: var(--blue);
+  font-weight: 600;
+}
+.post .cmd b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.post .note {
+  margin-top: 9px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+@media (max-width: 1500px) {
+  .tapp {
+    grid-template-columns: 220px 1fr 290px;
+  }
+  .tcol.obcol {
+    display: none;
+  }
+}
+@media (max-width: 1180px) {
+  .tapp {
+    grid-template-columns: 1fr 290px;
+  }
+  .tcol.mktcol {
+    display: none;
+  }
+}
+
+/* Only the terminal locks the page; the home view scrolls normally. */
+body:has(.tapp) {
+  overflow: hidden;
+}
+
+.chartfill {
+  position: absolute;
+  inset: 0;
+}
+.tf.chartf {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
+}
+.chartempty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+/* Stream state, shown wherever a live connection backs the panel. */
+.status {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.status.live {
+  color: var(--up);
+}
+.status.reconnecting {
+  color: var(--down);
+}
