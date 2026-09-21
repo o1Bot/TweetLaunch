@@ -3,6 +3,7 @@
 import { PrivyProvider } from "@privy-io/react-auth";
 import { mainnet } from "viem/chains";
 import type { ReactNode } from "react";
+import { AccountProvider, NoAccountProvider } from "@/components/AccountContext";
 
 /**
  * Two ways in, on purpose (see app/start/page.tsx for why they differ):
@@ -28,7 +29,7 @@ export function Providers({ children }: { children: ReactNode }) {
   if (!appId) {
     // Without this the provider throws and the whole app blanks, including the
     // market pages, which need no wallet at all.
-    return <>{children}</>;
+    return <NoAccountProvider>{children}</NoAccountProvider>;
   }
 
   return (
@@ -46,7 +47,7 @@ export function Providers({ children }: { children: ReactNode }) {
         },
       }}
     >
-      {children}
+      <AccountProvider>{children}</AccountProvider>
     </PrivyProvider>
   );
 }

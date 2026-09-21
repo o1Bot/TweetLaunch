@@ -32,6 +32,8 @@ export function changePct(n: number): { text: string; cls: string } {
  * it — rounding up would advertise more leverage than the venue allows.
  */
 export function leverage(n: number | null): string {
+  // A market with a zero margin fraction divides to Infinity; "Infinityx" is
+  // not a leverage cap, and a trader reading it would believe something false.
   if (n === null || !Number.isFinite(n) || n < 1) return "—";
   return `${Math.floor(n)}x`;
 }
