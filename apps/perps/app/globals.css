@@ -1,0 +1,548 @@
+/* Design tokens are the shipped set from apps/web/app/globals.css, so
+   perps.o1bot.exchange and o1bot.exchange read as one product. Keep the values
+   identical; the demo file's older navy palette is not what ships. */
+:root {
+  --paper: #1e1f23;
+  --panel: #26272c;
+  --panel-2: #303136;
+  --ink: #eaf0f8;
+  --ink-2: #a6b3c4;
+  --ink-3: #6e7c8f;
+  --line: #34353b;
+  --blue: #6fb6ff;
+  --blue-deep: #2f7bff;
+  --blue-soft: #17305a;
+  --up: #3ed082;
+  --up-soft: #173526;
+  --down: #ff6e5e;
+  --down-soft: #3b1b18;
+  --stock: #c4a2ff;
+  --stock-soft: #2b1f4f;
+  --hover: rgba(255, 255, 255, 0.04);
+}
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html {
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  font-optical-sizing: auto;
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--paper);
+}
+body {
+  min-height: 100vh;
+  background-color: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+.grad {
+  background: linear-gradient(100deg, #ffffff 0%, #ddebff 45%, #7fbfff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 20px 80px;
+}
+
+.head {
+  padding: 56px 0 28px;
+}
+.head h1 {
+  font-family: "Sora", sans-serif;
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+.head p {
+  margin-top: 12px;
+  color: var(--ink-2);
+  font-size: 17px;
+  max-width: 620px;
+}
+.head .venue {
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+/* Filters */
+.chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0 18px;
+}
+.chip {
+  height: 34px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  touch-action: manipulation;
+}
+.chip.on {
+  border-color: rgba(111, 182, 255, 0.45);
+  background: var(--blue-soft);
+  color: var(--ink);
+}
+.chip .n {
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+
+/* Market table */
+.panel {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.scroll {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+thead th {
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+thead th:first-child {
+  text-align: left;
+}
+tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  font-size: 14.5px;
+  white-space: nowrap;
+}
+tbody td:first-child {
+  text-align: left;
+}
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+tbody tr:hover {
+  background: var(--hover);
+}
+.sym {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sym b {
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+.tag {
+  height: 20px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+}
+.tag.perp {
+  border-color: rgba(111, 182, 255, 0.4);
+  color: var(--blue);
+}
+.tag.spot {
+  border-color: rgba(196, 162, 255, 0.4);
+  color: var(--stock);
+}
+.up {
+  color: var(--up);
+}
+.down {
+  color: var(--down);
+}
+.muted {
+  color: var(--ink-3);
+}
+
+.note {
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+.err {
+  border: 1px solid var(--down-soft);
+  background: var(--down-soft);
+  border-radius: 14px;
+  padding: 18px 20px;
+  color: var(--ink);
+  font-size: 14.5px;
+}
+
+@media (max-width: 640px) {
+  .head {
+    padding: 34px 0 20px;
+  }
+  .head h1 {
+    font-size: 32px;
+  }
+  .chip {
+    height: 44px;
+    padding: 0 16px;
+  }
+}
+
+/* ---------- market detail ---------- */
+.crumb {
+  padding: 28px 0 0;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+.crumb a:hover {
+  color: var(--ink);
+}
+
+.mhead {
+  padding: 20px 0 26px;
+}
+.mtitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mtitle h1 {
+  font-family: "Sora", sans-serif;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+.stats {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 36px;
+}
+.stats dt {
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.stats dd {
+  margin-top: 3px;
+  font-size: 17px;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Chart beside the tape on a laptop; stacked on a phone, chart first. */
+.mgrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .mgrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.chartbox {
+  padding: 12px 12px 4px;
+}
+.tfs {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 2px 4px 10px;
+}
+.tfs .chip {
+  height: 28px;
+  padding: 0 11px;
+  font-size: 12.5px;
+}
+.tfload {
+  font-size: 12px;
+}
+/* lightweight-charts fills its container, so the height has to come from here. */
+.canvas {
+  height: 404px;
+  width: 100%;
+}
+.nobars {
+  padding: 0 4px 12px;
+  font-size: 13px;
+}
+
+.tradesbox {
+  overflow: hidden;
+}
+.boxh {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.boxh h2 {
+  font-family: "Sora", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.empty {
+  padding: 18px 16px;
+  font-size: 13px;
+}
+.tradescroll {
+  max-height: 260px;
+  overflow-y: auto;
+}
+table.trades {
+  min-width: 0;
+}
+table.trades thead th {
+  padding: 10px 14px;
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+}
+table.trades tbody td {
+  padding: 7px 14px;
+  font-size: 13px;
+  border-bottom: 0;
+}
+table.trades tbody tr:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* ---------- order book ---------- */
+.rail {
+  display: grid;
+  gap: 16px;
+}
+.bookh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.status {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.status.live {
+  color: var(--up);
+}
+.status.reconnecting {
+  color: var(--down);
+}
+
+.bside {
+  padding: 4px 0;
+}
+/* Four columns: the bar is absolutely placed behind price/size/total. */
+.brow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 2px 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.brow > span:not(.bar) {
+  position: relative;
+  text-align: right;
+}
+.brow > span:first-of-type:not(.bar) {
+  text-align: left;
+}
+.bar {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  right: 0;
+  border-radius: 2px;
+  pointer-events: none;
+}
+.bar.bid {
+  background: rgba(62, 208, 130, 0.14);
+}
+.bar.ask {
+  background: rgba(255, 110, 94, 0.14);
+}
+
+.spread {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 14px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+}
+.spread .mid {
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+
+/* ---------- onboarding gate ---------- */
+.wrap.narrow {
+  max-width: 760px;
+}
+.gate {
+  padding: 20px 22px;
+  margin-bottom: 14px;
+}
+.gate + .gate {
+  margin-top: 0;
+}
+.gateh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.gate h2 {
+  font-family: "Sora", sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.gate p {
+  color: var(--ink-2);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+.gate p + p {
+  margin-top: 10px;
+}
+.gate strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.gate a {
+  color: var(--blue);
+}
+.fine {
+  font-size: 12.5px !important;
+  color: var(--ink-3) !important;
+}
+.pending {
+  opacity: 0.62;
+}
+.soon {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+.check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 14px;
+  font-size: 14px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.check input {
+  margin-top: 3px;
+  width: 17px;
+  height: 17px;
+  accent-color: var(--blue-deep);
+  flex: none;
+}
+.err.gate h2 {
+  margin-bottom: 8px;
+}
+.err.gate p {
+  color: var(--ink-2);
+}
+.err.gate a {
+  color: var(--ink);
+}
+
+/* Two entry paths, side by side so the trade-off is read as a comparison. */
+.paths {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 14px 0 12px;
+}
+@media (max-width: 640px) {
+  .paths {
+    grid-template-columns: 1fr;
+  }
+}
+.path {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 15px;
+  background: var(--paper);
+}
+.path h3 {
+  font-family: "Sora", sans-serif;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+.path p {
+  font-size: 13.5px !important;
+  line-height: 1.55;
+}
+.path .tag {
+  margin-top: 10px;
+  display: inline-flex;
+}
