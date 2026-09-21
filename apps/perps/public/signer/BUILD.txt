@@ -1,0 +1,16 @@
+lighter-signer.wasm
+  source:  https://github.com/elliottech/lighter-go
+  commit:  c26ac340ce5d2e237c555949b6ab0927bd09e0df
+  built:   2026-09-21T00:44:16Z
+  go:      go version go1.26.5 windows/amd64
+
+wasm_exec.js comes from the same Go toolchain and must be rebuilt with the wasm.
+Rebuild both with: pnpm signer:build
+
+Verified in a browser at build time: instantiateStreaming succeeds, all seven
+globals that packages/lighter/src/signer.ts requires are present, and
+GenerateAPIKey returns distinct {publicKey, privateKey} pairs of 82 characters
+(0x + 40 bytes), which is the shape the GeneratedApiKey interface declares.
+
+Size: 14.1 MB raw, 4.0 MB gzipped. Load it lazily — only when the user is about
+to sign — never on a page that merely reads markets.
