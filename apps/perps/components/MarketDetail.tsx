@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Chart } from "@/components/Chart";
 import { OrderBook } from "@/components/OrderBook";
+import { Ticket } from "@/components/Ticket";
 import { Trades } from "@/components/Trades";
 import { MAX_BARS, toBars, windowFor } from "@/lib/candles";
 import { changePct, leverage, price, usd } from "@/lib/format";
@@ -88,14 +89,26 @@ export async function MarketDetail({ symbol, type }: { symbol: string; type: Mar
       <div className="mgrid">
         <Chart marketId={market.market_id} initialBars={candles} initialResolution={DEFAULT_RESOLUTION} />
         <div className="rail">
+          {perp && (
+            <Ticket
+              market={{
+                market_id: market.market_id,
+                supported_price_decimals: market.supported_price_decimals,
+                supported_size_decimals: market.supported_size_decimals,
+                maintenance_margin_fraction: perp.maintenance_margin_fraction,
+              }}
+              mark={Number(perp.mark_price) || market.last_trade_price}
+              maxLeverage={Math.floor(maxLeverage(perp))}
+            />
+          )}
           <OrderBook marketId={market.market_id} />
           <Trades trades={trades} />
         </div>
       </div>
 
       <p className="note">
-        Read-only for now: this page shows the venue, it does not place orders. Lighter matches and
-        settles every trade and holds the collateral; o1bot never does.
+        Lighter matches and settles every trade and holds the collateral; o1bot builds the order
+        and routes it, and never holds your funds. Spot markets are read-only here for now.
       </p>
     </main>
   );

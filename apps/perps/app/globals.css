@@ -596,3 +596,101 @@ table.trades tbody tr:nth-child(odd) {
   color: var(--ink);
   font-family: ui-monospace, monospace;
 }
+
+/* ---------- order ticket ---------- */
+.ticket .tbody {
+  padding: 14px 16px 16px;
+  display: grid;
+  gap: 12px;
+}
+.sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.side {
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-family: "Sora", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.side.long.on {
+  border-color: var(--up);
+  background: var(--up-soft);
+  color: var(--up);
+}
+.side.short.on {
+  border-color: var(--down);
+  background: var(--down-soft);
+  color: var(--down);
+}
+.field {
+  display: grid;
+  gap: 5px;
+}
+.field > span {
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.field .amt {
+  width: 100%;
+}
+.btn.wide {
+  width: 100%;
+  height: 44px;
+}
+.btn.wide.long {
+  background: var(--up);
+  color: #06231a;
+}
+.btn.wide.short {
+  background: var(--down);
+  color: #2a0d0a;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* The ledger: every number that makes up the price of the order. */
+.ledger {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--paper);
+  display: grid;
+  gap: 5px;
+}
+.ledger > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.ledger dt {
+  color: var(--ink-3);
+}
+.ledger dd {
+  font-variant-numeric: tabular-nums;
+}
+.ledger .total {
+  margin-top: 4px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+}
+.ledger .total dt,
+.ledger .total dd {
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 14px;
+}
