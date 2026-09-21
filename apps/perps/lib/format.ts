@@ -35,3 +35,14 @@ export function leverage(n: number | null): string {
   if (n === null || !Number.isFinite(n) || n < 1) return "—";
   return `${Math.floor(n)}x`;
 }
+
+/**
+ * For ledger rows, where a zero is a fact rather than a gap. usd() prints "—"
+ * for nothing, which reads as "unknown" — fine for a market's 24h volume, wrong
+ * for a fee that is genuinely zero, since the whole point of the ledger is that
+ * every line is known before the order goes in.
+ */
+export function usdExact(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
