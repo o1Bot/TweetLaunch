@@ -119,23 +119,24 @@ export function Chart({
   }
 
   return (
-    <div className="panel chartbox">
-      <div className="tfs">
+    <>
+      {/* The chart fills the column; the timeframe buttons float over it rather
+          than taking a row, because vertical space is what a chart is for. */}
+      <div ref={box} className="chartfill" />
+      <div className="tf chartf">
         {RESOLUTIONS.map((r) => (
           <button
             key={r}
             type="button"
-            className={`chip${r === resolution ? " on" : ""}`}
+            className={r === resolution ? "on" : ""}
             onClick={() => void pick(r)}
             disabled={loading}
           >
             {r}
           </button>
         ))}
-        {loading && <span className="muted tfload">loading…</span>}
       </div>
-      <div ref={box} className="canvas" />
-      {bars.length === 0 && <p className="muted nobars">No candles for this market yet.</p>}
-    </div>
+      {bars.length === 0 && <p className="chartempty">No candles for this market yet.</p>}
+    </>
   );
 }

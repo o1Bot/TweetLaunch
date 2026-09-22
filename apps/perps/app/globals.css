@@ -221,216 +221,6 @@ tbody tr:hover {
   }
 }
 
-/* ---------- market detail ---------- */
-.crumb {
-  padding: 28px 0 0;
-  font-size: 14px;
-  color: var(--ink-3);
-}
-.crumb a:hover {
-  color: var(--ink);
-}
-
-.mhead {
-  padding: 20px 0 26px;
-}
-.mtitle {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.mtitle h1 {
-  font-family: "Sora", sans-serif;
-  font-size: 34px;
-  font-weight: 800;
-  letter-spacing: -0.035em;
-}
-.stats {
-  margin-top: 18px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 36px;
-}
-.stats dt {
-  font-size: 11.5px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-.stats dd {
-  margin-top: 3px;
-  font-size: 17px;
-  font-family: "Sora", sans-serif;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-/* Chart beside the tape on a laptop; stacked on a phone, chart first. */
-.mgrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 16px;
-  align-items: start;
-}
-@media (max-width: 900px) {
-  .mgrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.chartbox {
-  padding: 12px 12px 4px;
-}
-.tfs {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  flex-wrap: wrap;
-  padding: 2px 4px 10px;
-}
-.tfs .chip {
-  height: 28px;
-  padding: 0 11px;
-  font-size: 12.5px;
-}
-.tfload {
-  font-size: 12px;
-}
-/* lightweight-charts fills its container, so the height has to come from here. */
-.canvas {
-  height: 404px;
-  width: 100%;
-}
-.nobars {
-  padding: 0 4px 12px;
-  font-size: 13px;
-}
-
-.tradesbox {
-  overflow: hidden;
-}
-.boxh {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--line);
-}
-.boxh h2 {
-  font-family: "Sora", sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-.empty {
-  padding: 18px 16px;
-  font-size: 13px;
-}
-.tradescroll {
-  max-height: 260px;
-  overflow-y: auto;
-}
-table.trades {
-  min-width: 0;
-}
-table.trades thead th {
-  padding: 10px 14px;
-  position: sticky;
-  top: 0;
-  background: var(--panel);
-}
-table.trades tbody td {
-  padding: 7px 14px;
-  font-size: 13px;
-  border-bottom: 0;
-}
-table.trades tbody tr:nth-child(odd) {
-  background: rgba(255, 255, 255, 0.015);
-}
-
-/* ---------- order book ---------- */
-.rail {
-  display: grid;
-  gap: 16px;
-}
-.bookh {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.status {
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.status::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.status.live {
-  color: var(--up);
-}
-.status.reconnecting {
-  color: var(--down);
-}
-
-.bside {
-  padding: 4px 0;
-}
-/* Four columns: the bar is absolutely placed behind price/size/total. */
-.brow {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-  padding: 2px 14px;
-  font-size: 12.5px;
-  line-height: 1.45;
-}
-.brow > span:not(.bar) {
-  position: relative;
-  text-align: right;
-}
-.brow > span:first-of-type:not(.bar) {
-  text-align: left;
-}
-.bar {
-  position: absolute;
-  top: 1px;
-  bottom: 1px;
-  right: 0;
-  border-radius: 2px;
-  pointer-events: none;
-}
-.bar.bid {
-  background: rgba(62, 208, 130, 0.14);
-}
-.bar.ask {
-  background: rgba(255, 110, 94, 0.14);
-}
-
-.spread {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 7px 14px;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  font-size: 12.5px;
-}
-.spread .mid {
-  font-family: "Sora", sans-serif;
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: -0.02em;
-}
-
 /* ---------- onboarding gate ---------- */
 .wrap.narrow {
   max-width: 760px;
@@ -597,100 +387,247 @@ table.trades tbody tr:nth-child(odd) {
   font-family: ui-monospace, monospace;
 }
 
-/* ---------- order ticket ---------- */
-.ticket .tbody {
-  padding: 14px 16px 16px;
-  display: grid;
-  gap: 12px;
+/* ---------- home view (o1bot-perps-demo2.html) ---------- */
+.page {
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 0 20px;
 }
-.sides {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.hero {
+  padding: 76px 0 60px;
+  max-width: 900px;
+}
+.hero .eyebrow {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-}
-.side {
-  height: 40px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--paper);
+  background: var(--panel);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12.5px;
   color: var(--ink-2);
-  font-family: "Sora", sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  cursor: pointer;
-  touch-action: manipulation;
+  font-weight: 600;
 }
-.side.long.on {
-  border-color: var(--up);
-  background: var(--up-soft);
-  color: var(--up);
-}
-.side.short.on {
-  border-color: var(--down);
-  background: var(--down-soft);
-  color: var(--down);
-}
-.field {
-  display: grid;
-  gap: 5px;
-}
-.field > span {
-  font-size: 11.5px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-.field .amt {
-  width: 100%;
-}
-.btn.wide {
-  width: 100%;
-  height: 44px;
-}
-.btn.wide.long {
+.hero .eyebrow i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   background: var(--up);
-  color: #06231a;
 }
-.btn.wide.short {
-  background: var(--down);
-  color: #2a0d0a;
+.hero h1 {
+  font-family: "Sora", sans-serif;
+  font-size: 60px;
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  margin-top: 22px;
 }
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.hero p {
+  margin-top: 20px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: 62ch;
 }
-
-/* The ledger: every number that makes up the price of the order. */
-.ledger {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: var(--paper);
+.hero .cmd {
+  margin-top: 22px;
+  display: inline-block;
+  background: var(--panel);
+  border-radius: 11px;
+  padding: 13px 17px;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.hero .cmd b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.hero .cmd em {
+  font-style: normal;
+  color: var(--blue);
+  font-weight: 600;
+}
+.hero .cta2 {
+  display: flex;
+  gap: 10px;
+  margin-top: 26px;
+  flex-wrap: wrap;
+}
+.hero .cta2 .btn {
+  padding: 12px 20px;
+  font-size: 14px;
+  border-radius: 10px;
+}
+.hstats {
   display: grid;
-  gap: 5px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 0 0 64px;
 }
-.ledger > div {
+.hstats div {
+  background: var(--panel);
+  border-radius: 13px;
+  padding: 16px 18px;
+}
+.hstats b {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+.hstats span {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  margin-top: 3px;
+}
+.sech {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  font-size: 13px;
+  margin-bottom: 14px;
 }
-.ledger dt {
+.sech h2 {
+  font-family: "Sora", sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.sech span {
+  font-size: 13px;
   color: var(--ink-3);
 }
-.ledger dd {
-  font-variant-numeric: tabular-nums;
+.mgrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding-bottom: 64px;
 }
-.ledger .total {
-  margin-top: 4px;
-  padding-top: 7px;
-  border-top: 1px solid var(--line);
+.mcard {
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 16px;
+  transition: background 0.12s;
 }
-.ledger .total dt,
-.ledger .total dd {
-  color: var(--ink);
+.mcard:hover {
+  background: var(--panel-2);
+}
+.mcard .t {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mcard .t i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex: none;
+}
+.mcard .t i.c {
+  background: var(--blue);
+}
+.mcard .t i.k {
+  background: var(--stock);
+}
+.mcard .t b {
   font-weight: 600;
-  font-size: 14px;
+}
+.mcard .t em {
+  font-style: normal;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  margin-left: auto;
+}
+.mcard .p {
+  font-family: "Sora", sans-serif;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-top: 12px;
+}
+.mcard .r {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 5px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.mcard .r b {
+  font-weight: 600;
+}
+.mcard .k {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.mcard .k b {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+@media (max-width: 1180px) {
+  .hero h1 {
+    font-size: 42px;
+  }
+  .hstats,
+  .mgrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ---------- top bar ---------- */
+.top {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+.top .brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.03em;
+}
+.top .brand img {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+.top .brand em {
+  font-style: normal;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.top .grow {
+  flex: 1;
+}
+.acct {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.acct .kv {
+  text-align: right;
+}
+.acct .kv span {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.acct .kv b {
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.02em;
 }

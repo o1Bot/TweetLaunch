@@ -1,19 +1,30 @@
 "use client";
 
 import { createLighterClient } from "@o1bot/lighter";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useWallets } from "@privy-io/react-auth";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import type { LinkStatus } from "@/lib/account";
+import { useMemo, useState } from "react";
+import { useAccount } from "@/components/AccountContext";
 import { price as fmtPrice, usdExact } from "@/lib/format";
-import { vaultKey } from "@/lib/register";
 import { NoKeyError, submitOrder } from "@/lib/submit";
 import { quote, type Market } from "@/lib/ticket";
 
-const LEVERAGES = [1, 2, 3, 5, 10, 20] as const;
+const QUICK = [100, 500, 1000] as const;
 
-export function Ticket({ market, mark, maxLeverage }: { market: Market; mark: number; maxLeverage: number }) {
-  const { ready, authenticated, login } = usePrivy();
+export function Ticket({
+  market,
+  symbol,
+  mark,
+  maxLeverage,
+  fundingRatePct,
+}: {
+  market: Market;
+  symbol: string;
+  mark: number;
+  maxLeverage: number;
+  fundingRatePct?: number;
+}) {
+  const { ready, authenticated, login, accountIndex, hasKey, availableBalance, refresh } = useAccount();
   const { wallets } = useWallets();
   const wallet = wallets[0];
 
@@ -21,62 +32,37 @@ export function Ticket({ market, mark, maxLeverage }: { market: Market; mark: nu
   const [type, setType] = useState<"market" | "limit">("market");
   const [amount, setAmount] = useState("");
   const [limitPrice, setLimitPrice] = useState("");
-  const [leverage, setLeverage] = useState(2);
-  const [status, setStatus] = useState<LinkStatus | null>(null);
-  const [hasKey, setHasKey] = useState(false);
+  const [leverage, setLeverage] = useState(Math.min(10, maxLeverage));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
 
-  const address = wallet?.address;
-
-  useEffect(() => {
-    if (!address) {
-      setStatus(null);
-      return;
-    }
-    let alive = true;
-    fetch(`/api/account?address=${address}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error())))
-      .then((s: LinkStatus) => alive && setStatus(s))
-      .catch(() => alive && setStatus(null));
-    return () => {
-      alive = false;
-    };
-  }, [address]);
-
-  const accountIndex = status?.state === "linked" ? status.account.index : null;
-
-  useEffect(() => {
-    if (accountIndex === null) {
-      setHasKey(false);
-      return;
-    }
-    try {
-      setHasKey(localStorage.getItem(vaultKey(accountIndex)) !== null);
-    } catch {
-      setHasKey(false);
-    }
-  }, [accountIndex]);
-
   const entry = type === "limit" ? Number(limitPrice) || 0 : mark;
   const notional = Number(amount) || 0;
 
-  // One quote feeds the ledger and the order. If this throws, the order cannot
-  // be built, so there is nothing to show and nothing to send.
+  // One quote feeds the panel and the order — they cannot disagree because
+  // nothing is computed twice.
   const q = useMemo(() => {
     if (notional <= 0 || entry <= 0) return null;
     try {
-      return quote({ side, type, notionalUsd: notional, price: entry, leverage, market });
+      return quote({
+        side,
+        type,
+        notionalUsd: notional,
+        price: entry,
+        leverage,
+        market,
+        ...(fundingRatePct !== undefined ? { fundingRatePct } : {}),
+      });
     } catch (e) {
       return e instanceof Error ? e.message : "cannot build this order";
     }
-  }, [side, type, notional, entry, leverage, market]);
+  }, [side, type, notional, entry, leverage, market, fundingRatePct]);
 
   const q0 = typeof q === "object" && q !== null ? q : null;
 
   async function send() {
-    if (!q0 || !wallet || accountIndex === null || busy) return;
+    if (!q0 || accountIndex === null || !wallet || busy) return;
     setBusy(true);
     setError(null);
     setSent(null);
@@ -93,10 +79,11 @@ export function Ticket({ market, mark, maxLeverage }: { market: Market; mark: nu
       });
       setSent(txHash);
       setAmount("");
+      refresh();
     } catch (e) {
       setError(
         e instanceof NoKeyError
-          ? "No signing key on this device. Register one on the start page first."
+          ? "No signing key on this device — register one first."
           : e instanceof Error
             ? e.message
             : "order failed",
@@ -106,142 +93,191 @@ export function Ticket({ market, mark, maxLeverage }: { market: Market; mark: nu
     }
   }
 
-  if (!ready) return <div className="panel ticket"><p className="muted">Loading…</p></div>;
-
   return (
-    <div className="panel ticket">
-      <div className="boxh">
-        <h2>Place an order</h2>
-      </div>
-
-      <div className="tbody">
-        <div className="sides">
-          {(["long", "short"] as const).map((s) => (
-            <button
-              key={s}
-              type="button"
-              className={`side ${s}${side === s ? " on" : ""}`}
-              onClick={() => setSide(s)}
-            >
-              {s === "long" ? "Long" : "Short"}
-            </button>
-          ))}
+    <section className="tcol">
+      <div className="ch">Order</div>
+      <div className="order">
+        <div className="seg2">
+          <button type="button" className={`l${side === "long" ? " on" : ""}`} onClick={() => setSide("long")}>
+            Long
+          </button>
+          <button type="button" className={`s${side === "short" ? " on" : ""}`} onClick={() => setSide("short")}>
+            Short
+          </button>
         </div>
 
-        <div className="chips">
+        <div className="types">
           {(["market", "limit"] as const).map((t) => (
-            <button key={t} type="button" className={`chip${type === t ? " on" : ""}`} onClick={() => setType(t)}>
+            <button key={t} type="button" className={type === t ? "on" : ""} onClick={() => setType(t)}>
               {t === "market" ? "Market" : "Limit"}
             </button>
           ))}
         </div>
 
         {type === "limit" && (
-          <label className="field">
-            <span>Limit price</span>
-            <input
-              className="chip amt"
-              inputMode="decimal"
-              placeholder={fmtPrice(mark)}
-              value={limitPrice}
-              onChange={(e) => setLimitPrice(e.target.value)}
-            />
-          </label>
+          <div className="fld">
+            <div className="l">
+              <span>Limit price</span>
+              <b onClick={() => setLimitPrice(String(mark))}>Mark</b>
+            </div>
+            <div className="in">
+              <input
+                inputMode="decimal"
+                value={limitPrice}
+                onChange={(e) => setLimitPrice(e.target.value)}
+                placeholder={fmtPrice(mark)}
+                aria-label="Limit price"
+              />
+              <span className="u">USDC</span>
+            </div>
+          </div>
         )}
 
-        <label className="field">
-          <span>Size (USDC)</span>
-          <input
-            className="chip amt"
-            inputMode="decimal"
-            placeholder="0.00"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-        </label>
-
-        <div className="chips">
-          {LEVERAGES.filter((l) => l <= maxLeverage).map((l) => (
-            <button key={l} type="button" className={`chip${leverage === l ? " on" : ""}`} onClick={() => setLeverage(l)}>
-              {l}x
-            </button>
-          ))}
+        <div className="fld">
+          <div className="l">
+            <span>Size</span>
+            {availableBalance !== null && <b>Free {usdExact(availableBalance)}</b>}
+          </div>
+          <div className="in">
+            <input
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0"
+              aria-label="Order size in USDC"
+            />
+            <span className="u">USDC</span>
+          </div>
+          <div className="quick">
+            {QUICK.map((v) => (
+              <button key={v} type="button" onClick={() => setAmount(String(v))}>
+                ${v >= 1000 ? `${v / 1000}k` : v}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {typeof q === "string" && <p className="down">{q}</p>}
+        <div className="levrow">
+          <span>Leverage</span>
+          <b>{leverage}x</b>
+        </div>
+        <input
+          type="range"
+          min={1}
+          max={maxLeverage}
+          value={leverage}
+          onChange={(e) => setLeverage(Number(e.target.value))}
+          aria-label="Leverage"
+        />
+        <div className="ticks">
+          <span>1x</span>
+          <span>{Math.round(maxLeverage / 2)}x</span>
+          <span>{maxLeverage}x</span>
+        </div>
 
-        {/* The ledger is the product: it shows the whole price of the order
-            before the button is usable, and it describes the order that will
-            actually be sent, not the one that was typed. */}
-        {q0 && (
-          <dl className="ledger">
-            <div>
-              <dt>Size</dt>
-              <dd>
-                {q0.built.contracts}
-                {q0.shortfallPct > 0.01 && (
-                  <span className="muted"> · {q0.shortfallPct.toFixed(2)}% below your request</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Notional</dt>
-              <dd>{usdExact(q0.effectiveNotionalUsd)}</dd>
-            </div>
-            <div>
-              <dt>Margin at {leverage}x</dt>
-              <dd>{usdExact(q0.ledger.marginUsd)}</dd>
-            </div>
-            <div>
-              <dt>Venue fee</dt>
-              <dd>{usdExact(q0.ledger.lighterFeeUsd)}</dd>
-            </div>
-            <div>
-              <dt>o1bot fee</dt>
-              <dd>{usdExact(q0.ledger.integratorFeeUsd)}</dd>
-            </div>
-            <div>
-              <dt>Liquidation (est.)</dt>
-              <dd>{fmtPrice(q0.ledger.liqPrice)}</dd>
-            </div>
-            <div className="total">
-              <dt>Total debited</dt>
-              <dd>{usdExact(q0.ledger.totalDebitedUsd)}</dd>
-            </div>
-          </dl>
+        {typeof q === "string" && (
+          <div className="kv2">
+            <span className="down">{q}</span>
+          </div>
         )}
 
-        {!authenticated ? (
-          <button type="button" className="btn wide" onClick={login}>
+        {q0 && (
+          <>
+            <div className="kv2">
+              <span>Size</span>
+              <b>{q0.built.contracts}</b>
+            </div>
+            {q0.shortfallPct > 0.01 && (
+              <div className="kv2">
+                <span>Below your request</span>
+                <b className="warn">{q0.shortfallPct.toFixed(2)}%</b>
+              </div>
+            )}
+            <div className="kv2">
+              <span>Position size</span>
+              <b>{usdExact(q0.effectiveNotionalUsd)}</b>
+            </div>
+            <div className="kv2">
+              <span>Entry price</span>
+              <b>{fmtPrice(entry)}</b>
+            </div>
+            <div className="kv2">
+              <span>Liquidation price</span>
+              <b className="warn">{fmtPrice(q0.ledger.liqPrice)}</b>
+            </div>
+            <div className="kv2">
+              <span>Margin required</span>
+              <b>{usdExact(q0.ledger.marginUsd)}</b>
+            </div>
+            <div className="kv2">
+              <span>Venue fee</span>
+              <b>{usdExact(q0.ledger.lighterFeeUsd)}</b>
+            </div>
+            <div className="kv2">
+              <span>o1bot fee</span>
+              <b>{usdExact(q0.ledger.integratorFeeUsd)}</b>
+            </div>
+            {fundingRatePct !== undefined && (
+              <div className="kv2">
+                <span>Est. funding</span>
+                <b>{usdExact(Math.abs(q0.ledger.estFunding8hUsd))}</b>
+              </div>
+            )}
+          </>
+        )}
+
+        {!ready ? null : !authenticated ? (
+          <button type="button" className="cta neutral" onClick={login}>
             Sign in to trade
           </button>
         ) : accountIndex === null ? (
-          <p className="fine">
-            No Lighter account for this wallet yet. <Link href="/start">Set one up</Link>.
-          </p>
+          <Link className="cta neutral" href="/start" style={{ display: "block", textAlign: "center" }}>
+            Set up an account
+          </Link>
         ) : !hasKey ? (
-          <p className="fine">
-            No signing key on this device. <Link href="/start">Register one</Link>.
-          </p>
+          <Link className="cta neutral" href="/start" style={{ display: "block", textAlign: "center" }}>
+            Register a signing key
+          </Link>
         ) : (
           <button
             type="button"
-            className={`btn wide ${side}`}
+            className={`cta${side === "short" ? " s" : ""}`}
             onClick={() => void send()}
             disabled={busy || !q0}
           >
-            {busy ? "Signing…" : side === "long" ? "Place long order" : "Place short order"}
+            {busy ? "Signing…" : `${side === "long" ? "Long" : "Short"} ${symbol}`}
           </button>
         )}
 
-        {sent && <p className="up">Order sent. Hash {sent.slice(0, 14)}…</p>}
-        {error && <p className="down">{error}</p>}
+        {sent && (
+          <div className="kv2">
+            <span className="up">Order sent · {sent.slice(0, 12)}…</span>
+          </div>
+        )}
+        {error && (
+          <div className="kv2">
+            <span className="down">{error}</span>
+          </div>
+        )}
 
-        <p className="fine">
-          Lighter matches and settles this order and holds the collateral. Fills are never
-          guaranteed, and a limit order may not execute at all.
-        </p>
+        <div className="hr" />
+
+        <div className="post">
+          <div className="h">
+            <b>Trade from a post</b>
+          </div>
+          <div className="cmd">
+            <b>@o1bot_exchange</b> long <em>${symbol}</em> 10x with 500 usdc
+            <br />
+            <b>@o1bot_exchange</b> close my <em>${symbol}</em>
+          </div>
+          <p className="note">
+            Not live yet. It will need a per-trade cap and a leverage limit set here, and it only
+            ever works on a wallet o1bot can sign for — a wallet you connected yourself stays
+            terminal-only.
+          </p>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
