@@ -1,8 +1,13 @@
 "use client";
 
+import { createLighterClient, type AccountPosition } from "@o1bot/lighter";
+import { useWallets } from "@privy-io/react-auth";
 import { useState } from "react";
 import { useAccount } from "@/components/AccountContext";
+import { CloseError, closeOrderFor } from "@/lib/close";
 import { price, usdExact } from "@/lib/format";
+import type { PerpRow } from "@/lib/markets";
+import { NoKeyError, submitOrder } from "@/lib/submit";
 
 type Tab = "pos" | "fil" | "ord" | "fee";
 
@@ -16,9 +21,37 @@ function size(v: string | undefined): string {
   return Number.isFinite(n) ? n.toLocaleString("en-US", { maximumFractionDigits: 6 }) : "—";
 }
 
-export function Blotter() {
-  const { authenticated, accountIndex, state, stream } = useAccount();
+export function Blotter({ markets }: { markets: PerpRow[] }) {
+  const { authenticated, accountIndex, hasKey, state, stream, refresh } = useAccount();
+  const { wallets } = useWallets();
+  const wallet = wallets[0];
   const [tab, setTab] = useState<Tab>("pos");
+  const [closing, setClosing] = useState<number | null>(null);
+  const [closeError, setCloseError] = useState<string | null>(null);
+
+  async function close(p: AccountPosition) {
+    if (accountIndex === null || !wallet || closing !== null) return;
+    setClosing(p.market_id);
+    setCloseError(null);
+    try {
+      const built = closeOrderFor(p, markets);
+      const provider = await wallet.getEthereumProvider();
+      const signMessage = (message: string) =>
+        provider.request({ method: "personal_sign", params: [message, wallet.address] }) as Promise<string>;
+      await submitOrder({ client: createLighterClient(), accountIndex, built, signMessage });
+      refresh();
+    } catch (e) {
+      setCloseError(
+        e instanceof NoKeyError
+          ? "No signing key on this device — register one first."
+          : e instanceof CloseError || e instanceof Error
+            ? e.message
+            : "could not close",
+      );
+    } finally {
+      setClosing(null);
+    }
+  }
 
   const positions = state?.positions() ?? [];
   const fills = state?.fills(60) ?? [];
@@ -62,6 +95,7 @@ export function Blotter() {
             <span>Value</span>
             <span>Liq. price</span>
             <span>Unrealised</span>
+            <span />
           </div>
           {positions.map((p) => {
             const pnl = Number(p.unrealized_pnl || 0);
@@ -85,10 +119,22 @@ export function Blotter() {
                   {pnl >= 0 ? "+" : "-"}
                   {usdExact(Math.abs(pnl))}
                 </span>
+                <span>
+                  <button
+                    type="button"
+                    className="tbtn"
+                    onClick={() => void close(p)}
+                    disabled={closing !== null || !hasKey}
+                    title={hasKey ? "Close at market, reduce-only" : "Register a signing key first"}
+                  >
+                    {closing === p.market_id ? "Closing…" : "Close"}
+                  </button>
+                </span>
               </div>
             );
           })}
           {positions.length === 0 && <p className="bempty">No open positions.</p>}
+          {closeError && <p className="bempty down">{closeError}</p>}
         </div>
       ) : tab === "fil" ? (
         <div className="pane fil">
