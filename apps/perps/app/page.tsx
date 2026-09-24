@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MarketLogo } from "@/components/MarketLogo";
 import { TopBar } from "@/components/TopBar";
 import { changePct, price, usd } from "@/lib/format";
 import { loadPerps } from "@/lib/markets";
@@ -77,7 +78,7 @@ export default async function HomePage() {
                 return (
                   <Link key={m.symbol} className="mcard" href={`/perps/${m.symbol}`}>
                     <div className="t">
-                      <i className={m.category === "crypto" ? "c" : "k"} />
+                      <MarketLogo symbol={m.symbol} size={22} />
                       <b>{m.symbol}</b>
                       <em>{m.maxLeverage}x</em>
                     </div>

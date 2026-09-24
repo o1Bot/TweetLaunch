@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Blotter } from "@/components/Blotter";
 import { Chart } from "@/components/Chart";
+import { MarketLogo } from "@/components/MarketLogo";
 import { MarketsRail } from "@/components/MarketsRail";
 import { OrderBook } from "@/components/OrderBook";
 import { Ticket } from "@/components/Ticket";
@@ -60,6 +61,7 @@ export default async function TerminalPage({ params }: { params: Promise<{ symbo
         <section className="tcol">
           <div className="mhead">
             <div className="name">
+              <MarketLogo symbol={m.symbol} size={26} />
               <h1>{m.symbol}-PERP</h1>
               <span className={`tagp${m.category === "rwa" ? " k" : ""}`}>
                 {m.category === "crypto" ? "Crypto" : "RWA"}

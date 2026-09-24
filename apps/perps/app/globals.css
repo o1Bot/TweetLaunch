@@ -631,3 +631,22 @@ tbody tr:hover {
   font-size: 15px;
   letter-spacing: -0.02em;
 }
+
+/* Market mark: a logo when one exists, else the symbol's letters on a colour
+   derived from the symbol, so it stays recognisable without one. */
+.mlogo {
+  border-radius: 50%;
+  flex: none;
+  display: block;
+  object-fit: cover;
+  background: var(--panel-2);
+}
+.mlogo.fallback {
+  display: grid;
+  place-items: center;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  line-height: 1;
+}

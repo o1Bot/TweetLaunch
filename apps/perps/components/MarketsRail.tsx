@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { MarketLogo } from "@/components/MarketLogo";
 import { changePct, price } from "@/lib/format";
 
 export interface RailMarket {
@@ -58,7 +59,7 @@ export function MarketsRail({ markets, current }: { markets: RailMarket[]; curre
             <Link key={m.symbol} href={m.href} className={`mkt${m.symbol === current ? " on" : ""}`}>
               <div>
                 <div className="s">
-                  <i className={m.kind === "crypto" ? "c" : "k"} />
+                  <MarketLogo symbol={m.symbol} size={20} />
                   {m.symbol}
                 </div>
                 <div className="f">
