@@ -18,6 +18,7 @@
     "o1:sync": "tsx scripts/sync-o1-config.ts",
     "abi:vendor": "tsx scripts/vendor-abi.ts",
     "logos:fetch": "tsx scripts/logos/fetch.ts",
+    "logos:perps": "tsx scripts/logos/perps.ts",
     "simulate": "pnpm --filter @o1bot/executor simulate",
     "parse": "pnpm --filter @o1bot/parser parse",
     "decode-launch": "pnpm --filter @o1bot/executor exec tsx scripts/decode-launch.ts",
