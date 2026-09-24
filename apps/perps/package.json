@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@o1bot/lighter": "workspace:*",
-    "@o1bot/shared": "workspace:*",
     "@privy-io/react-auth": "^3.40.0",
     "lightweight-charts": "^5.2.1",
     "next": "^16.3.4",

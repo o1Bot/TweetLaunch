@@ -19,7 +19,7 @@ for (;;) {
 
 const config: NextConfig = {
   // Workspace packages export TypeScript source; let Next compile them.
-  transpilePackages: ["@o1bot/lighter", "@o1bot/shared"],
+  transpilePackages: ["@o1bot/lighter"],
 };
 
 export default config;
