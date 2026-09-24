@@ -2,11 +2,13 @@
 
 import { createLighterClient, type AccountPosition } from "@o1bot/lighter";
 import { useWallets } from "@privy-io/react-auth";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAccount } from "@/components/AccountContext";
 import { CloseError, closeOrderFor } from "@/lib/close";
 import { price, usdExact } from "@/lib/format";
 import type { PerpRow } from "@/lib/markets";
+import { cancelOrder } from "@/lib/cancel";
+import { UnexpectedShapeError, authTokenFor, forgetToken, openOrders, type OpenOrder } from "@/lib/orders";
 import { NoKeyError, submitOrder } from "@/lib/submit";
 
 type Tab = "pos" | "fil" | "ord" | "fee";
@@ -28,6 +30,72 @@ export function Blotter({ markets }: { markets: PerpRow[] }) {
   const [tab, setTab] = useState<Tab>("pos");
   const [closing, setClosing] = useState<number | null>(null);
   const [closeError, setCloseError] = useState<string | null>(null);
+  const [orders, setOrders] = useState<OpenOrder[] | null>(null);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [cancelling, setCancelling] = useState<number | null>(null);
+
+  const signMessage = useCallback(
+    async (message: string) => {
+      if (!wallet) throw new Error("no wallet");
+      const provider = await wallet.getEthereumProvider();
+      return provider.request({ method: "personal_sign", params: [message, wallet.address] }) as Promise<string>;
+    },
+    [wallet],
+  );
+
+  const loadOrders = useCallback(async () => {
+    if (accountIndex === null || !wallet) return;
+    setLoadingOrders(true);
+    setOrdersError(null);
+    try {
+      const token = await authTokenFor(accountIndex, signMessage);
+      setOrders(await openOrders(createLighterClient(), accountIndex, token));
+    } catch (e) {
+      // A rejected token is worth retrying with a fresh one rather than
+      // leaving the user stuck behind a cached credential the venue refuses.
+      if (accountIndex !== null) forgetToken(accountIndex);
+      setOrdersError(
+        e instanceof NoKeyError
+          ? "No signing key on this device — register one first."
+          : e instanceof UnexpectedShapeError
+            ? e.message
+            : e instanceof Error
+              ? e.message
+              : "could not load open orders",
+      );
+    } finally {
+      setLoadingOrders(false);
+    }
+  }, [accountIndex, wallet, signMessage]);
+
+  // Refresh while the tab is open, using the cached token so it costs no
+  // signature; the first load is the only one that prompts.
+  useEffect(() => {
+    if (tab !== "ord" || orders === null) return;
+    const t = setInterval(() => void loadOrders(), 10_000);
+    return () => clearInterval(t);
+  }, [tab, orders, loadOrders]);
+
+  async function cancel(o: OpenOrder) {
+    if (accountIndex === null || o.marketId === null || cancelling !== null) return;
+    setCancelling(o.orderIndex);
+    setOrdersError(null);
+    try {
+      await cancelOrder({
+        client: createLighterClient(),
+        accountIndex,
+        marketId: o.marketId,
+        orderIndex: o.orderIndex,
+        signMessage,
+      });
+      await loadOrders();
+    } catch (e) {
+      setOrdersError(e instanceof Error ? e.message : "could not cancel");
+    } finally {
+      setCancelling(null);
+    }
+  }
 
   async function close(p: AccountPosition) {
     if (accountIndex === null || !wallet || closing !== null) return;
@@ -157,14 +225,61 @@ export function Blotter({ markets }: { markets: PerpRow[] }) {
           {fills.length === 0 && <p className="bempty">No fills in this session.</p>}
         </div>
       ) : tab === "ord" ? (
-        <div className="pane">
-          {/* The positions and fills channel is public; open orders are not, and
-              need an auth token this app does not request yet. Saying so beats
-              an empty table that looks like "you have no orders". */}
-          <p className="bempty">
-            Open orders need an authenticated stream, which is not wired up yet. This will show
-            nothing even if you have orders resting — check the venue directly for now.
-          </p>
+        <div className="pane ord">
+          {/* Positions and fills ride a public channel; open orders do not, so
+              reading them costs one signature. The button says so rather than
+              throwing a wallet prompt at someone who only clicked a tab. */}
+          {orders === null ? (
+            <p className="bempty">
+              Open orders are private, so reading them needs one signature to mint a token. It
+              lasts the session.{" "}
+              <button type="button" className="tbtn" onClick={() => void loadOrders()} disabled={loadingOrders || !hasKey}>
+                {loadingOrders ? "Loading…" : "Show open orders"}
+              </button>
+            </p>
+          ) : (
+            <>
+              <div className="tr hd">
+                <span>Market</span>
+                <span>Side</span>
+                <span>Price</span>
+                <span>Remaining</span>
+                <span>Of</span>
+                <span />
+              </div>
+              {orders.map((o) => {
+                const m = markets.find((x) => x.marketId === o.marketId);
+                return (
+                  <div className="tr" key={o.orderIndex}>
+                    <span>{m?.symbol ?? (o.marketId ?? "—")}</span>
+                    <span>
+                      {o.isAsk === null ? (
+                        <span className="muted">—</span>
+                      ) : (
+                        <span className={`sidetag ${o.isAsk ? "s" : "l"}`}>{o.isAsk ? "Sell" : "Buy"}</span>
+                      )}
+                    </span>
+                    <span>{o.price ? price(o.price) : "—"}</span>
+                    <span>{o.remaining ?? "—"}</span>
+                    <span className="muted">{o.initial ?? "—"}</span>
+                    <span>
+                      <button
+                        type="button"
+                        className="tbtn"
+                        onClick={() => void cancel(o)}
+                        disabled={cancelling !== null || o.marketId === null}
+                        title={o.marketId === null ? "The venue did not say which market this order is in" : "Cancel"}
+                      >
+                        {cancelling === o.orderIndex ? "Cancelling…" : "Cancel"}
+                      </button>
+                    </span>
+                  </div>
+                );
+              })}
+              {orders.length === 0 && <p className="bempty">Nothing resting on the book.</p>}
+            </>
+          )}
+          {ordersError && <p className="bempty down">{ordersError}</p>}
         </div>
       ) : (
         <div className="pane">

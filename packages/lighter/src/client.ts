@@ -1,5 +1,6 @@
 import type {
   AccountLookupResponse,
+  ActiveOrdersResponse,
   CandleResolution,
   CandlesResponse,
   FundingsResponse,
@@ -155,6 +156,33 @@ export function createLighterClient(opts: LighterClientOptions = {}) {
         bids: level(body.bids ?? [], true),
       };
     },
+    /**
+     * Orders resting on the book for one account. Requires an auth token from
+     * the signer (CreateAuthToken); the venue rejects the call without one.
+     * `marketId` is optional — omitting it returns every market.
+     */
+    accountActiveOrders: async (
+      accountIndex: number,
+      authToken: string,
+      marketId?: number,
+      init?: RequestInit,
+    ): Promise<ActiveOrdersResponse> => {
+      const market = marketId === undefined ? "" : `&market_id=${marketId}`;
+      const res = await doFetch(
+        `${base}/api/v1/accountActiveOrders?account_index=${accountIndex}${market}`,
+        { ...init, headers: { ...(init?.headers ?? {}), Authorization: authToken } },
+      );
+      const body = (await res.json().catch(() => null)) as ActiveOrdersResponse | null;
+      if (!body || body.code !== 200) {
+        throw new LighterHttpError(
+          body?.code ?? res.status,
+          "/api/v1/accountActiveOrders",
+          typeof body?.message === "string" ? body.message : undefined,
+        );
+      }
+      return body;
+    },
+
     /** Look up an account by its venue index. */
     accountByIndex: async (index: number, init?: RequestInit) => {
       const res = await doFetch(`${base}/api/v1/account?by=index&value=${index}`, init);
