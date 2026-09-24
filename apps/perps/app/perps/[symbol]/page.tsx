@@ -93,7 +93,7 @@ export default async function TerminalPage({ params }: { params: Promise<{ symbo
             <Chart marketId={m.marketId} initialBars={bars} initialResolution={DEFAULT_RESOLUTION} />
           </div>
 
-          <Blotter />
+          <Blotter markets={rows} />
         </section>
 
         <OrderBook marketId={m.marketId} />

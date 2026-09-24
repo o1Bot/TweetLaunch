@@ -327,7 +327,7 @@
   background: var(--hover);
 }
 .pos .tr {
-  grid-template-columns: 150px 92px 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 130px 86px 1fr 1fr 1fr 1fr 1fr 74px;
 }
 .fil .tr {
   grid-template-columns: 150px 1fr 1fr 1fr 1fr;
@@ -753,4 +753,24 @@ body:has(.tapp) {
 }
 .status.reconnecting {
   color: var(--down);
+}
+
+/* Row action, e.g. closing a position. */
+.tbtn {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--panel-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+.tbtn:hover:not(:disabled) {
+  background: var(--panel-3);
+}
+.tbtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
