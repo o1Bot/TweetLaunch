@@ -774,3 +774,7 @@ body:has(.tapp) {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+.ord .tr {
+  grid-template-columns: 120px 84px 1fr 1fr 1fr 82px;
+}

@@ -157,3 +157,33 @@ export interface SystemConfig {
   funding_fee_rebate_account_index: number;
   market_maker_incentive_account_index: number;
 }
+
+/**
+ * A resting order. Fields observed live on the public `orderBookOrders`
+ * endpoint (2026-09-24), which returns the same objects:
+ *   order_index, order_id, owner_account_index, initial_base_amount,
+ *   remaining_base_amount, price, order_expiry, transaction_time
+ *
+ * `market_id` and `is_ask` are optional because orderBookOrders does not carry
+ * them — it splits by side into separate arrays and is scoped to one market —
+ * and the account-wide endpoint has not been seen with a valid token yet.
+ */
+export interface ActiveOrder {
+  order_index: number;
+  order_id?: string;
+  owner_account_index?: number;
+  initial_base_amount?: string;
+  remaining_base_amount?: string;
+  price?: string;
+  order_expiry?: number;
+  transaction_time?: number;
+  market_id?: number;
+  is_ask?: boolean | number;
+  [k: string]: unknown;
+}
+
+export interface ActiveOrdersResponse {
+  code: number;
+  orders?: ActiveOrder[];
+  [k: string]: unknown;
+}
