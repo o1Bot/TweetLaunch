@@ -58,13 +58,17 @@ export default async function TerminalPage({ params }: { params: Promise<{ symbo
           }))}
         />
 
-        <section className="tcol">
+        {/* The blotter is a grid child rather than a child of the chart column:
+            on one column the ticket has to follow the chart directly, and a
+            blotter nested in the chart column would always come between them. */}
+        <section className="tcol chartcol">
           <MarketHeader market={m} />
-
           <div className="chartwrap">
             <Chart marketId={m.marketId} initialBars={bars} initialResolution={DEFAULT_RESOLUTION} />
           </div>
+        </section>
 
+        <section className="tcol blotcol">
           <Blotter markets={rows} />
         </section>
 

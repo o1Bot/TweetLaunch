@@ -24,6 +24,12 @@ export function MarketsRail({ markets, current }: { markets: RailMarket[]; curre
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const stats = useStats();
+  /**
+   * Collapsed on a phone, where the rail sits above the chart: 210 markets
+   * stacked there would be a long scroll before reaching anything. The toggle
+   * is hidden on a desktop, where the rail is a column and always open.
+   */
+  const [open, setOpen] = useState(false);
 
   const shown = useMemo(() => {
     const needle = q.trim().toUpperCase();
@@ -33,11 +39,18 @@ export function MarketsRail({ markets, current }: { markets: RailMarket[]; curre
   }, [markets, q, filter]);
 
   return (
-    <section className="tcol mktcol">
+    <section className={`tcol mktcol${open ? " open" : ""}`}>
       <div className="ch">
         Markets <span className="grow" />
         <span>{shown.length}</span>
       </div>
+
+      <button type="button" className="railtoggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <span>
+          {current} <span className="muted">· {shown.length} markets</span>
+        </span>
+        <span aria-hidden>{open ? "Close" : "Change"}</span>
+      </button>
 
       <label className="search">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
