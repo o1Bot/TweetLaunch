@@ -650,3 +650,28 @@ tbody tr:hover {
   color: #fff;
   line-height: 1;
 }
+
+/* Scrollbars. The browser default is a thick opaque bar that cuts a visible
+   channel out of every panel; these are thin, and the track is transparent so
+   only the thumb shows and only where there is something to scroll. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--panel-2) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--panel-2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--panel-3);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

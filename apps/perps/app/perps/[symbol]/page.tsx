@@ -2,13 +2,13 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Blotter } from "@/components/Blotter";
 import { Chart } from "@/components/Chart";
-import { MarketLogo } from "@/components/MarketLogo";
+import { MarketHeader } from "@/components/MarketHeader";
 import { MarketsRail } from "@/components/MarketsRail";
+import { StatsProvider } from "@/components/StatsContext";
 import { OrderBook } from "@/components/OrderBook";
 import { Ticket } from "@/components/Ticket";
 import { TopBar } from "@/components/TopBar";
 import { MAX_BARS, toBars, windowFor } from "@/lib/candles";
-import { changePct, price, usd } from "@/lib/format";
 import { lighter, revalidating } from "@/lib/lighter";
 import { findPerp, loadPerps } from "@/lib/markets";
 import "../../terminal.css";
@@ -29,10 +29,9 @@ export default async function TerminalPage({ params }: { params: Promise<{ symbo
     .then((r) => toBars(r.c))
     .catch(() => []);
 
-  const c = changePct(m.changePct);
 
   return (
-    <>
+    <StatsProvider>
       <TopBar />
 
       <div className="tbar">
@@ -49,6 +48,7 @@ export default async function TerminalPage({ params }: { params: Promise<{ symbo
         <MarketsRail
           current={m.symbol}
           markets={rows.map((r) => ({
+            marketId: r.marketId,
             symbol: r.symbol,
             href: `/perps/${r.symbol}`,
             lastPrice: r.lastPrice,
@@ -59,37 +59,7 @@ export default async function TerminalPage({ params }: { params: Promise<{ symbo
         />
 
         <section className="tcol">
-          <div className="mhead">
-            <div className="name">
-              <MarketLogo symbol={m.symbol} size={26} />
-              <h1>{m.symbol}-PERP</h1>
-              <span className={`tagp${m.category === "rwa" ? " k" : ""}`}>
-                {m.category === "crypto" ? "Crypto" : "RWA"}
-              </span>
-            </div>
-            <div className="px">
-              <b>{price(m.lastPrice)}</b>
-              <span className={c.cls}>{c.text}</span>
-            </div>
-            <div className="mstats">
-              <div>
-                <span>Mark</span>
-                <b>{price(m.markPrice)}</b>
-              </div>
-              <div>
-                <span>Open interest</span>
-                <b>{usd(m.openInterestUsd)}</b>
-              </div>
-              <div>
-                <span>24h volume</span>
-                <b>{usd(m.volumeUsd)}</b>
-              </div>
-              <div>
-                <span>Max leverage</span>
-                <b>{m.maxLeverage}x</b>
-              </div>
-            </div>
-          </div>
+          <MarketHeader market={m} />
 
           <div className="chartwrap">
             <Chart marketId={m.marketId} initialBars={bars} initialResolution={DEFAULT_RESOLUTION} />
@@ -112,6 +82,6 @@ export default async function TerminalPage({ params }: { params: Promise<{ symbo
           }}
         />
       </div>
-    </>
+    </StatsProvider>
   );
 }

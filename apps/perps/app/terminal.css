@@ -115,11 +115,12 @@
 .mkts {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 0 6px 8px;
 }
 .mkt {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
   padding: 9px 8px;
@@ -137,6 +138,9 @@
   gap: 7px;
   font-weight: 600;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .mkt .s i {
   width: 6px;
