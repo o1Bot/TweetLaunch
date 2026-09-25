@@ -8,9 +8,16 @@ import { useAccount } from "@/components/AccountContext";
 import { useMarketStats } from "@/components/StatsContext";
 import { price as fmtPrice, usdExact } from "@/lib/format";
 import { NoKeyError, submitOrder } from "@/lib/submit";
-import { quote, type Market } from "@/lib/ticket";
+import { quote, type Market, type OrderType } from "@/lib/ticket";
 
 const QUICK = [100, 500, 1000] as const;
+
+const TYPES: { key: OrderType; label: string }[] = [
+  { key: "market", label: "Market" },
+  { key: "limit", label: "Limit" },
+  { key: "stopLoss", label: "Stop" },
+  { key: "takeProfit", label: "TP" },
+];
 
 export function Ticket({
   market,
@@ -37,21 +44,32 @@ export function Ticket({
   const mark = live ? Number(live.mark_price) || markProp : markProp;
 
   const [side, setSide] = useState<"long" | "short">("long");
-  const [type, setType] = useState<"market" | "limit">("market");
+  const [type, setType] = useState<OrderType>("market");
   const [amount, setAmount] = useState("");
   const [limitPrice, setLimitPrice] = useState("");
+  const [trigger, setTrigger] = useState("");
+  // A stop or take-profit is almost always closing something. Defaulting to
+  // reduce-only means a mis-sized one flattens rather than flipping the
+  // position; the box is there for the breakout entry that wants otherwise.
+  const [reduceOnly, setReduceOnly] = useState(true);
   const [leverage, setLeverage] = useState(Math.min(10, maxLeverage));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
 
+  const isTrigger = type === "stopLoss" || type === "takeProfit";
+  // A limit rests at its own price; everything else is guarded off the mark,
+  // including a stop or take-profit, which becomes a market order when it fires.
   const entry = type === "limit" ? Number(limitPrice) || 0 : mark;
   const notional = Number(amount) || 0;
+  const triggerAt = Number(trigger) || 0;
 
   // One quote feeds the panel and the order — they cannot disagree because
   // nothing is computed twice.
   const q = useMemo(() => {
     if (notional <= 0 || entry <= 0) return null;
+    // An empty trigger is a form not yet filled in, not a mistake to flag.
+    if (isTrigger && triggerAt <= 0) return null;
     try {
       return quote({
         side,
@@ -60,12 +78,13 @@ export function Ticket({
         price: entry,
         leverage,
         market,
+        ...(isTrigger ? { triggerPrice: triggerAt, reduceOnly } : {}),
         ...(fundingRatePct !== undefined ? { fundingRatePct } : {}),
       });
     } catch (e) {
       return e instanceof Error ? e.message : "cannot build this order";
     }
-  }, [side, type, notional, entry, leverage, market, fundingRatePct]);
+  }, [side, type, notional, entry, leverage, market, fundingRatePct, isTrigger, triggerAt, reduceOnly]);
 
   const q0 = typeof q === "object" && q !== null ? q : null;
 
@@ -115,12 +134,37 @@ export function Ticket({
         </div>
 
         <div className="types">
-          {(["market", "limit"] as const).map((t) => (
-            <button key={t} type="button" className={type === t ? "on" : ""} onClick={() => setType(t)}>
-              {t === "market" ? "Market" : "Limit"}
+          {TYPES.map((t) => (
+            <button key={t.key} type="button" className={type === t.key ? "on" : ""} onClick={() => setType(t.key)}>
+              {t.label}
             </button>
           ))}
         </div>
+
+        {isTrigger && (
+          <>
+            <div className="fld">
+              <div className="l">
+                <span>{type === "stopLoss" ? "Stop" : "Take profit"} at</span>
+                <b onClick={() => setTrigger(String(mark))}>Mark</b>
+              </div>
+              <div className="in">
+                <input
+                  inputMode="decimal"
+                  value={trigger}
+                  onChange={(e) => setTrigger(e.target.value)}
+                  placeholder={fmtPrice(mark)}
+                  aria-label="Trigger price"
+                />
+                <span className="u">USDC</span>
+              </div>
+            </div>
+            <label className="check">
+              <input type="checkbox" checked={reduceOnly} onChange={(e) => setReduceOnly(e.target.checked)} />
+              <span>Reduce only — never open or flip a position</span>
+            </label>
+          </>
+        )}
 
         {type === "limit" && (
           <div className="fld">
@@ -205,10 +249,17 @@ export function Ticket({
               <span>Position size</span>
               <b>{usdExact(q0.effectiveNotionalUsd)}</b>
             </div>
-            <div className="kv2">
-              <span>Entry price</span>
-              <b>{fmtPrice(entry)}</b>
-            </div>
+            {isTrigger ? (
+              <div className="kv2">
+                <span>Fires at</span>
+                <b className="warn">{fmtPrice(triggerAt)}</b>
+              </div>
+            ) : (
+              <div className="kv2">
+                <span>Entry price</span>
+                <b>{fmtPrice(entry)}</b>
+              </div>
+            )}
             <div className="kv2">
               <span>Liquidation price</span>
               <b className="warn">{fmtPrice(q0.ledger.liqPrice)}</b>
@@ -253,7 +304,11 @@ export function Ticket({
             onClick={() => void send()}
             disabled={busy || !q0}
           >
-            {busy ? "Signing…" : `${side === "long" ? "Long" : "Short"} ${symbol}`}
+            {busy
+              ? "Signing…"
+              : isTrigger
+                ? `${type === "stopLoss" ? "Stop" : "Take profit"} · ${side === "long" ? "buy" : "sell"} ${symbol}`
+                : `${side === "long" ? "Long" : "Short"} ${symbol}`}
           </button>
         )}
 

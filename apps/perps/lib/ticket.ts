@@ -16,18 +16,57 @@ export interface Market {
   maintenance_margin_fraction: number;
 }
 
+export type OrderType = "limit" | "market" | "stopLoss" | "takeProfit";
+
 export interface QuoteInput {
   side: "long" | "short";
-  type: "limit" | "market";
+  type: OrderType;
   /** What the user asked for, in quote currency. */
   notionalUsd: number;
-  /** Limit price, or the mark for a market order. */
+  /** Limit price, or the mark for a market, stop or take-profit order. */
   price: number;
   leverage: number;
   market: Market;
+  /** The level a stop or take-profit fires at. Required for those two. */
+  triggerPrice?: number;
+  /** Never increase exposure — the usual setting for an order that closes. */
+  reduceOnly?: boolean;
   /** Percent per period from market stats, when known. */
   fundingRatePct?: number;
   slippage?: number;
+}
+
+export class TriggerError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TriggerError";
+  }
+}
+
+/**
+ * Which side of the mark a trigger has to sit on.
+ *
+ * A stop fires when the market moves against the order's own direction: a
+ * sell-stop below the mark, a buy-stop above it. A take-profit is the mirror —
+ * a sell-TP above, a buy-TP below. Placing one on the wrong side is not a
+ * different strategy, it is an order that fires the instant it lands, at
+ * market, which is the one outcome nobody setting a trigger wants. So it is
+ * refused here, with the direction named, rather than left for the venue to
+ * accept or reject on its own terms.
+ */
+export function checkTrigger(i: Pick<QuoteInput, "type" | "side" | "price" | "triggerPrice">): void {
+  if (i.type !== "stopLoss" && i.type !== "takeProfit") return;
+  const trigger = i.triggerPrice;
+  if (!(trigger && trigger > 0)) throw new TriggerError("a trigger price is required");
+  const selling = i.side === "short";
+  const wantsBelow = (i.type === "stopLoss") === selling;
+  const what = `${i.type === "stopLoss" ? "stop" : "take-profit"} to ${selling ? "sell" : "buy"}`;
+  if (wantsBelow && trigger >= i.price) {
+    throw new TriggerError(`a ${what} must trigger below the mark, or it fires at once`);
+  }
+  if (!wantsBelow && trigger <= i.price) {
+    throw new TriggerError(`a ${what} must trigger above the mark, or it fires at once`);
+  }
 }
 
 export interface Quote {
@@ -58,6 +97,8 @@ export interface Quote {
  * shrinks is exactly the kind of surprise a cost ledger exists to prevent.
  */
 export function quote(i: QuoteInput): Quote {
+  checkTrigger(i);
+
   // Leverage is not part of a wire order — the venue derives margin from the
   // account's mode and the position. It only enters the ledger below.
   const built = buildCreateOrder({
@@ -66,6 +107,8 @@ export function quote(i: QuoteInput): Quote {
     notionalUsd: i.notionalUsd,
     price: i.price,
     market: i.market,
+    ...(i.triggerPrice !== undefined ? { triggerPrice: i.triggerPrice } : {}),
+    ...(i.reduceOnly !== undefined ? { reduceOnly: i.reduceOnly } : {}),
     ...(i.slippage !== undefined ? { slippage: i.slippage } : {}),
   });
 
@@ -78,10 +121,11 @@ export function quote(i: QuoteInput): Quote {
     notionalUsd: effectiveNotionalUsd,
     entryPrice: i.price,
     leverage: i.leverage,
-    // A market order crosses the book; a limit order is assumed to rest. If it
-    // crosses it pays the taker rate, so this is the optimistic side of the
+    // A market order crosses the book, and a stop or take-profit crosses the
+    // moment it fires; only a limit order is assumed to rest. A limit that
+    // crosses pays the taker rate, so that one is the optimistic side of the
     // estimate and must not be presented as a guarantee.
-    isTaker: i.type === "market",
+    isTaker: i.type !== "limit",
     maintenanceMarginBps: i.market.maintenance_margin_fraction,
     ...(i.fundingRatePct !== undefined ? { fundingRatePct: i.fundingRatePct } : {}),
     takerFeePpm: NO_INTEGRATOR.takerFeePpm,
