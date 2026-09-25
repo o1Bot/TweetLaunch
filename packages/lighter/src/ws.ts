@@ -316,3 +316,67 @@ export function connectMarketStats(
     ws?.close();
   };
 }
+
+/**
+ * Every market's stats on one subscription. The venue answers `market_stats/all`
+ * with a full snapshot — 235 markets in a single message — then sends partial
+ * updates carrying only what moved, so entries are merged rather than replaced.
+ *
+ * One socket for the whole list beats one per market: a rail showing 200 rows
+ * would otherwise open 200 connections to show the same numbers.
+ */
+export function connectAllMarketStats(
+  onStats: (byMarketId: Map<number, MarketStats>) => void,
+  opts: ConnectOrderBookOptions = {},
+): () => void {
+  const url = opts.url ?? DEFAULT_STREAM_URL;
+  const byMarketId = new Map<number, MarketStats>();
+  let ws: WebSocket | undefined;
+  let closed = false;
+  let attempt = 0;
+
+  const open = () => {
+    if (closed) return;
+    opts.onStatus?.(attempt === 0 ? "connecting" : "reconnecting");
+    ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      ws?.send(JSON.stringify({ type: "subscribe", channel: "market_stats/all" }));
+    };
+
+    ws.onmessage = (ev: MessageEvent) => {
+      if (typeof ev.data !== "string") return;
+      let msg: { type?: string; market_stats?: Record<string, MarketStats> };
+      try {
+        msg = JSON.parse(ev.data) as typeof msg;
+      } catch {
+        return;
+      }
+      if (msg.type !== "subscribed/market_stats" && msg.type !== "update/market_stats") return;
+      if (!msg.market_stats) return;
+      if (msg.type === "subscribed/market_stats") attempt = 0;
+      for (const stats of Object.values(msg.market_stats)) {
+        if (typeof stats?.market_id === "number") byMarketId.set(stats.market_id, stats);
+      }
+      opts.onStatus?.("live");
+      onStats(byMarketId);
+    };
+
+    ws.onclose = () => {
+      if (closed) return;
+      const delay = Math.min(1000 * 2 ** attempt, 15_000);
+      attempt += 1;
+      setTimeout(open, delay);
+    };
+
+    ws.onerror = () => {
+      ws?.close();
+    };
+  };
+
+  open();
+  return () => {
+    closed = true;
+    ws?.close();
+  };
+}

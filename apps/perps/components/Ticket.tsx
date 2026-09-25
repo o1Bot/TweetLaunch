@@ -5,6 +5,7 @@ import { useWallets } from "@privy-io/react-auth";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useAccount } from "@/components/AccountContext";
+import { useMarketStats } from "@/components/StatsContext";
 import { price as fmtPrice, usdExact } from "@/lib/format";
 import { NoKeyError, submitOrder } from "@/lib/submit";
 import { quote, type Market } from "@/lib/ticket";
@@ -14,7 +15,7 @@ const QUICK = [100, 500, 1000] as const;
 export function Ticket({
   market,
   symbol,
-  mark,
+  mark: markProp,
   maxLeverage,
   fundingRatePct,
 }: {
@@ -27,6 +28,13 @@ export function Ticket({
   const { ready, authenticated, login, accountIndex, hasKey, availableBalance, refresh } = useAccount();
   const { wallets } = useWallets();
   const wallet = wallets[0];
+
+  // A market order's slippage guard is priced off the mark, so it has to be the
+  // live one. Using the server's render meant the guard was set from a price
+  // that could be minutes old — the order would still be signed, just against a
+  // worst-acceptable price that no longer described the market.
+  const live = useMarketStats(market.market_id);
+  const mark = live ? Number(live.mark_price) || markProp : markProp;
 
   const [side, setSide] = useState<"long" | "short">("long");
   const [type, setType] = useState<"market" | "limit">("market");
