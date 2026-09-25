@@ -2,7 +2,8 @@ import type { ApiCandle, CandleResolution } from "@o1bot/lighter";
 
 export const RESOLUTIONS: CandleResolution[] = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
-const SECONDS: Record<CandleResolution, number> = {
+/** Bucket length per resolution, in seconds. */
+export const SECONDS: Record<CandleResolution, number> = {
   "1m": 60,
   "5m": 300,
   "15m": 900,
@@ -54,4 +55,10 @@ export function toBars(candles: ApiCandle[], limit = MAX_BARS): Bar[] {
     else deduped.push(b);
   }
   return deduped.slice(-limit);
+}
+
+/** The start of the bucket a moment falls in, in epoch seconds. */
+export function bucketStart(resolution: CandleResolution, atMs = Date.now()): number {
+  const size = SECONDS[resolution];
+  return Math.floor(atMs / 1000 / size) * size;
 }
