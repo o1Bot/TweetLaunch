@@ -41,10 +41,33 @@
 .tapp {
   display: grid;
   grid-template-columns: 252px 1fr 214px 306px;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 1px;
   background: var(--line);
   border-top: 1px solid var(--line);
   height: calc(100vh - 52px - 40px);
+}
+/* Rail, book and ticket run the full height; the chart and the blotter share
+   the middle column, which is what puts the blotter under the chart. */
+.tcol.mktcol {
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+.tcol.chartcol {
+  grid-column: 2;
+  grid-row: 1;
+}
+.tcol.blotcol {
+  grid-column: 2;
+  grid-row: 2;
+}
+.tcol.obcol {
+  grid-column: 3;
+  grid-row: 1 / 3;
+}
+.tcol.ordercol {
+  grid-column: 4;
+  grid-row: 1 / 3;
 }
 .tcol {
   background: var(--paper);
@@ -269,10 +292,12 @@
 
 /* ---------- blotter ---------- */
 .btabs {
-  flex: none;
-  border-top: 1px solid var(--line);
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+}
+.tcol.blotcol {
   height: 236px;
 }
 .btabs .bar {
@@ -695,25 +720,129 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 @media (max-width: 1500px) {
+  /* The order book is the first thing to go: the ticket and the chart are what
+     an order needs, and the book's best levels are already in the spread row. */
   .tapp {
     grid-template-columns: 220px 1fr 290px;
   }
   .tcol.obcol {
     display: none;
   }
+  .tcol.ordercol {
+    grid-column: 3;
+  }
 }
+
 @media (max-width: 1180px) {
   .tapp {
-    grid-template-columns: 1fr 290px;
+    grid-template-columns: minmax(0, 1fr) 290px;
   }
   .tcol.mktcol {
     display: none;
   }
+  .tcol.chartcol,
+  .tcol.blotcol {
+    grid-column: 1;
+  }
+  .tcol.ordercol {
+    grid-column: 2;
+  }
 }
 
-/* Only the terminal locks the page; the home view scrolls normally. */
-body:has(.tapp) {
-  overflow: hidden;
+/* ---------------------------------------------------------------- phone ----
+   One column, and the page scrolls. Four columns squeezed into 390px left the
+   chart 99 pixels wide, which is how this was found.
+
+   The ticket comes directly after the chart. Putting the order book or the
+   blotter between them would make someone scroll past both to place an order,
+   which is the wrong thing to ask of a thumb. */
+@media (max-width: 900px) {
+  .tapp {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    height: auto;
+  }
+  .tcol {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    overflow: visible;
+  }
+  .tcol.mktcol {
+    display: block;
+    order: 1;
+  }
+  .tcol.chartcol {
+    order: 2;
+  }
+  .tcol.ordercol {
+    order: 3;
+  }
+  .tcol.obcol {
+    display: flex;
+    order: 4;
+    height: 420px;
+  }
+  .tcol.blotcol {
+    order: 5;
+    height: 320px;
+  }
+
+  /* The chart needs a height of its own once the column stops supplying one. */
+  .chartwrap {
+    height: 300px;
+    flex: none;
+  }
+
+  /* The header wraps instead of scrolling sideways: a stat row you have to
+     drag is a stat row nobody reads. */
+  .mhead {
+    flex-wrap: wrap;
+    gap: 10px 0;
+    overflow-x: visible;
+  }
+  .mstats {
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    width: 100%;
+  }
+  .mhead .px {
+    padding-right: 0;
+  }
+
+  .order {
+    overflow-y: visible;
+  }
+
+  /* Thumb-sized targets. Anything that places or cancels an order has to be
+     hittable without aiming. */
+  .segs button,
+  .types button,
+  .quick button,
+  .tbtn,
+  .btabs .bar button,
+  .tf button {
+    min-height: 44px;
+  }
+  .seg2 button {
+    min-height: 48px;
+  }
+  .chip {
+    min-height: 40px;
+  }
+  /* A number field's height follows its font, so the size and limit inputs were
+     24px tall inside a card twice that. Tapping the card's padding does not
+     focus the input, so the input itself has to be the target. */
+  .fld input {
+    min-height: 44px;
+  }
+}
+
+/* The desktop terminal is an app and does not scroll; on a phone it is a
+   stacked page and must. The home view always scrolls. */
+@media (min-width: 901px) {
+  body:has(.tapp) {
+    overflow: hidden;
+  }
 }
 
 .chartfill {
@@ -781,4 +910,119 @@ body:has(.tapp) {
 
 .ord .tr {
   grid-template-columns: 120px 84px 1fr 1fr 1fr 82px;
+}
+
+/* The rail's phone affordance: a header that opens the list. Hidden wherever
+   the rail is a column, since there is nothing to open. */
+.railtoggle {
+  display: none;
+}
+@media (max-width: 900px) {
+  .railtoggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: calc(100% - 20px);
+    margin: 0 10px 8px;
+    padding: 0 14px;
+    min-height: 48px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--ink);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .railtoggle > span:last-child {
+    color: var(--blue);
+    font-size: 13px;
+  }
+  /* Collapsed: only the toggle shows. */
+  .tcol.mktcol .ch,
+  .tcol.mktcol .search,
+  .tcol.mktcol .segs,
+  .tcol.mktcol .mkts {
+    display: none;
+  }
+  .tcol.mktcol.open .search,
+  .tcol.mktcol.open .segs {
+    display: flex;
+  }
+  .tcol.mktcol.open .mkts {
+    display: block;
+    max-height: 60vh;
+  }
+}
+
+/* The leverage slider's hit area is its own height, and the track is 4px — so
+   on a phone the only thing to grab was a 4-pixel strip. The input keeps a
+   thumb-sized height with a transparent background, and the visible 4px track
+   is drawn by the track pseudo-element inside it. */
+@media (max-width: 900px) {
+  input[type="range"] {
+    height: 44px;
+    background: transparent;
+    margin-top: 0;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--panel-2);
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 22px;
+    height: 22px;
+    margin-top: -9px;
+  }
+  input[type="range"]::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--panel-2);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--ink);
+  }
+}
+
+/* The two bars above the terminal carry description, not controls. On a phone
+   they collided with each other and pushed the account strip off the edge, so
+   the prose goes and the way back stays. */
+@media (max-width: 900px) {
+  .tbar {
+    height: auto;
+    min-height: 44px;
+    gap: 8px;
+    padding: 0 10px;
+  }
+  .tbar span,
+  .tbar b {
+    display: none;
+  }
+  .tbar .back {
+    display: inline-flex;
+    min-height: 40px;
+  }
+
+  .top {
+    gap: 10px;
+    padding: 0 12px;
+  }
+  /* Equity, available and unrealised are all in the blotter and the ticket;
+     repeating them here is what was squeezing the sign-in button off-screen. */
+  .acct .kv {
+    display: none;
+  }
+  .acct {
+    gap: 8px;
+  }
+  .top .brand em {
+    display: none;
+  }
 }

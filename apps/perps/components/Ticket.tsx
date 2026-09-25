@@ -102,7 +102,7 @@ export function Ticket({
   }
 
   return (
-    <section className="tcol">
+    <section className="tcol ordercol">
       <div className="ch">Order</div>
       <div className="order">
         <div className="seg2">
