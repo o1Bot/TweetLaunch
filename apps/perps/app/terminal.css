@@ -793,20 +793,42 @@ input[type="range"]::-webkit-slider-thumb {
     flex: none;
   }
 
-  /* The header wraps instead of scrolling sideways: a stat row you have to
-     drag is a stat row nobody reads. */
+  /* The header is two rows: name and price on the first, stats on the second.
+     Chromium and Safari resolve `flex: 1` beside `width: 100%` differently — on
+     an iPhone the stats sat beside the name in a column of their own, one per
+     line, and the header stood 500px tall. `flex: 0 0 100%` says the same
+     thing in a way both agree on, and the stats are a grid rather than a
+     wrapping row so they pack instead of trailing one onto a third line. */
   .mhead {
     flex-wrap: wrap;
+    align-items: flex-start;
     gap: 10px 0;
+    padding: 12px 14px;
     overflow-x: visible;
   }
-  .mstats {
-    flex-wrap: wrap;
-    gap: 12px 20px;
-    width: 100%;
+  .mhead .name {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-right: 10px;
   }
   .mhead .px {
+    flex: 0 0 auto;
     padding-right: 0;
+    text-align: right;
+  }
+  .mhead .px b {
+    font-size: 20px;
+  }
+  .mstats {
+    flex: 0 0 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px 12px;
+    width: 100%;
+  }
+  .mstats div span,
+  .mstats div b {
+    white-space: normal;
   }
 
   .order {
