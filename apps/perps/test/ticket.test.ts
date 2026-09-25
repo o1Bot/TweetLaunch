@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NO_INTEGRATOR, quote, type Market } from "../lib/ticket";
+import { NO_INTEGRATOR, TriggerError, quote, type Market } from "../lib/ticket";
 
 /** BNB as the venue reports it: the worst size resolution measured on 2026-09-21. */
 const BNB: Market = {
@@ -87,5 +87,56 @@ describe("quote", () => {
     const short = quote({ ...base, side: "short", notionalUsd: 100, price: 781.22, market: BNB });
     expect(long.ledger.liqPrice).toBeLessThan(781.22);
     expect(short.ledger.liqPrice).toBeGreaterThan(781.22);
+  });
+});
+
+describe("quote — stops and take-profits", () => {
+  // A sell-stop on BNB with the mark at 781.22.
+  const stop = { side: "short", type: "stopLoss", leverage: 5, notionalUsd: 100, price: 781.22, market: BNB } as const;
+
+  it("builds a stop as an IOC trigger order with an expiry", () => {
+    const q = quote({ ...stop, triggerPrice: 760 });
+    expect(q.built.orderType).toBe(2); // stopLoss
+    expect(q.built.timeInForce).toBe(0); // IOC once it fires
+    expect(q.built.triggerPrice).toBe(760 * 10 ** BNB.supported_price_decimals);
+    expect(q.built.orderExpiry).toBe(-1); // the signer's default, not "unset"
+  });
+
+  it("builds a take-profit as its own order type", () => {
+    expect(quote({ ...stop, type: "takeProfit", triggerPrice: 800 }).built.orderType).toBe(4);
+  });
+
+  it("refuses a stop on the wrong side of the mark", () => {
+    // A sell-stop above the mark, or a buy-stop below it, fires the instant it
+    // is placed — at market, which nobody setting a stop intends.
+    expect(() => quote({ ...stop, triggerPrice: 800 })).toThrow(/below the mark/);
+    expect(() => quote({ ...stop, side: "long", triggerPrice: 760 })).toThrow(/above the mark/);
+  });
+
+  it("refuses a take-profit on the wrong side of the mark", () => {
+    // The mirror of a stop: a sell-TP sits above, a buy-TP below.
+    expect(() => quote({ ...stop, type: "takeProfit", triggerPrice: 760 })).toThrow(/above the mark/);
+    expect(() => quote({ ...stop, type: "takeProfit", side: "long", triggerPrice: 800 })).toThrow(/below the mark/);
+  });
+
+  it("names the direction in the error, so the message says what to change", () => {
+    expect(() => quote({ ...stop, triggerPrice: 800 })).toThrow(TriggerError);
+    expect(() => quote({ ...stop, triggerPrice: 800 })).toThrow(/stop to sell/);
+  });
+
+  it("requires a trigger for stops and take-profits", () => {
+    expect(() => quote({ ...stop })).toThrow(/trigger price is required/);
+    expect(() => quote({ ...stop, triggerPrice: 0 })).toThrow(/trigger price is required/);
+  });
+
+  it("does not touch market and limit orders", () => {
+    // No trigger, no side check: these two must behave exactly as before.
+    expect(quote({ ...stop, type: "market" }).built.triggerPrice).toBe(0);
+    expect(quote({ ...stop, type: "limit" }).built.triggerPrice).toBe(0);
+  });
+
+  it("passes reduce-only through to the wire", () => {
+    expect(quote({ ...stop, triggerPrice: 760, reduceOnly: true }).built.reduceOnly).toBe(1);
+    expect(quote({ ...stop, triggerPrice: 760 }).built.reduceOnly).toBe(0);
   });
 });
