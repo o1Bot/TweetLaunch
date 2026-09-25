@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { MarketLogo } from "@/components/MarketLogo";
+import { useStats } from "@/components/StatsContext";
 import { changePct, price } from "@/lib/format";
 
 export interface RailMarket {
+  marketId: number;
   symbol: string;
   href: string;
   lastPrice: number;
@@ -20,6 +23,7 @@ type Filter = "all" | "crypto" | "rwa";
 export function MarketsRail({ markets, current }: { markets: RailMarket[]; current: string }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const stats = useStats();
 
   const shown = useMemo(() => {
     const needle = q.trim().toUpperCase();
@@ -53,12 +57,15 @@ export function MarketsRail({ markets, current }: { markets: RailMarket[]; curre
 
       <div className="mkts">
         {shown.map((m) => {
-          const c = changePct(m.changePct);
+          // The stream replaces the server's render as soon as it answers.
+          const live = stats?.get(m.marketId);
+          const last = live ? Number(live.last_trade_price) || m.lastPrice : m.lastPrice;
+          const c = changePct(live ? Number(live.daily_price_change) : m.changePct);
           return (
             <Link key={m.symbol} href={m.href} className={`mkt${m.symbol === current ? " on" : ""}`}>
               <div>
                 <div className="s">
-                  <i className={m.kind === "crypto" ? "c" : "k"} />
+                  <MarketLogo symbol={m.symbol} size={20} />
                   {m.symbol}
                 </div>
                 <div className="f">
@@ -69,7 +76,7 @@ export function MarketsRail({ markets, current }: { markets: RailMarket[]; curre
                 </div>
               </div>
               <div className="r">
-                <b>{price(m.lastPrice)}</b>
+                <b>{price(last)}</b>
                 <span className={c.cls}>{c.text}</span>
               </div>
             </Link>
