@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   activeFactory,
   activeFeeEscrow,
   activeSuite,
+  fetchLiveRegistry,
   findQuote,
   nativeBuyScale,
   nativeQuoteAddress,
@@ -14,6 +15,8 @@ import {
   tickerCollidesWithStock,
   universalRouterOf,
 } from "../src/o1-registry";
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("o1 registry snapshot (Robinhood)", () => {
   it("has a current suite with a factory, escrow and token deployer", () => {
@@ -78,5 +81,25 @@ describe("o1 registry snapshot (Robinhood)", () => {
     const rotated = { ...live, chains: live.chains.map((c) => ({ ...c, currentSuiteId: "something-new" })) };
     // Every chain's suite was rotated, so every chain drifts.
     expect((await registryDrift(rotated)).length).toBe(live.chains.length);
+  });
+  it("parses a live registry with a suite status it has never seen and chains it does not serve", async () => {
+    // 2026-09-28: o1 added tax-token suites with status "deployed-creation-disabled"
+    // and new chains (Monad, BSC, X Layer). A two-value enum made that a parse
+    // failure at boot, and the bot crash-looped until the schema was loosened.
+    const cfg = o1Config();
+    const chains = Object.values(cfg.chains).map((c) => ({ chainId: c.chainId, currentSuiteId: c.currentSuiteId, suites: [...c.suites] }));
+    const robinhood = chains.find((c) => c.chainId === 4663)!;
+    const tax = { ...robinhood.suites[0]!, suiteId: "robinhood-mainnet-tax-token-v2", status: "deployed-creation-disabled", selectedForNewCreationByPlatform: false };
+    robinhood.suites.push(tax);
+    chains.push({ chainId: 143, currentSuiteId: "monad-mainnet-launchpad-v4-minimal", suites: [{ ...robinhood.suites[0]!, suiteId: "monad-mainnet-launchpad-v4-minimal" }] });
+    const body = JSON.stringify({ lastUpdatedAt: "2026-09-28", chains });
+    vi.stubGlobal("fetch", async () => new Response(body, { status: 200, headers: { "content-type": "application/json" } }));
+
+    const live = await fetchLiveRegistry("https://example.test/suites.json");
+    const statuses = new Set(live.chains.flatMap((c) => c.suites.map((s) => s.status)));
+    expect(statuses.has("deployed-creation-disabled")).toBe(true);
+    expect(live.chains.map((c) => c.chainId)).toContain(143);
+    // The unknown status sits on a suite that is not current, so nothing drifted.
+    expect(await registryDrift(live)).toEqual([]);
   });
 });

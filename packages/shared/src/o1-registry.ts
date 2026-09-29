@@ -26,7 +26,14 @@ const addressSchema = z
 const SuiteSchema = z.object({
   suiteId: z.string(),
   contractVersion: z.string(),
-  status: z.enum(["current", "historical"]),
+  /**
+   * Any string, not an enum: o1 adds statuses without notice. Seen so far:
+   * "current", "historical", and on 2026-09-28 "deployed-creation-disabled"
+   * for the tax-token suites — an enum of two turned that into a parse
+   * failure that crash-looped the bot at boot. Only "current" ever launches
+   * (see activeSuite); every other value, known or not, is inert.
+   */
+  status: z.string(),
   selectedForNewCreationByPlatform: z.boolean(),
   creationRoutes: z.array(z.string()),
   firstBlock: z.number().int(),
