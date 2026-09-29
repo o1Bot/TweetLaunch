@@ -81,10 +81,17 @@ function rpcOverride(key: ChainKey): string | undefined {
   return key === "robinhood" ? e.RPC_ROBINHOOD : key === "base" ? e.RPC_BASE : e.RPC_ARC;
 }
 
-/** RPC URLs in priority order: explicit env override, else the public list. */
+/**
+ * RPC URLs in priority order: the chain's RPC_* first, then the public list.
+ * The public ones stay behind the override on purpose. A paid endpoint that
+ * stops answering — Alchemy's monthly quota ran out on 2026-09-26 and every
+ * call came back 429 — used to take the profile page and the indexer down
+ * with it for days; now it degrades to slower public reads instead.
+ */
 export function rpcUrls(key: ChainKey): string[] {
   const override = rpcOverride(key);
-  return override ? [override] : [...PUBLIC_RPCS[key]];
+  const publics = PUBLIC_RPCS[key].filter((u) => u !== override);
+  return override ? [override, ...publics] : publics;
 }
 
 /**
@@ -109,15 +116,23 @@ export function publicClient(key: ChainKey): PublicClient {
 }
 
 /**
- * Client for historical `eth_getLogs` scans (indexer). INDEXER_RPC, then
- * RPC_ROBINHOOD, else the public list with ordofi first: publicnode refuses
- * archive log ranges, ordofi serves them.
+ * RPC URLs for historical `eth_getLogs` scans (indexer), in priority order:
+ * INDEXER_RPC, then RPC_ROBINHOOD, then the public list with ordofi first —
+ * publicnode refuses archive log ranges, ordofi serves them. As with
+ * rpcUrls, the public list stays behind the override so a dead paid
+ * endpoint slows the scan rather than stalling it.
  */
-export function logsClient(key: ChainKey): PublicClient {
+export function logsRpcUrls(key: ChainKey): string[] {
   const e = env();
   // INDEXER_RPC is the Robinhood archive endpoint; Base and Arc use their own RPC_* or the public list.
   const override = key === "robinhood" ? (e.INDEXER_RPC ?? e.RPC_ROBINHOOD) : key === "base" ? e.RPC_BASE : e.RPC_ARC;
   const ordofi = "https://rpc.ordofi.network";
-  const urls = override ? [override] : key === "robinhood" ? [ordofi, ...PUBLIC_RPCS[key].filter((u) => u !== ordofi)] : [...PUBLIC_RPCS[key]];
-  return createPublicClient({ chain: CHAINS[key], transport: fallback(urls.map((u) => http(u, { timeout: 30_000 })), { rank: false }) });
+  const publics = key === "robinhood" ? [ordofi, ...PUBLIC_RPCS[key].filter((u) => u !== ordofi)] : [...PUBLIC_RPCS[key]];
+  return override ? [override, ...publics.filter((u) => u !== override)] : publics;
+}
+
+/** Client for historical `eth_getLogs` scans (indexer); see logsRpcUrls for the order. */
+export function logsClient(key: ChainKey): PublicClient {
+  const transports = logsRpcUrls(key).map((u) => http(u, { timeout: 30_000 }));
+  return createPublicClient({ chain: CHAINS[key], transport: fallback(transports, { rank: false }) });
 }
