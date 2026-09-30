@@ -10,3 +10,4 @@ export * from "./order";
 export * from "./vault";
 export * from "./account";
 export * from "./deposit";
+export * from "./withdraw";

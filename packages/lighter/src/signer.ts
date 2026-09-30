@@ -74,8 +74,8 @@ export function isSignerError(r: unknown): r is SignerError {
 }
 
 // Argument order verified against wasm/main.go commit c26ac340 (2026-06-08).
-// Other functions (SignCancelOrder, SignWithdraw, etc.) exist in the module but are
-// untyped — add them here once their argument order is verified, do not guess.
+// Other functions (SignTransfer, SignUpdateLeverage, etc.) exist in the module but
+// are untyped — add them here once their argument order is verified, do not guess.
 export interface LighterSignerGlobals {
   GenerateAPIKey(): SignerResult<GeneratedApiKey>;
   CreateClient(
@@ -147,6 +147,23 @@ export interface LighterSignerGlobals {
     apiKeyIndex: number,
     accountIndex: number,
   ): SignerResult<SignedTx>;
+  /**
+   * Withdraw to the L1 address that owns the account (the secure route). No
+   * destination: the venue pays the owner, and no L1 message to sign. Verified
+   * against wasm/main.go commit c26ac340 (2026-09-30): txType 13.
+   */
+  SignWithdraw(
+    /** 3 = USDC (txtypes.USDCAssetIndex). */
+    assetIndex: number,
+    /** 0 = perps balance, 1 = spot (txtypes.AssetRouteType_*). */
+    routeType: number,
+    /** uint64 in the asset's own units: 1_000_000 = 1 USDC. */
+    amount: number,
+    skipNonce: number,
+    nonce: number,
+    apiKeyIndex: number,
+    accountIndex: number,
+  ): SignerResult<SignedTx>;
   /** Approval = four ceilings (perps/spot × taker/maker) + expiry, not a single value. */
   SignApproveIntegrator(
     integratorAccountIndex: number,
@@ -207,6 +224,7 @@ async function instantiate({ wasmUrl, wasmExecUrl }: LoadSignerOptions): Promise
     "SignCreateOrder",
     "SignChangePubKey",
     "SignCancelAllOrders",
+    "SignWithdraw",
     "SignApproveIntegrator",
   ] as const) {
     if (typeof g[name] !== "function") {

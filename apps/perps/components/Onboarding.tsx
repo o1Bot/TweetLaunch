@@ -4,6 +4,7 @@ import { createLighterClient } from "@o1bot/lighter";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useCallback, useEffect, useState } from "react";
 import { Deposit } from "@/components/Deposit";
+import { Withdraw } from "@/components/Withdraw";
 import type { LinkStatus } from "@/lib/account";
 import { usd } from "@/lib/format";
 import { registerApiKey, vaultKey } from "@/lib/register";
@@ -194,7 +195,10 @@ export function Onboarding() {
           cannot withdraw it.
         </p>
         {authenticated && wallet ? (
-          <Deposit wallet={wallet} onDeposited={() => void check()} />
+          <>
+            <Deposit wallet={wallet} onDeposited={() => void check()} />
+            {status?.state === "linked" && <Withdraw wallet={wallet} onWithdrawn={() => void check()} />}
+          </>
         ) : (
           <p className="fine">
             Only the direct Ethereum route is offered here. Depositing from another chain is

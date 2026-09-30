@@ -49,7 +49,7 @@ export function TopBar() {
         </div>
 
         <Link className="chip" href="/start">
-          {hasAccount ? "Deposit" : "Set up"}
+          {hasAccount ? "Funds" : "Set up"}
         </Link>
 
         {!ready ? null : authenticated && address ? (
