@@ -1,3 +1,5 @@
+/// <reference lib="dom" />
+// The bot compiles this source too, without the DOM lib; the types above (SubtleCrypto, CryptoKey) are browser names that Node 20 also provides at runtime.
 // API key vault — AES-GCM with a key derived from a wallet signature over a
 // deterministic message. The signature is never stored; the encrypted blob in
 // localStorage is useless without the wallet. Lighter API keys carry full write
@@ -58,6 +60,42 @@ export async function openApiKey(blob: string, signature: string): Promise<strin
   const [ivB64, ctB64] = blob.split(".");
   if (!ivB64 || !ctB64) throw new Error("corrupt vault blob");
   const key = await keyFromSignature(signature);
+  const pt = await subtle().decrypt(
+    { name: "AES-GCM", iv: fromBase64(ivB64).buffer as ArrayBuffer },
+    key,
+    fromBase64(ctB64).buffer as ArrayBuffer,
+  );
+  return new TextDecoder().decode(pt);
+}
+
+// ---------------------------------------------------------------------------
+// Server vault: the same AES-GCM, keyed by a 32-byte secret the bot holds
+// instead of a wallet signature. Used only for accounts whose owner opted in
+// to trading from a post — the one case where a key has to exist somewhere
+// the user is not. The blob is tagged so it can never be confused with a
+// browser blob, whose key nobody on a server can derive.
+
+const SERVER_TAG = "s1";
+
+async function keyFromSecret(secretHex: string): Promise<CryptoKey> {
+  const bytes = hexToBytes(secretHex);
+  if (bytes.length !== 32) throw new Error("vault secret must be 32 bytes of hex");
+  return subtle().importKey("raw", bytes.buffer as ArrayBuffer, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+
+/** Encrypt the API private key with the server secret → `s1.base64(iv).base64(ciphertext)`. */
+export async function sealWithSecret(privateKey: string, secretHex: string): Promise<string> {
+  const key = await keyFromSecret(secretHex);
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  const ct = await subtle().encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(privateKey));
+  return `${SERVER_TAG}.${toBase64(iv)}.${toBase64(new Uint8Array(ct))}`;
+}
+
+/** Open a server blob. Throws on a browser blob, a wrong secret, or tampering. */
+export async function openWithSecret(blob: string, secretHex: string): Promise<string> {
+  const [tag, ivB64, ctB64] = blob.split(".");
+  if (tag !== SERVER_TAG || !ivB64 || !ctB64) throw new Error("not a server vault blob");
+  const key = await keyFromSecret(secretHex);
   const pt = await subtle().decrypt(
     { name: "AES-GCM", iv: fromBase64(ivB64).buffer as ArrayBuffer },
     key,

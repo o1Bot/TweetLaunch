@@ -32,6 +32,9 @@ importers:
       '@o1bot/executor':
         specifier: workspace:*
         version: link:../../packages/executor
+      '@o1bot/lighter':
+        specifier: workspace:*
+        version: link:../../packages/lighter
       '@o1bot/market':
         specifier: workspace:*
         version: link:../../packages/market
@@ -158,6 +161,9 @@ importers:
       '@o1bot/executor':
         specifier: workspace:*
         version: link:../../packages/executor
+      '@o1bot/lighter':
+        specifier: workspace:*
+        version: link:../../packages/lighter
       '@o1bot/market':
         specifier: workspace:*
         version: link:../../packages/market

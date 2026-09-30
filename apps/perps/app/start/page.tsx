@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { Attest } from "@/components/Attest";
+import { FromPost } from "@/components/FromPost";
 import { Onboarding } from "@/components/Onboarding";
 import {
   RESTRICTED_COUNTRIES,
@@ -15,14 +16,6 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Start trading — o1bot perps" };
-
-const STEPS = [
-  {
-    n: 4,
-    title: "Set a cap, then trade",
-    body: "Choose the most a single order may risk. The cap is enforced here, not only by the venue.",
-  },
-] as const;
 
 export default async function StartPage() {
   const country = countryFromHeaders(await headers());
@@ -80,35 +73,24 @@ export default async function StartPage() {
         </div>
       ) : check.status === "unknown" ? (
         <Attest>
-          <Steps />
+          <Steps country={null} />
         </Attest>
       ) : (
-        <Steps />
+        <Steps country={check.country} />
       )}
     </main>
   );
 }
 
-function Steps() {
+function Steps({ country }: { country: string | null }) {
   return (
     <>
       <Onboarding />
-
-      {STEPS.map((s) => (
-        <section key={s.n} className="panel gate pending">
-          <div className="gateh">
-            <h2>
-              {s.n}. {s.title}
-            </h2>
-            <span className="soon">not open yet</span>
-          </div>
-          <p>{s.body}</p>
-        </section>
-      ))}
+      <FromPost country={country} />
       <p className="note">
-        Linking, registering a signing key and depositing all work. The order ticket does not
-        exist yet, so nothing here can place a trade — use the venue directly for that until it
-        does. The market pages are live and read-only either way.
+        Linking, registering a signing key, depositing, withdrawing and the order ticket all work
+        here. Trading from a post: enabling it registers the bot&apos;s key now; the commands ship in
+        the next release.
       </p>
     </>
   );

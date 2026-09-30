@@ -68,3 +68,38 @@ describe("guardedAccount", () => {
     expect(audit).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("guardedAccount messages", () => {
+  const audit = vi.fn();
+  const messageAudit = vi.fn();
+  const allow = (message: string) =>
+    message.startsWith("Register Lighter Account") ? ({ ok: true, kind: "lighter-register" } as const) : ({ ok: false, reason: "not a registration message" } as const);
+
+  beforeEach(() => {
+    messageAudit.mockClear();
+    inner.signMessage.mockClear();
+  });
+
+  it("signs a message the policy allows, and audits it first", async () => {
+    const account = await guardedAccount({ walletId: "w", address: WALLET, allowlist, audit, messages: { allow, audit: messageAudit } });
+    const message = "Register Lighter Account\n\npubkey: 0x00";
+    expect(await account.signMessage({ message })).toBe("0xmsg");
+    expect(inner.signMessage).toHaveBeenCalledWith({ message });
+    expect(messageAudit).toHaveBeenCalledWith(expect.objectContaining({ kind: "lighter-register", wallet: WALLET, bytes: 38 }));
+    expect(messageAudit.mock.invocationCallOrder[0]!).toBeLessThan(inner.signMessage.mock.invocationCallOrder[0]!);
+  });
+
+  it("refuses a message the policy rejects, and raw bytes, without touching Privy", async () => {
+    const account = await guardedAccount({ walletId: "w", address: WALLET, allowlist, audit, messages: { allow, audit: messageAudit } });
+    await expect(account.signMessage({ message: "Transfer\n\nnonce: 0x00" })).rejects.toBeInstanceOf(TxNotAllowedError);
+    await expect(account.signMessage({ message: { raw: "0x1234" } })).rejects.toBeInstanceOf(TxNotAllowedError);
+    expect(inner.signMessage).not.toHaveBeenCalled();
+    expect(messageAudit).not.toHaveBeenCalled();
+  });
+
+  it("still refuses every message when no policy is given", async () => {
+    const account = await guardedAccount({ walletId: "w", address: WALLET, allowlist, audit });
+    await expect(account.signMessage({ message: "Register Lighter Account\n\npubkey: 0x00" })).rejects.toBeInstanceOf(TxNotAllowedError);
+    expect(inner.signMessage).not.toHaveBeenCalled();
+  });
+});

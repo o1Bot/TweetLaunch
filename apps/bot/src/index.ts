@@ -19,6 +19,7 @@ import { dryRunTradeChain, liveTradeChain } from "./trade-chain";
 import { processMention, type PipelineDeps } from "./pipeline";
 import { BullQueue, MemoryQueue, type JobQueue } from "./queue";
 import { startRecapPolling } from "./recap";
+import { perpsRegisterDeps, startPerpsRegisterPolling } from "./perps-register";
 import { drainSiteJobs, startSiteJobPolling } from "./site-core";
 import { MemorySiteStore, PrismaSiteStore } from "./site-store";
 import { MemoryBotStore, PrismaBotStore, type BotStore } from "./store";
@@ -283,13 +284,16 @@ async function main() {
   const poller = startPolling({ ...listener, alerts: deps.alerts }, cfg.pollMs);
   const webPoller = startWebLaunchPolling(deps, WEB_LAUNCH_POLL_MS);
   const sitePoller = startSiteJobPolling(deps, WEB_LAUNCH_POLL_MS);
+  // Perps from a post: registers the bot's key on opted-in accounts. Needs the vault secret and the database.
+  const perpsPoller = e.PERPS_VAULT_KEY && dbConfigured() ? startPerpsRegisterPolling(perpsRegisterDeps({ vaultKey: e.PERPS_VAULT_KEY, dryRun: cfg.dryRun }), WEB_LAUNCH_POLL_MS) : null;
+  if (perpsPoller) logger.info({ dryRun: cfg.dryRun }, "perps from a post: key registration worker on");
   // The daily recap reads the indexer's tables, so it needs the database; without one it stays off.
   const recapPoller = startRecapPolling(deps, { enabled: e.RECAP_ENABLED && dbConfigured(), hourUtc: e.RECAP_HOUR_UTC });
   if (e.RECAP_ENABLED) logger.info({ hourUtc: e.RECAP_HOUR_UTC, db: dbConfigured() }, "daily recap post enabled");
   deps.alerts?.send({ kind: "boot", title: "o1bot is up", fields: [["Factory", activeFactory("robinhood")], ["Poll", `${cfg.pollMs} ms`], ["Queue", e.QUEUE_DRIVER]] });
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "shutting down");
-    await Promise.all([poller.stop(), webPoller.stop(), sitePoller.stop(), recapPoller.stop()]);
+    await Promise.all([poller.stop(), webPoller.stop(), sitePoller.stop(), recapPoller.stop(), perpsPoller?.stop()]);
     await queue.close();
     process.exit(0);
   };
