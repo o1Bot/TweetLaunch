@@ -1,4 +1,5 @@
 import { isBridgeChainKey, normalizeHandle, type BridgeChainKey } from "@o1bot/shared";
+import { isPerpIntent, normalizePerp, type PerpCommand } from "./perp";
 import type { AskTopic, MissingField, ParseOutput } from "./schema";
 
 /**
@@ -144,6 +145,7 @@ export type ParseResult =
   | LaunchCommand
   | TradeCommand
   | BridgeCommand
+  | PerpCommand
   | SiteCommand
   | AskCommand
   | { kind: "clarify"; question: string; missing: MissingField[]; language: string; reason: string }
@@ -156,7 +158,7 @@ export const NAME_MAX = 50;
 export const DECIMAL_RE = /^(0|[1-9]\d*)(\.\d+)?$/;
 export const REPLY_MAX = 280;
 
-const FALLBACK_QUESTION: Record<MissingField, string> = {
+export const FALLBACK_QUESTION: Record<MissingField, string> = {
   ticker: "What ticker should the token have? Example: $RUGRAT",
   name: 'What is the token\'s name? Example: "Rugrat"',
   pair: "Which pair should it trade against? ETH, USDG or a stock token like NVDA",
@@ -166,6 +168,10 @@ const FALLBACK_QUESTION: Record<MissingField, string> = {
   trade_token: "Which token? Give its ticker or address. Example: sell half of $CAT",
   trade_amount: "How much? For a buy give the ETH amount, for a sell give all, half or a percentage. Example: buy 0.05 ETH of $CAT",
   bridge_chain: "From which chain? Base, Ethereum, Arbitrum or Optimism. Example: bridge 0.1 ETH from base",
+  perp_side: "Long, short or close? Example: long $BTC 10x with 50 usdc",
+  perp_market: "Which market? Example: long $BTC 10x with 50 usdc",
+  perp_amount: "How much USDC do you want to put up? Example: long $BTC 10x with 50 usdc",
+  perp_leverage: "What leverage? Example: long $BTC 10x with 50 usdc",
 };
 
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -230,7 +236,8 @@ export function cleanTradeAmount(raw: string | null | undefined): TradeAmount {
 
 function normalizeTrade(raw: ParseOutput, language: string, reason: string): ParseResult {
   const missing = new Set<MissingField>(raw.kind === "clarify" ? raw.missing.filter((m) => TRADE_MISSING.has(m)) : []);
-  const side = raw.trade_side;
+  // long, short and close are perp sides; a trade has only these two.
+  const side = raw.trade_side === "buy" || raw.trade_side === "sell" ? raw.trade_side : null;
   const tokenRaw = (raw.ticker ?? "").trim();
   const tokenAddress = ADDRESS_RE.test(tokenRaw) ? tokenRaw : null;
   const ticker = tokenAddress ? null : cleanTicker(tokenRaw || null);
@@ -358,11 +365,14 @@ export function normalizeParseOutput(raw: ParseOutput, input: { hasImage: boolea
   // A site for a token that exists already.
   if (raw.kind === "site") return normalizeSiteCommand(raw, language, reason);
 
+  // A perp, or a clarify about one: long, short and close are never launchpad trades.
+  if (isPerpIntent(raw)) return normalizePerp(raw, language, reason);
+
   // A bridge, or a clarify about one, is decided before trades: it has no side.
   const bridgeIntent = raw.kind === "bridge" || (raw.kind === "clarify" && raw.missing.includes("bridge_chain"));
   if (bridgeIntent) return normalizeBridge(raw, language, reason);
   // A trade, or a clarify about one: the trade fields decide, never the launch fields.
-  const tradeIntent = raw.kind === "trade" || (raw.kind === "clarify" && (raw.missing.some((m) => TRADE_MISSING.has(m)) || raw.trade_side !== null));
+  const tradeIntent = raw.kind === "trade" || (raw.kind === "clarify" && (raw.missing.some((m) => TRADE_MISSING.has(m)) || raw.trade_side === "buy" || raw.trade_side === "sell"));
   if (tradeIntent) return normalizeTrade(raw, language, reason);
 
   // launch or clarify: re-derive the missing list from the values themselves.

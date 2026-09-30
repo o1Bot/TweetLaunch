@@ -89,8 +89,8 @@ function Steps({ country }: { country: string | null }) {
       <FromPost country={country} />
       <p className="note">
         Linking, registering a signing key, depositing, withdrawing and the order ticket all work
-        here. Trading from a post: enabling it registers the bot&apos;s key now; the commands ship in
-        the next release.
+        here. Trading from a post works once step 4 reads &quot;on&quot;: long, short and close, within
+        the caps you set.
       </p>
     </>
   );

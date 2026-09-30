@@ -10,7 +10,7 @@ import type { BotStore } from "./store";
  */
 
 /** The command fields the parser fills; other keys of the stored output (reason, question, language) are not carried. */
-const FIELDS = ["ticker", "name", "pair", "chain", "devbuy_native", "fees_to_handle", "description", "website", "telegram", "x_handle", "site_slug", "trade_side", "trade_amount"] as const;
+const FIELDS = ["ticker", "name", "pair", "chain", "devbuy_native", "fees_to_handle", "description", "website", "telegram", "x_handle", "site_slug", "trade_side", "trade_amount", "perp_leverage"] as const;
 
 /** The earlier reading from a stored parser output, or null when it was not a clarify or holds nothing usable. */
 export function earlierAttemptFromParse(parse: unknown): EarlierAttempt | null {

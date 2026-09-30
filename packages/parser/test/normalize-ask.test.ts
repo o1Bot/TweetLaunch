@@ -7,6 +7,7 @@ const base: ParseOutput = {
   language: "en",
   topic: "stats",
   site_slug: "",
+  perp_leverage: "",
   ticker: null,
   name: null,
   pair: null,

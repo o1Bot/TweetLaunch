@@ -435,7 +435,8 @@ tbody tr:hover {
   color: var(--ink-2);
   max-width: 62ch;
 }
-.hero .cmd {
+.hero .cmd,
+.gate .cmd {
   margin-top: 22px;
   display: inline-block;
   background: var(--panel);
@@ -444,11 +445,13 @@ tbody tr:hover {
   font-size: 15px;
   color: var(--ink-2);
 }
-.hero .cmd b {
+.hero .cmd b,
+.gate .cmd b {
   color: var(--ink);
   font-weight: 600;
 }
-.hero .cmd em {
+.hero .cmd em,
+.gate .cmd em {
   font-style: normal;
   color: var(--blue);
   font-weight: 600;

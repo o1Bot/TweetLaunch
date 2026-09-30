@@ -34,7 +34,7 @@ function config(over: Partial<BotConfig> = {}): BotConfig {
     defaultUserTradeCapWei: parseEther("0.1"),
     tradeCooldownSeconds: 30,
     maxTradesPerDay: 20,
-    tradeSlippageBps: 300,
+    tradeSlippageBps: 300, perpsSiteUrl: "https://perps.o1bot.exchange", perpsCooldownSeconds: 10, maxPerpOrdersPerDay: 50, perpsSlippageBps: 100,
     maxBridgeWei: parseEther("1"),
     siteUrl: "https://o1bot.exchange",
     botHandle: "o1bot_exchange",

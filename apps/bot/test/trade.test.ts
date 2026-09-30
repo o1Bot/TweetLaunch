@@ -105,7 +105,7 @@ function config(over: Partial<BotConfig> = {}): BotConfig {
     // Several tests run more than one trade at the same fake instant; the cooldown test sets its own.
     tradeCooldownSeconds: 0,
     maxTradesPerDay: 20,
-    tradeSlippageBps: 300,
+    tradeSlippageBps: 300, perpsSiteUrl: "https://perps.o1bot.exchange", perpsCooldownSeconds: 10, maxPerpOrdersPerDay: 50, perpsSlippageBps: 100,
     maxBridgeWei: parseEther("1"),
     siteUrl: "https://o1bot.exchange",
     botHandle: "o1bot_exchange",

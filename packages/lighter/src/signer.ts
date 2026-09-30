@@ -178,6 +178,21 @@ export interface LighterSignerGlobals {
     apiKeyIndex: number,
     accountIndex: number,
   ): SignerResult<SignedTx>;
+  /**
+   * Set the account's leverage for one market: its initial margin fraction.
+   * Verified against wasm/main.go commit c26ac340 (2026-09-30): txType 20.
+   */
+  SignUpdateLeverage(
+    marketIndex: number,
+    /** Initial margin fraction in 1e-4: 1000 = 10x (see leverage.ts). */
+    fraction: number,
+    /** 0 = cross, 1 = isolated (txtypes.CrossMargin / IsolatedMargin). */
+    marginMode: number,
+    skipNonce: number,
+    nonce: number,
+    apiKeyIndex: number,
+    accountIndex: number,
+  ): SignerResult<SignedTx>;
   /** Approval = four ceilings (perps/spot × taker/maker) + expiry, not a single value. */
   SignApproveIntegrator(
     integratorAccountIndex: number,
@@ -243,6 +258,7 @@ const REQUIRED_GLOBALS = [
   "SignChangePubKey",
   "SignCancelAllOrders",
   "SignWithdraw",
+  "SignUpdateLeverage",
   "SignApproveIntegrator",
 ] as const;
 

@@ -17,6 +17,11 @@ export type BotConfig = {
   tradeCooldownSeconds: number;
   maxTradesPerDay: number;
   tradeSlippageBps: number;
+  /** Perps from posts: the terminal named in replies, the cooldown, the daily count and the market-order price guard. */
+  perpsSiteUrl: string;
+  perpsCooldownSeconds: number;
+  maxPerpOrdersPerDay: number;
+  perpsSlippageBps: number;
   /** Largest Relay deposit the bot signs on an origin chain. */
   maxBridgeWei: bigint;
   siteUrl: string;
@@ -47,6 +52,10 @@ export function botConfig(): BotConfig {
     tradeCooldownSeconds: e.TRADE_COOLDOWN_SECONDS,
     maxTradesPerDay: e.MAX_TRADES_PER_USER_PER_DAY,
     tradeSlippageBps: e.TRADE_SLIPPAGE_BPS,
+    perpsSiteUrl: e.PERPS_SITE_URL.endsWith("/") ? e.PERPS_SITE_URL.slice(0, -1) : e.PERPS_SITE_URL,
+    perpsCooldownSeconds: e.PERPS_COOLDOWN_SECONDS,
+    maxPerpOrdersPerDay: e.MAX_PERP_ORDERS_PER_USER_PER_DAY,
+    perpsSlippageBps: e.PERPS_SLIPPAGE_BPS,
     maxBridgeWei: parseEther(e.MAX_BRIDGE_ETH),
     siteUrl: e.SITE_URL.replace(/\/$/, ""),
     sitesRootDomain: e.SITES_ROOT_DOMAIN,

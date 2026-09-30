@@ -152,7 +152,7 @@ export async function registerPerpsKey(row: RegisterRow, deps: RegisterDeps): Pr
 const signerDir = new URL("../../perps/public/signer/", import.meta.url);
 let wasmBytes: Promise<Buffer> | undefined;
 
-async function liveSigner(): Promise<LighterSignerGlobals> {
+export async function liveSigner(): Promise<LighterSignerGlobals> {
   wasmBytes ??= readFile(fileURLToPath(new URL("lighter-signer.wasm", signerDir)));
   return loadSignerFromBytes({
     wasm: await wasmBytes,

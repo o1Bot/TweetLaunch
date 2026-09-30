@@ -14,3 +14,4 @@ export * from "./withdraw";
 export * from "./link";
 export * from "./jurisdiction";
 export * from "./register-message";
+export * from "./leverage";

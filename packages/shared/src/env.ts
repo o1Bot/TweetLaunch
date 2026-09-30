@@ -23,6 +23,8 @@ const schema = z.object({
     .default("true")
     .transform((v) => v !== "false" && v !== "0"),
   SITE_URL: z.url().default("http://localhost:3000"),
+  /** The perps terminal, named in replies about perps from a post. */
+  PERPS_SITE_URL: z.url().default("https://perps.o1bot.exchange"),
   /** Daily recap post from the bot's own account (launches, volume, trades of the last 24 hours); off unless true. */
   RECAP_ENABLED: bool,
   /** Hour of the day, UTC, from which the recap is posted (13 = 20:00 in Jakarta). */
@@ -118,6 +120,10 @@ const schema = z.object({
   /** Ceilings a user may set for perps from a post: notional per order (USDC) and leverage. */
   PERPS_MAX_NOTIONAL_USD: z.string().regex(/^[1-9][0-9]*$/).default("1000"),
   PERPS_MAX_LEVERAGE: z.coerce.number().int().min(1).max(50).default(20),
+  /** Perp orders from posts: seconds between two from one account, how many a day, and the market-order price guard. */
+  PERPS_COOLDOWN_SECONDS: z.coerce.number().int().nonnegative().default(10),
+  MAX_PERP_ORDERS_PER_USER_PER_DAY: z.coerce.number().int().positive().default(50),
+  PERPS_SLIPPAGE_BPS: z.coerce.number().int().min(10).max(500).default(100),
   PERPS_VAULT_KEY: z
     .string()
     .regex(/^(0x)?[0-9a-fA-F]{64}$/, "PERPS_VAULT_KEY must be 32 bytes of hex")

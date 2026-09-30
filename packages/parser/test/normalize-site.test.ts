@@ -17,6 +17,7 @@ const base: ParseOutput = {
   telegram: null,
   x_handle: null,
   site_slug: "auto",
+  perp_leverage: "",
   trade_side: null,
   trade_amount: null,
   trade_slippage_pct: null,
