@@ -386,6 +386,12 @@ tbody tr:hover {
   color: var(--ink);
   font-family: ui-monospace, monospace;
 }
+/* The way out sits under the way in, separated but in the same section. */
+.withdraw {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
 
 /* ---------- home view (o1bot-perps-demo2.html) ---------- */
 .page {
