@@ -44,7 +44,6 @@
  * launch above 25 USDC (2026-09-13). An aggregation created before that
  * date counts every chain, so do not pass it as --aggregation again.
  */
-import { BOT_API_KEY_INDEX, REGISTER_MESSAGE_BYTES, REGISTER_MESSAGE_PREFIX, registerMessageSuffix } from "@o1bot/lighter";
 import "@o1bot/shared/load-env";
 import { generateKeyPairSync } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -54,6 +53,7 @@ import { findRepoRoot } from "@o1bot/shared/load-env";
 import { activeFactory, activeFeeEscrow, BRIDGE_CHAIN_KEYS, bridgeChainByKey, chainByKey, env, o1Chain, RELAY_DEPOSITORY, requireEnv, universalRouterOf } from "@o1bot/shared";
 import { arcFeeEscrowAbi, arcLaunchFactoryAbi, baseFeeEscrowAbi, baseLaunchFactoryAbi, feeEscrowAbi, launchFactoryAbi } from "@o1bot/executor";
 import { permit2Abi, universalRouterAbi } from "@o1bot/swap";
+import { lighterRegistrationRule } from "./privy-rules";
 
 const VARS = ["PRIVY_POLICY_ID", "NEXT_PUBLIC_PRIVY_POLICY_ID"] as const;
 const LAUNCH_FUNCTIONS = ["createLaunch", "createLaunchAndBuy", "setCreatorFeeRecipient"];
@@ -201,21 +201,7 @@ async function main() {
           { field_source: "reference", field: `aggregation.${aggregationId}`, operator: "lte", value: dailyCapWei.toString() },
         ],
       },
-      {
-        // Perps from a post: the one message the signer may sign is Lighter's key
-        // registration, pinned by its prefix, by the bot's slot in its suffix and
-        // by its fixed length. It registers a key on an account the wallet owns; it
-        // cannot move funds. The bot also checks the account and key named inside
-        // the message before asking (packages/wallet, message policy).
-        name: "Lighter key registration (perps from a post)",
-        method: "personal_sign",
-        action: "ALLOW",
-        conditions: [
-          { field_source: "message", field: "content", operator: "starts_with", value: REGISTER_MESSAGE_PREFIX },
-          { field_source: "message", field: "content", operator: "ends_with", value: registerMessageSuffix(BOT_API_KEY_INDEX) },
-          { field_source: "message", field: "byte_length", operator: "eq", value: String(REGISTER_MESSAGE_BYTES) },
-        ],
-      },
+      lighterRegistrationRule(),
       {
         name: "Fee claims on the o1 escrow",
         method: "eth_signTransaction",
