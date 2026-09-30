@@ -48,6 +48,7 @@ model User {
   sites          TokenSite[]
   transfersSent     Transfer[] @relation("TransferFrom")
   transfersReceived Transfer[] @relation("TransferTo")
+  perps             PerpsAccount?
 
   @@index([xHandle])
 }
@@ -484,4 +485,46 @@ model TokenSiteJob {
 
   @@index([status, createdAt])
   @@index([siteId, createdAt])
+}
+
+/// Trading perps from a post: the bot's own key on the user's Lighter account,
+/// registered once the user opts in on perps.o1bot.exchange. The key is sealed
+/// with the bot's vault secret; the row never holds it in clear.
+model PerpsAccount {
+  id              String             @id @default(cuid())
+  xUserId         String             @unique
+  user            User               @relation(fields: [xUserId], references: [xUserId])
+  /// The Privy wallet the account belongs to, checksummed. Frozen at opt-in: a changed wallet is a new opt-in.
+  walletAddress   String
+  /// Lighter account index once resolved from the wallet (an L1 address can carry more than one account).
+  accountIndex    BigInt?
+  apiKeyIndex     Int                @default(5)
+  publicKey       String?
+  sealedKey       String?
+  registerTxHash  String?
+  status          PerpsAccountStatus @default(PENDING)
+  error           String?
+  /// Times the worker claimed the registration; a row left RUNNING by a worker that died is re-queued once, then failed.
+  attempts        Int                @default(0)
+  /// The most one order from a post may open, in USDC notional (decimal string).
+  maxNotionalUsd  String             @default("100")
+  maxLeverage     Int                @default(5)
+  /// The country the user attested to at opt-in (ISO 3166-1 alpha-2), or null when nothing identified it.
+  attestedCountry String?
+  attestedAt      DateTime
+  startedAt       DateTime?
+  activatedAt     DateTime?
+  disabledAt      DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([status, createdAt])
+}
+
+enum PerpsAccountStatus {
+  PENDING
+  RUNNING
+  ACTIVE
+  FAILED
+  DISABLED
 }

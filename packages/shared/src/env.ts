@@ -111,6 +111,17 @@ const schema = z.object({
 
   /** Indexer. RPC must support eth_getLogs over historical ranges. */
   INDEXER_RPC: z.string().optional(),
+  /**
+   * 32 bytes of hex. Seals the Lighter keys the bot holds for accounts whose
+   * owner opted in to perps from a post. Unset = that worker does not run.
+   */
+  /** Ceilings a user may set for perps from a post: notional per order (USDC) and leverage. */
+  PERPS_MAX_NOTIONAL_USD: z.string().regex(/^[1-9][0-9]*$/).default("1000"),
+  PERPS_MAX_LEVERAGE: z.coerce.number().int().min(1).max(50).default(20),
+  PERPS_VAULT_KEY: z
+    .string()
+    .regex(/^(0x)?[0-9a-fA-F]{64}$/, "PERPS_VAULT_KEY must be 32 bytes of hex")
+    .optional(),
   INDEXER_START_BLOCK: z.coerce.number().int().nonnegative().optional(),
   /** Stop at this block instead of the chain tip (bounded dry runs). */
   INDEXER_END_BLOCK: z.coerce.number().int().nonnegative().optional(),

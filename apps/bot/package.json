@@ -13,6 +13,7 @@
   "dependencies": {
     "@o1bot/db": "workspace:*",
     "@o1bot/executor": "workspace:*",
+    "@o1bot/lighter": "workspace:*",
     "@o1bot/market": "workspace:*",
     "@o1bot/parser": "workspace:*",
     "@o1bot/shared": "workspace:*",
@@ -20,6 +21,7 @@
     "@o1bot/swap": "workspace:*",
     "@o1bot/wallet": "workspace:*",
     "@o1bot/x": "workspace:*",
+    "@privy-io/server-auth": "^1.32.5",
     "bullmq": "^6.3.4",
     "ioredis": "^6.0.0",
     "viem": "^2.56.3"

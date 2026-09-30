@@ -23,7 +23,7 @@ export const SITE_HEADER = "x-o1bot-site";
 export const SITE_PATH_HEADER = "x-o1bot-site-path";
 
 export const config = {
-  matcher: ["/((?!_next/|api/|site-render/|favicon\\.ico|icon\\.png|sitemap\\.xml).*)", "/api/token/:path*"],
+  matcher: ["/((?!_next/|api/|site-render/|favicon\\.ico|icon\\.png|sitemap\\.xml).*)", "/api/token/:path*", "/api/me/perps", "/api/me/perps/:path*"],
 };
 
 /** A site's origin, or the opaque origin of a sandboxed preview frame. */
@@ -38,7 +38,24 @@ function isSiteOrigin(origin: string | null): boolean {
   }
 }
 
+/** The perps terminal, which shares the Privy session and opts users in through /api/me/perps. */
+function isPerpsOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  if (origin === (process.env.PERPS_ORIGIN ?? "https://perps.o1bot.exchange")) return true;
+  return process.env.NODE_ENV !== "production" && /^http:\/\/localhost:\d+$/.test(origin);
+}
+
 export function proxy(req: NextRequest) {
+  if (req.nextUrl.pathname.startsWith("/api/me/perps")) {
+    const origin = req.headers.get("origin");
+    if (!isPerpsOrigin(origin)) return NextResponse.next();
+    const headers = { "access-control-allow-origin": origin!, "access-control-allow-methods": "GET, POST, DELETE, OPTIONS", "access-control-allow-headers": "authorization, content-type", vary: "Origin" };
+    if (req.method === "OPTIONS") return new NextResponse(null, { status: 204, headers });
+    const res = NextResponse.next();
+    for (const [k, v] of Object.entries(headers)) res.headers.set(k, v);
+    return res;
+  }
+
   if (req.nextUrl.pathname.startsWith("/api/token/")) {
     const origin = req.headers.get("origin");
     if (!isSiteOrigin(origin)) return NextResponse.next();

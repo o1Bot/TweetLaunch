@@ -1,11 +1,16 @@
+/// <reference lib="dom" />
+// The bot compiles this source too, without the DOM lib; the types above (WebAssembly, window, document) are browser names that Node 20 also provides at runtime.
 // Type bindings for the lighter-go WASM signer — see spikes/wasm-signer/README.md.
 //
 // The module is built from a pinned lighter-go commit (`just build-wasm`) and registers
 // the signing functions as JS globals. The binary is NOT committed; build output goes in
 // public/signer/ alongside wasm_exec.js from GOROOT.
 //
-// Lighter API keys carry full write permission (including trading down to zero) — the
-// key lives only in the browser, encrypted, and is never sent to any server.
+// Lighter API keys carry full write permission (including trading down to zero). The
+// terminal's key lives only in the browser, encrypted, and is never sent to any server.
+// The one exception is deliberate: an account whose owner opted in to trading from a
+// post gets a second key, in its own slot, sealed in the bot's vault — see
+// loadSignerFromBytes and vault.ts.
 
 declare const process: { env: Record<string, string | undefined> } | undefined;
 
@@ -42,6 +47,15 @@ export const L2_CHAIN_ID = Number(
  * integrator the user already trusts may hold this slot on their account.
  */
 export const API_KEY_INDEX = 4;
+
+/**
+ * The slot the bot registers into for accounts whose owner opted in to trading
+ * from a post. Distinct from the terminal's slot 4 on purpose: the browser key
+ * and the bot key coexist on one account, and revoking one must not touch the
+ * other. Not yet measured on a live account: the registration worker asks the
+ * venue whether the slot is free (code 21109) before it writes, every time.
+ */
+export const BOT_API_KEY_INDEX = 5;
 
 export interface GeneratedApiKey {
   privateKey: string;
@@ -217,19 +231,66 @@ async function instantiate({ wasmUrl, wasmExecUrl }: LoadSignerOptions): Promise
   const { instance } = await WebAssembly.instantiateStreaming(fetch(wasmUrl), go.importObject);
   void go.run(instance); // main() blocks in select{} — globals are available immediately
 
-  for (const name of [
-    "GenerateAPIKey",
-    "CreateClient",
-    "CreateAuthToken",
-    "SignCreateOrder",
-    "SignChangePubKey",
-    "SignCancelAllOrders",
-    "SignWithdraw",
-    "SignApproveIntegrator",
-  ] as const) {
+  requireGlobals(g);
+  return g as unknown as LighterSignerGlobals;
+}
+
+const REQUIRED_GLOBALS = [
+  "GenerateAPIKey",
+  "CreateClient",
+  "CreateAuthToken",
+  "SignCreateOrder",
+  "SignChangePubKey",
+  "SignCancelAllOrders",
+  "SignWithdraw",
+  "SignApproveIntegrator",
+] as const;
+
+function requireGlobals(g: Record<string, unknown>): void {
+  for (const name of REQUIRED_GLOBALS) {
     if (typeof g[name] !== "function") {
       throw new Error(`signer module does not expose ${name} — wasm built from a different version?`);
     }
   }
+}
+
+export interface LoadSignerBytesOptions {
+  /** The wasm binary, read by the caller (the package has no file system of its own). */
+  wasm: ArrayBuffer | Uint8Array;
+  /** Runs wasm_exec.js from the same toolchain so that `globalThis.Go` exists. */
+  installGo: () => Promise<void>;
+}
+
+let bytesSignerPromise: Promise<LighterSignerGlobals> | undefined;
+
+/**
+ * The same module, loaded by the bot rather than a browser.
+ *
+ * This exists for one reason: an order from a post is signed while the user
+ * is not there, so for accounts whose owner opted in, the key lives in the
+ * server vault (vault.ts, sealWithSecret) and the bot signs with it. The
+ * browser rule above still holds for everyone else — the terminal never sends
+ * a key anywhere, and this loader refuses to run where a window exists.
+ */
+export function loadSignerFromBytes(opts: LoadSignerBytesOptions): Promise<LighterSignerGlobals> {
+  bytesSignerPromise ??= instantiateFromBytes(opts).catch((err) => {
+    bytesSignerPromise = undefined;
+    throw err;
+  });
+  return bytesSignerPromise;
+}
+
+async function instantiateFromBytes({ wasm, installGo }: LoadSignerBytesOptions): Promise<LighterSignerGlobals> {
+  if (typeof window !== "undefined") {
+    throw new Error("loadSignerFromBytes is for the bot; a browser uses loadSigner");
+  }
+  type GoCtor = new () => { importObject: WebAssembly.Imports; run(i: WebAssembly.Instance): Promise<void> };
+  const g = globalThis as typeof globalThis & Record<string, unknown>;
+  if (typeof g.Go !== "function") await installGo();
+  if (typeof g.Go !== "function") throw new Error("wasm_exec.js did not install globalThis.Go");
+  const go = new (g.Go as GoCtor)();
+  const { instance } = await WebAssembly.instantiate(wasm as BufferSource, go.importObject);
+  void go.run(instance); // main() blocks in select{} — globals are available immediately
+  requireGlobals(g);
   return g as unknown as LighterSignerGlobals;
 }

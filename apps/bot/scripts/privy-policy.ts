@@ -53,6 +53,7 @@ import { findRepoRoot } from "@o1bot/shared/load-env";
 import { activeFactory, activeFeeEscrow, BRIDGE_CHAIN_KEYS, bridgeChainByKey, chainByKey, env, o1Chain, RELAY_DEPOSITORY, requireEnv, universalRouterOf } from "@o1bot/shared";
 import { arcFeeEscrowAbi, arcLaunchFactoryAbi, baseFeeEscrowAbi, baseLaunchFactoryAbi, feeEscrowAbi, launchFactoryAbi } from "@o1bot/executor";
 import { permit2Abi, universalRouterAbi } from "@o1bot/swap";
+import { lighterRegistrationRule } from "./privy-rules";
 
 const VARS = ["PRIVY_POLICY_ID", "NEXT_PUBLIC_PRIVY_POLICY_ID"] as const;
 const LAUNCH_FUNCTIONS = ["createLaunch", "createLaunchAndBuy", "setCreatorFeeRecipient"];
@@ -200,6 +201,7 @@ async function main() {
           { field_source: "reference", field: `aggregation.${aggregationId}`, operator: "lte", value: dailyCapWei.toString() },
         ],
       },
+      lighterRegistrationRule(),
       {
         name: "Fee claims on the o1 escrow",
         method: "eth_signTransaction",

@@ -11,3 +11,6 @@ export * from "./vault";
 export * from "./account";
 export * from "./deposit";
 export * from "./withdraw";
+export * from "./link";
+export * from "./jurisdiction";
+export * from "./register-message";

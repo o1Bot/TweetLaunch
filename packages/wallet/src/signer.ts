@@ -1,5 +1,5 @@
 import { createViemAccount } from "@privy-io/server-auth/viem";
-import { keccak256, type Address, type Hex, type LocalAccount } from "viem";
+import { keccak256, toBytes, type Address, type Hex, type LocalAccount } from "viem";
 import { checkTransaction, logger, type AllowedTxKind, type TxAllowlist } from "@o1bot/shared";
 import { privy } from "./privy";
 
@@ -29,12 +29,31 @@ export type SignAudit = {
   valueWei: string;
 };
 
+export type MessageAudit = {
+  kind: string;
+  wallet: Address;
+  messageHash: Hex;
+  bytes: number;
+};
+
+/**
+ * Message signing, off unless given. The only message a bot wallet has any
+ * business signing is Lighter's "Register Lighter Account", and `allow` is
+ * where that is checked field by field: Privy's policy pins the shape of the
+ * message in the enclave, this pins its meaning (which account, which slot).
+ */
+export type MessagePolicy = {
+  allow: (message: string) => { ok: true; kind: string } | { ok: false; reason: string };
+  audit: (record: MessageAudit) => Promise<void> | void;
+};
+
 export type GuardedAccountInput = {
   walletId: string;
   address: Address;
   allowlist: TxAllowlist;
   /** Called with every transaction that is about to be signed. Persist it. */
   audit: (record: SignAudit) => Promise<void> | void;
+  messages?: MessagePolicy;
 };
 
 export async function guardedAccount(input: GuardedAccountInput): Promise<LocalAccount> {
@@ -57,7 +76,20 @@ export async function guardedAccount(input: GuardedAccountInput): Promise<LocalA
     source: inner.source,
     type: "local",
     sign: refuse("raw hash"),
-    signMessage: refuse("message"),
+    async signMessage({ message }) {
+      const policy = input.messages;
+      if (!policy) return refuse("message")();
+      // Raw bytes could encode anything, including a hash to be signed blind.
+      if (typeof message !== "string") throw new TxNotAllowedError("only a plain-text message can be signed");
+      const check = policy.allow(message);
+      if (!check.ok) {
+        logger.warn({ wallet: input.address, reason: check.reason }, "refused to sign a message");
+        throw new TxNotAllowedError(check.reason);
+      }
+      const bytes = toBytes(message);
+      await policy.audit({ kind: check.kind, wallet: input.address, messageHash: keccak256(bytes), bytes: bytes.length });
+      return inner.signMessage({ message });
+    },
     signTypedData: refuse("typed data"),
     signAuthorization: refuse("EIP-7702 authorization"),
     async signTransaction(tx, options) {
