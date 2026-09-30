@@ -20,6 +20,8 @@ import { processMention, type PipelineDeps } from "./pipeline";
 import { BullQueue, MemoryQueue, type JobQueue } from "./queue";
 import { startRecapPolling } from "./recap";
 import { perpsRegisterDeps, startPerpsRegisterPolling } from "./perps-register";
+import { PrismaPerpsStore } from "./perps-store";
+import { livePerpsVenue } from "./perps-venue";
 import { drainSiteJobs, startSiteJobPolling } from "./site-core";
 import { MemorySiteStore, PrismaSiteStore } from "./site-store";
 import { MemoryBotStore, PrismaBotStore, type BotStore } from "./store";
@@ -180,6 +182,8 @@ function buildDeps(cfg: BotConfig, args: CliArgs, store: BotStore, x: XClient): 
     compose: (input) => composeAnswer(input),
     // Token sites: the pipeline reserves and queues, the worker below builds.
     sites: dbConfigured() ? new PrismaSiteStore() : new MemorySiteStore(store as MemoryBotStore),
+    // Perps from a post need the vault secret (to open the keys the bot holds) and the database (the opt-in rows).
+    perps: env().PERPS_VAULT_KEY && dbConfigured() ? { store: new PrismaPerpsStore(), venue: livePerpsVenue({ vaultKey: env().PERPS_VAULT_KEY! }) } : undefined,
     generateSite: (input) => generateSite(input),
     alerts: cfg.dryRun ? undefined : alerterFromEnv(),
   };

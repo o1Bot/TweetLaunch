@@ -53,6 +53,7 @@ export function promptContext(overrides: Partial<PromptContext> = {}): PromptCon
     creatorShare: `${(creatorBps / 100).toString()}%`,
     creatorKeeps: `${recipientSharePct(e.FEE_SPLITTER_PLATFORM_BPS)}%`,
     treasuryShare: `${100 - recipientSharePct(e.FEE_SPLITTER_PLATFORM_BPS)}%`,
+    perpsUrl: e.PERPS_SITE_URL.endsWith("/") ? e.PERPS_SITE_URL.slice(0, -1) : e.PERPS_SITE_URL,
     ...overrides,
   };
 }

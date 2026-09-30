@@ -41,8 +41,8 @@ function label(s: View["status"]): string {
  * Only a wallet o1bot can sign for qualifies — the embedded one from an X
  * login. Enabling registers the bot's own key on the user's Lighter account
  * (the bot's worker does it; this panel asks and watches), within caps the
- * user sets here. The commands themselves ship in the next release, so the
- * copy says so rather than implying a post already trades.
+ * user sets here. Once it reads "on", a post with long, short or close is an
+ * order.
  */
 export function FromPost({ country }: { country: string | null }) {
   const { ready, authenticated, getAccessToken } = usePrivy();
@@ -144,8 +144,18 @@ export function FromPost({ country }: { country: string | null }) {
         <>
           <p>
             o1bot registers its own key on your Lighter account, in its own slot, and may then place the
-            orders you post — up to the caps below, never more. The commands themselves ship in the next
-            release; enabling now means you are ready the day they do.
+            orders you post — up to the caps below, never more.
+          </p>
+          <div className="cmd">
+            <b>@o1bot_exchange</b> long <em>$BTC</em> 10x with 50 usdc
+            <br />
+            <b>@o1bot_exchange</b> short <em>$ETH</em> 5x with 20 usdc
+            <br />
+            <b>@o1bot_exchange</b> close my <em>$BTC</em>
+          </div>
+          <p className="fine">
+            The amount is your collateral; the position is that times the leverage. Market orders with a 1%
+            price guard, at least 10 USDC of position. You manage it afterwards in the terminal.
           </p>
 
           {view?.blocker === "not_delegated" && (

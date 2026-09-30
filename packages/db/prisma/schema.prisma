@@ -114,6 +114,8 @@ model Mention {
 
   bridge Bridge?
 
+  perpsOrder PerpsOrder?
+
   @@index([authorXUserId, receivedAt])
   @@index([status])
 }
@@ -527,4 +529,46 @@ enum PerpsAccountStatus {
   ACTIVE
   FAILED
   DISABLED
+}
+
+/// An order placed on Lighter from a post: a long, a short, or a close.
+model PerpsOrder {
+  id             String           @id @default(cuid())
+  mentionId      String           @unique
+  mention        Mention          @relation(fields: [mentionId], references: [id])
+  xUserId        String
+  accountIndex   BigInt
+  marketId       Int
+  symbol         String
+  /// "open" or "close".
+  action         String
+  /// "long" or "short": the position being opened, or the one being closed.
+  side           String
+  leverage       Int?
+  marginUsd      String?
+  notionalUsd    String?
+  /// Contracts sent, as a decimal string.
+  baseAmount     String
+  /// The worst acceptable price sent with the order.
+  guardPrice     String
+  status         PerpsOrderStatus @default(SIGNING)
+  leverageTxHash String?
+  txHash         String?
+  filledBase     String?
+  entryPrice     String?
+  error          String?
+  userMessage    String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([xUserId, createdAt])
+}
+
+enum PerpsOrderStatus {
+  DRY_RUN
+  SIGNING
+  SENT
+  FILLED
+  UNFILLED
+  FAILED
 }

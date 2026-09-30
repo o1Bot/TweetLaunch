@@ -228,6 +228,56 @@ export const replies = {
 
   tradeDailyCap: () => `This account has reached today's trade limit. Try again tomorrow.`,
 
+  // Perps from a post. Amounts arrive formatted; nothing here computes one.
+  perpsUnavailable: (perpsUrl: string) => `Perps from a post are not open on this bot yet. The terminal at ${perpsUrl} trades every market today.`,
+
+  perpsNotEnabled: (state: "none" | "pending" | "failed" | "disabled", perpsUrl: string) =>
+    state === "pending"
+      ? `Your perps setup is still registering its key on Lighter. Give it a minute and post again.`
+      : state === "failed"
+        ? `Your perps setup did not finish. Open ${perpsUrl}/start, press Try again in step 4, then post again.`
+        : `Perps from a post are off for your account. Turn them on in step 4 at ${perpsUrl}/start (X login, a USDC deposit, your own caps), then post again.`,
+
+  perpsUnknownMarket: (asked: string, perpsUrl: string) => `Lighter has no active market called ${asked}. The full list is at ${perpsUrl}; post again with the symbol shown there.`,
+
+  perpsLeverageTooHigh: (symbol: string, max: number, why: "market" | "cap", perpsUrl: string) =>
+    why === "market" ? `${symbol} goes up to ${max}x on Lighter. Post again with ${max}x or less.` : `That is above your own leverage cap of ${max}x. Lower it, or raise the cap in step 4 at ${perpsUrl}/start.`,
+
+  perpsTooLarge: (notional: string, cap: string, perpsUrl: string) =>
+    `That is a ${notional} USDC position, above your cap of ${cap} USDC per order. Lower the amount or the leverage, or raise the cap in step 4 at ${perpsUrl}/start.`,
+
+  perpsTooSmall: (symbol: string, min: string) => `An order on ${symbol} must be worth at least ${min} USDC (collateral times leverage). Raise one of them and post again.`,
+
+  perpsInsufficient: (shortfall: string, available: string, perpsUrl: string) =>
+    `Your Lighter account has ${available} USDC free, ${shortfall} short of that collateral. Deposit at ${perpsUrl}/start or lower the amount.`,
+
+  perpsOppositeOpen: (symbol: string, open: "long" | "short") => `You have an open ${open} on ${symbol}. Close it first ("close my $${symbol}"), then open the other side.`,
+
+  perpsNoPosition: (symbol: string) => `You have no open position on ${symbol} to close.`,
+
+  perpsSlowDown: (retryAfterSeconds: number) => `One perp order every few seconds per account. Try again in ${Math.max(1, retryAfterSeconds)} seconds.`,
+
+  perpsDailyCap: () => `This account has reached today's limit of perp orders from posts. The terminal has no such limit.`,
+
+  perpsVenueDown: () => `I could not reach Lighter just now, so nothing was sent. Post again in a minute.`,
+
+  perpsFailed: (detail: string) => `The order did not go through (${detail.slice(0, 120)}). Nothing was opened. Post again to retry.`,
+
+  perpsUnfilled: (symbol: string, page: string) => `The ${symbol} order was sent but did not fill inside its price guard, so nothing changed. Post again, or trade it at ${page}`,
+
+  perpsOpened: (p: { side: "long" | "short"; symbol: string; contracts: string; entry: string; leverage: number; margin: string; notional: string; liquidation: string | null; page: string }) =>
+    `${p.side === "long" ? "Long" : "Short"} ${p.contracts} ${p.symbol} at ${p.entry}, ${p.leverage}x on ${p.margin} USDC (a ${p.notional} USDC position).${p.liquidation ? ` Liquidation near ${p.liquidation}.` : ""}\nManage it: ${p.page}`,
+
+  perpsClosed: (p: { side: "long" | "short"; symbol: string; contracts: string; remaining: string | null; page: string }) =>
+    p.remaining
+      ? `Closed ${p.contracts} ${p.symbol} of your ${p.side}; ${p.remaining} ${p.symbol} is still open.\n${p.page}`
+      : `Closed your ${p.symbol} ${p.side} (${p.contracts} ${p.symbol}). The position is flat.\n${p.page}`,
+
+  perpsDryRunOpen: (p: { side: "long" | "short"; symbol: string; contracts: string; mark: string; leverage: number; margin: string; notional: string }) =>
+    `Dry run: would go ${p.side} ${p.contracts} ${p.symbol} near ${p.mark}, ${p.leverage}x on ${p.margin} USDC (a ${p.notional} USDC position). Nothing was sent.`,
+
+  perpsDryRunClose: (p: { side: "long" | "short"; symbol: string; contracts: string; mark: string }) => `Dry run: would close ${p.contracts} ${p.symbol} of your ${p.side} near ${p.mark}. Nothing was sent.`,
+
   // Bridges from a post, through Relay.
   bridgeTooLarge: (capEth: string) => `Bridges from a post have a cap of ${capEth} ETH per transfer. Lower the amount and post again.`,
 

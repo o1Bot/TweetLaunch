@@ -330,14 +330,14 @@ export function Ticket({
             <b>Trade from a post</b>
           </div>
           <div className="cmd">
-            <b>@o1bot_exchange</b> long <em>${symbol}</em> 10x with 500 usdc
+            <b>@o1bot_exchange</b> long <em>${symbol}</em> 10x with 50 usdc
             <br />
             <b>@o1bot_exchange</b> close my <em>${symbol}</em>
           </div>
           <p className="note">
-            Not live yet. It will need a per-trade cap and a leverage limit set here, and it only
-            ever works on a wallet o1bot can sign for — a wallet you connected yourself stays
-            terminal-only.
+            Turn it on once in <Link href="/start">step 4</Link>, with your own caps for order size and
+            leverage. It only ever works on a wallet o1bot can sign for — a wallet you connected
+            yourself stays terminal-only.
           </p>
         </div>
       </div>

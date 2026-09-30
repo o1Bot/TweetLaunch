@@ -23,6 +23,9 @@ import { handleSite } from "./site-handler";
 import type { SiteStore } from "./site-store";
 import type { BotStore, MentionStatusValue } from "./store";
 import type { TradeChain } from "./trade-core";
+import { handlePerp } from "./perps-handler";
+import type { PerpsStore } from "./perps-store";
+import type { PerpsVenue } from "./perps-venue";
 import { handleTrade } from "./trade-handler";
 import { checkDevBuy, checkFeesToHandle, checkRate, startOfUtcDay } from "./validator";
 
@@ -66,6 +69,8 @@ export type PipelineDeps = {
   /** Origin-chain reads and the Relay deposit for a bridge from a post. */
   bridge: BridgeChain;
   relay: RelayClient;
+  /** Perps from a post: the opt-in rows and the venue. Absent when the deployment holds no vault secret. */
+  perps?: { store: PerpsStore; venue: PerpsVenue };
   /** Figures behind questions from posts: statistics, tokens, the poster's wallet, launches and trades. */
   askData: AskData;
   /** Token sites: reservations, versions and build jobs. */
@@ -89,6 +94,8 @@ export type PipelineOutcome =
   | { outcome: "traded"; tradeId: string; txHash: Hex; reply: string | null }
   | { outcome: "bridge_dry_run"; bridgeId: string; reply: string }
   | { outcome: "bridged"; bridgeId: string; depositTxHash: Hex; fillTxHash: Hex | null; reply: string | null }
+  | { outcome: "perp_dry_run"; orderId: string; reply: string }
+  | { outcome: "perp_order"; orderId: string; txHash: string; filled: boolean; reply: string | null }
   | { outcome: "failed"; error: string; reply: string | null; launchId: string | null };
 
 type ReplyResult = { text: string; tweetId: string | null; posted: boolean; error: string | null };
@@ -233,6 +240,8 @@ export async function processMention(mention: XMention, deps: PipelineDeps): Pro
       return handleTrade(result, { mention, mentionId, deps, now, log, reply, setMention });
     case "bridge":
       return handleBridge(result, { mention, mentionId, deps, now, log, reply, setMention });
+    case "perp":
+      return handlePerp(result, { mention, mentionId, deps, now, log, reply, setMention });
   }
 }
 

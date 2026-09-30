@@ -6,7 +6,7 @@ import { z } from "zod";
  * the discriminated `ParseResult` the rest of the bot consumes.
  */
 
-export const MISSING_FIELDS = ["ticker", "name", "pair", "devbuy_amount", "fees_to_handle", "trade_side", "trade_token", "trade_amount", "bridge_chain"] as const;
+export const MISSING_FIELDS = ["ticker", "name", "pair", "devbuy_amount", "fees_to_handle", "trade_side", "trade_token", "trade_amount", "bridge_chain", "perp_side", "perp_market", "perp_amount", "perp_leverage"] as const;
 export type MissingField = (typeof MISSING_FIELDS)[number];
 
 /**
@@ -20,9 +20,9 @@ export type AskTopic = Exclude<(typeof ASK_TOPICS)[number], "none">;
 
 export const ParseOutputSchema = z.object({
   kind: z
-    .enum(["launch", "trade", "bridge", "site", "ask", "clarify", "help", "ignore"])
+    .enum(["launch", "trade", "bridge", "perp", "site", "ask", "clarify", "help", "ignore"])
     .describe(
-      "launch: a complete launch command. trade: a complete buy or sell command for the poster's own wallet. bridge: a complete request to move ETH from another chain to the poster's own wallet on Robinhood. site: a request to build a website for a token that already exists (\"build a site for $CAT\"). ask: a question for a figure the bot can look up (its statistics, a token's market data, the poster's own wallet, launches, fees or trades). clarify: launch, trade or bridge intent but a required value is missing or ambiguous. help: a question about how the bot, wallet, fees or pairs work, or a request the bot cannot do. ignore: no actionable intent, spam or abuse.",
+      "launch: a complete launch command. trade: a complete buy or sell command for the poster's own wallet. perp: a complete command to open a leveraged long or short on a Lighter market, or to close one, on the poster's own Lighter account. bridge: a complete request to move ETH from another chain to the poster's own wallet on Robinhood. site: a request to build a website for a token that already exists (\"build a site for $CAT\"). ask: a question for a figure the bot can look up (its statistics, a token's market data, the poster's own wallet, launches, fees or trades). clarify: launch, trade, bridge or perp intent but a required value is missing or ambiguous. help: a question about how the bot, wallet, fees or pairs work, or a request the bot cannot do. ignore: no actionable intent, spam or abuse.",
     ),
   language: z.string().describe("BCP-47 language tag of the post, e.g. en, id, es, ja."),
   topic: z
@@ -33,7 +33,7 @@ export const ParseOutputSchema = z.object({
   ticker: z
     .string()
     .nullable()
-    .describe("The token: for a launch its new ticker, for a trade or a token question the ticker of the token meant, exactly as the user wrote it minus a leading $, uppercased. The user may give a 0x contract address instead; return it exactly as written. null when not stated."),
+    .describe("The token: for a launch its new ticker, for a perp the market symbol (BTC, ETH, NVDA, XAU, EURUSD), for a trade or a token question the ticker of the token meant, exactly as the user wrote it minus a leading $, uppercased. The user may give a 0x contract address instead; return it exactly as written. null when not stated."),
   name: z
     .string()
     .nullable()
@@ -65,14 +65,15 @@ export const ParseOutputSchema = z.object({
     .describe(
       'Launch or site. Whether the bot should build a website for the token on its own subdomain. "" when the post does not ask for one. "auto" when it asks for a site without naming the subdomain ("site", "with a site", "build a site for $CAT"). Otherwise the subdomain name written after "site" or "at", exactly as written ("site catcoin" -> "catcoin"). A URL or a domain after "site" is the project website, not a subdomain: then this is "" and website carries the URL.',
     ),
-  trade_side: z.enum(["buy", "sell"]).nullable().describe("Trade only. buy or sell as the user asked. null when the post is not a trade or the side is unclear."),
+  trade_side: z.enum(["buy", "sell", "long", "short", "close"]).nullable().describe("Trade: buy or sell as the user asked. Perp: long, short or close. null when the post is neither or the side is unclear."),
   trade_amount: z
     .string()
     .nullable()
     .describe(
-      'Trade or bridge. For a bridge: the ETH to move exactly as written ("0.1", "0.1 ETH"). For a buy: the amount to spend exactly as written, with the asset when the user named one ("0.05", "0.05 ETH", "5 NVDA", "20 USDG"); null when absent or given in USD, in tokens of the token being bought, or as a percentage. For a sell: how much of the holding, exactly as written: "all", "half", "quarter", or a percentage such as "25" or "25%"; null when absent or given in tokens or ETH.',
+      'Trade, bridge or perp. For a perp that opens a position: the collateral to put up exactly as written, with its unit when given ("500 usdc", "$500", "500"); null when absent. For a perp that closes one: the portion ("all", "half", "25%"), or null for the whole position. For a bridge: the ETH to move exactly as written ("0.1", "0.1 ETH"). For a buy: the amount to spend exactly as written, with the asset when the user named one ("0.05", "0.05 ETH", "5 NVDA", "20 USDG"); null when absent or given in USD, in tokens of the token being bought, or as a percentage. For a sell: how much of the holding, exactly as written: "all", "half", "quarter", or a percentage such as "25" or "25%"; null when absent or given in tokens or ETH.',
     ),
   trade_slippage_pct: z.string().nullable().describe('Trade only. Slippage the user asked for as a plain number in percent ("5" for 5%). null when absent.'),
+  perp_leverage: z.string().describe('Perp only. The leverage as a whole number exactly as written, without the x ("10" for "10x"). "" when the post states none, or is not a perp that opens a position.'),
   missing: z.array(z.enum(MISSING_FIELDS)).describe("For kind=clarify: the required values that are missing or ambiguous. Empty otherwise."),
   question: z.string().nullable().describe("For kind=clarify: one short question to the user in the post's language. null otherwise."),
   reply: z.string().nullable().describe("For kind=help: a reply of at most 240 characters in the post's language. null otherwise."),
